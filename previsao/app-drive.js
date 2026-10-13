@@ -1,4 +1,4 @@
-/* Código da Previsão diária v1.10 (sem alterações).
+/* Código da Previsão diária v1.11 (v1.10 + aba "Previsão por cidade").
    Extraído de "Previsão diária — Minas Gerais v1.1.html" para a versão Apps Script
    (carregado de fora para o Apps Script não interferir no código). */
 
@@ -1069,17 +1069,23 @@ $("#bReset").addEventListener("click", () => {
 function showBMsg(kind, html){ const m = $("#bmsg"); m.className = "msg " + kind; m.innerHTML = html; m.hidden = false; }
 // ---- abas ----
 function setView(v){
-  const bul = v === "bul";
-  $("#viewMap").hidden = bul; $("#viewBul").hidden = !bul;
-  $("#tabMap").setAttribute("aria-selected", !bul); $("#tabBul").setAttribute("aria-selected", bul);
+  if (!["map","bul","cid"].includes(v)) v = "map";
+  $("#viewMap").hidden = v !== "map"; $("#viewBul").hidden = v !== "bul"; $("#viewCid").hidden = v !== "cid";
+  $("#tabMap").setAttribute("aria-selected", v === "map"); $("#tabBul").setAttribute("aria-selected", v === "bul"); $("#tabCid").setAttribute("aria-selected", v === "cid");
   document.querySelectorAll(".actions [data-view]").forEach(b => b.hidden = b.dataset.view !== v);
   closePop(false);
-  if (bul){ fillBulletin(); drawBulletin(); } else drawPreview();
+  const selo = document.getElementById("ponteSelo"); if (selo) selo.style.display = v === "cid" ? "none" : "";   // nesta aba o PDF não vai para o Drive
+  if (v === "bul"){ fillBulletin(); drawBulletin(); } else if (v === "cid"){ fillCid(); renderCid(); drawCid(); } else drawPreview();
   try { sessionStorage.setItem("prevmg:view", v); } catch(e){}
 }
-$("#tabMap").addEventListener("click", () => setView("map"));
-$("#tabBul").addEventListener("click", () => setView("bul"));
-$(".tabs").addEventListener("keydown", e => { if (e.key === "ArrowRight" || e.key === "ArrowLeft"){ const to = $("#viewBul").hidden ? "bul" : "map"; setView(to); $(to === "bul" ? "#tabBul" : "#tabMap").focus(); } });
+const VIEWS = [["map","#tabMap"],["bul","#tabBul"],["cid","#tabCid"]];
+VIEWS.forEach(([v, id]) => $(id).addEventListener("click", () => setView(v)));
+$(".tabs").addEventListener("keydown", e => {
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+  const cur = VIEWS.findIndex(([, id]) => $(id).getAttribute("aria-selected") === "true");
+  const [v, id] = VIEWS[(cur + (e.key === "ArrowRight" ? 1 : VIEWS.length - 1)) % VIEWS.length];
+  setView(v); $(id).focus();
+});
 // ---- geração do PDF ----
 $("#btnBulPdf").addEventListener("click", e => busy(e.currentTarget, async () => {
   if (!S.bul.paras.some(t => t.trim())){ showBMsg("err", "Escreva pelo menos um parágrafo de previsão."); return; }
@@ -1107,7 +1113,275 @@ const _drawPreview = drawPreview;
 drawPreview = function(){ _drawPreview(); if (!$("#viewBul").hidden){ fillBulletinAuto(); drawBulletin(); } };
 function fillBulletinAuto(){ if (S.bul.dateAuto) bEl.date.value = bulDate(); if (S.bul.valAuto) bEl.val.value = bulVal(); if (S.bul.obsAuto) bEl.obs.value = bulObs(); }
 
+/* ================= previsão por cidade (PDF A4 retrato, baixado no PC) ================= */
+const CID_EXAMPLE = ["Belo Horizonte", "Paracatu", "Uberlândia", "Curvelo", "Manhuaçu"];
+const CID_TOP = "APPA / IGAM • BOLETIM METEOROLÓGICO";
+const CID_RAINY = /chuv|tempest|granizo|tornado|aviso/;
+const cidExtraFor = v => CID_RAINY.test(v) ? "chuva" : (v === NONE ? "nada" : "umidade");
+const cidDescFor = v => v === NONE ? "" : CAT[v].label;   // "Sem informação" não vira texto no PDF
+const DIAS_SEMANA = ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"];
+const cidLongDate = iso => { if (!iso) return ""; const d = new Date(iso + "T12:00:00"); return `${DIAS_SEMANA[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`; };
+// linha do mapa do dia com o mesmo nome (para puxar ícone e temperaturas)
+const mapRow = name => S.rows.find(r => r.name === name);
+function cidRow(name, o = {}){
+  const m = mapRow(name);
+  const tempo = o.tempo || (m && m.tempo) || NONE;
+  return {id:"c"+(++uid), name, tempo, desc: o.desc ?? cidDescFor(tempo), descAuto: o.desc == null,
+    tmax: o.tmax ?? (m ? m.tmax : ""), tmin: o.tmin ?? (m ? m.tmin : ""), extra: o.extra || cidExtraFor(tempo), a: o.a ?? "", b: o.b ?? ""};
+}
+function cidDefault(){ return {dateAuto:true, dateText:"", temps:"max", top:CID_TOP, obs:"", rows: CID_EXAMPLE.filter(n => MUN.has(n)).map(n => cidRow(n))}; }
+S.cid = S.cid && Array.isArray(S.cid.rows) ? {...cidDefault(), ...S.cid} : cidDefault();
+S.cid.rows = S.cid.rows.filter(r => r && MUN.has(r.name)).map(r => ({...r, id:"c"+(++uid), tempo: CAT[r.tempo] ? r.tempo : NONE}));
+const C$ = q => document.querySelector(q);
+const cidDate = () => S.cid.dateAuto ? cidLongDate(S.date) : S.cid.dateText;
+const cidNum = v => String(v ?? "").trim().replace(".", ",");
+function cidExtraText(r){
+  const a = cidNum(r.a), b = cidNum(r.b);
+  if (r.extra === "chuva"){ if (a && b) return `${a} a ${b} mm`; if (a || b) return `Até ${b || a} mm`; }
+  else if (r.extra === "umidade"){ if (a && b) return `Umidade entre ${a}% e ${b}%`; if (a || b) return `Umidade de ${b || a}%`; }
+  return "";
+}
+function cidTemps(r){
+  const t = v => cidNum(v) ? `${cidNum(v)} °C` : "";
+  if (S.cid.temps === "max") return [t(r.tmax)];
+  if (S.cid.temps === "min") return [t(r.tmin)];
+  return [t(r.tmax), t(r.tmin) ? `mín. ${t(r.tmin)}` : ""];
+}
+function showCMsg(kind, html){ const m = C$("#cmsg"); m.className = "msg " + kind; m.innerHTML = html; m.hidden = false; clearTimeout(showCMsg.t); if (kind !== "err") showCMsg.t = setTimeout(() => m.hidden = true, 8000); }
+
+/* ---- lista editável ---- */
+const CI_UP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>`;
+const CI_DN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`;
+const cListEl = C$("#cList");
+function renderCid(flashId){
+  cListEl.innerHTML = "";
+  if (!S.cid.rows.length){ cListEl.innerHTML = `<div class="cempty">Nenhum município. Pesquise abaixo ou use “Puxar do Mapa do dia”.</div>`; return; }
+  S.cid.rows.forEach((r, i) => cListEl.appendChild(cidItem(r, i)));
+  if (flashId){ const el = cListEl.querySelector(`[data-id="${flashId}"]`); if (el){ el.classList.add("flash"); el.scrollIntoView({block:"nearest", behavior:"smooth"}); } }
+}
+function cidItem(r, i){
+  const el = document.createElement("div"); el.className = "citem"; el.dataset.id = r.id;
+  const n = S.cid.rows.length, t = S.cid.temps;
+  el.innerHTML = `
+    <div class="corder">
+      <button class="icobtn sm" data-a="up" type="button" aria-label="Subir ${esc(r.name)}" title="Subir" ${i===0?"disabled":""}>${CI_UP}</button>
+      <span class="n">${i+1}</span>
+      <button class="icobtn sm" data-a="dn" type="button" aria-label="Descer ${esc(r.name)}" title="Descer" ${i===n-1?"disabled":""}>${CI_DN}</button>
+    </div>
+    <div class="cbody">
+      <div class="cl1">
+        <div class="cname" title="${esc(r.name)}">${esc(r.name)}</div>
+        <span class="condslot"></span>
+        <div class="ctemps">
+          <label class="mx" ${t==="min"?"hidden":""}>Máx.<input class="field mx" data-f="tmax" inputmode="decimal" value="${esc(r.tmax)}" aria-label="Máxima em °C, ${esc(r.name)}"></label>
+          <label class="mn" ${t==="max"?"hidden":""}>Mín.<input class="field mn" data-f="tmin" inputmode="decimal" value="${esc(r.tmin)}" aria-label="Mínima em °C, ${esc(r.name)}"></label>
+        </div>
+        <button class="icobtn" data-a="rm" type="button" title="Remover município" aria-label="Remover ${esc(r.name)}">${ICON_X}</button>
+      </div>
+      <div class="cl2">
+        <label class="csub">Descrição
+          <span class="cdesc"><input class="field ${r.descAuto?"":"edited"}" data-f="desc" value="${esc(r.desc)}" aria-label="Descrição, ${esc(r.name)}">
+          <button class="icobtn" data-a="dreset" type="button" title="Voltar à descrição do ícone" aria-label="Voltar à descrição do ícone" ${r.descAuto?"hidden":""}>${ICON_POS}</button></span>
+        </label>
+        <div class="csub"><span>Informação extra</span>
+          <div class="cextra">
+            <select class="field" data-f="extra" aria-label="Tipo de informação extra, ${esc(r.name)}">
+              <option value="chuva" ${r.extra==="chuva"?"selected":""}>Chuva (mm)</option>
+              <option value="umidade" ${r.extra==="umidade"?"selected":""}>Umidade relativa (%)</option>
+              <option value="nada" ${r.extra==="nada"?"selected":""}>Nenhuma</option>
+            </select>
+            <span class="vals" ${r.extra==="nada"?"hidden":""}>
+              <input class="field" data-f="a" inputmode="decimal" value="${esc(r.a)}" placeholder="de" aria-label="Valor inicial, ${esc(r.name)}"><span class="x"> a </span><input class="field" data-f="b" inputmode="decimal" value="${esc(r.b)}" placeholder="até" aria-label="Valor final, ${esc(r.name)}"> <span class="u">${r.extra==="chuva"?"mm":"%"}</span>
+            </span>
+          </div>
+          <div class="cprev">${esc(cidExtraText(r))}</div>
+        </div>
+      </div>
+    </div>`;
+  const cb = condButton(r.tempo, v => {
+    r.tempo = v;
+    if (r.descAuto) r.desc = cidDescFor(v);
+    if (!cidNum(r.a) && !cidNum(r.b)) r.extra = cidExtraFor(v);
+    const fresh = cidItem(r, S.cid.rows.indexOf(r)); el.replaceWith(fresh); fresh.querySelector(".cond-btn").focus();
+    persist(); drawCid();
+  }, "Ícone de " + r.name);
+  el.querySelector(".condslot").replaceWith(cb);
+  const upd = () => { el.querySelector(".cprev").textContent = cidExtraText(r); persist(); drawCid(); };
+  el.addEventListener("input", e => {
+    const f = e.target.dataset.f; if (!f || f === "extra") return;
+    r[f] = e.target.value;
+    if (f === "desc"){ r.descAuto = false; e.target.classList.add("edited"); el.querySelector('[data-a="dreset"]').hidden = false; }
+    upd();
+  });
+  el.addEventListener("change", e => {
+    if (e.target.dataset.f !== "extra") return;
+    r.extra = e.target.value; el.querySelector(".vals").hidden = r.extra === "nada"; el.querySelector(".u").textContent = r.extra === "chuva" ? "mm" : "%"; upd();
+  });
+  el.addEventListener("click", e => {
+    const b = e.target.closest("[data-a]"); if (!b) return;
+    const k = S.cid.rows.indexOf(r), a = b.dataset.a, R = S.cid.rows;
+    if (a === "rm"){ R.splice(k, 1); renderCid(); persist(); drawCid(); return; }
+    if (a === "up" && k > 0){ [R[k-1], R[k]] = [R[k], R[k-1]]; renderCid(); cListEl.querySelector(`[data-id="${r.id}"] [data-a="up"]`)?.focus(); persist(); drawCid(); }
+    if (a === "dn" && k < R.length-1){ [R[k+1], R[k]] = [R[k], R[k+1]]; renderCid(); cListEl.querySelector(`[data-id="${r.id}"] [data-a="dn"]`)?.focus(); persist(); drawCid(); }
+    if (a === "dreset"){ r.desc = cidDescFor(r.tempo); r.descAuto = true; const inp = el.querySelector('[data-f="desc"]'); inp.value = r.desc; inp.classList.remove("edited"); b.hidden = true; persist(); drawCid(); }
+  });
+  return el;
+}
+function cidAdd(){
+  const inp = C$("#cAddName"); const name = MUN_NORM.get(norm(inp.value));
+  if (!name){ showCMsg("err", inp.value.trim() ? `“${esc(inp.value.trim())}” não está na lista de municípios de MG.` : "Digite o nome de um município."); return; }
+  const dup = S.cid.rows.find(r => r.name === name);
+  if (dup){ showCMsg("info", `${esc(name)} já está na lista.`); renderCid(dup.id); return; }
+  const r = cidRow(name); S.cid.rows.push(r); inp.value = ""; C$("#cmsg").hidden = true;
+  renderCid(r.id); persist(); drawCid();
+  if (mapRow(name)) showCMsg("ok", `${esc(name)} adicionado com o ícone e as temperaturas do Mapa do dia.`);
+}
+C$("#cBtnAdd").addEventListener("click", cidAdd);
+C$("#cAddName").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); cidAdd(); } });
+C$("#cBtnSort").addEventListener("click", () => { S.cid.rows.sort((a,b) => a.name.localeCompare(b.name, "pt-BR", {sensitivity:"base"})); renderCid(); persist(); drawCid(); });
+C$("#cBtnClear").addEventListener("click", () => {
+  if (!S.cid.rows.length) return;
+  const old = S.cid.rows; S.cid.rows = []; renderCid(); persist(); drawCid();
+  showCMsg("info", `Lista esvaziada. <button class="btn small ghost" id="cUndo" type="button">Desfazer</button>`);
+  C$("#cUndo")?.addEventListener("click", () => { S.cid.rows = old; renderCid(); persist(); drawCid(); C$("#cmsg").hidden = true; });
+});
+C$("#cBtnImport").addEventListener("click", () => {
+  let upd = 0;
+  if (!S.cid.rows.length){   // lista vazia: traz todos os municípios preenchidos no mapa
+    S.rows.filter(m => m.tempo !== NONE).forEach(m => { S.cid.rows.push(cidRow(m.name)); upd++; });
+  } else S.cid.rows.forEach(r => { const m = mapRow(r.name); if (!m) return;
+    r.tempo = m.tempo; r.tmax = m.tmax; r.tmin = m.tmin; if (r.descAuto) r.desc = cidDescFor(r.tempo); upd++; });
+  renderCid(); persist(); drawCid();
+  showCMsg(upd ? "ok" : "info", upd ? `${upd} município${upd>1?"s":""} com o ícone e as temperaturas do Mapa do dia. Descrições editadas à mão foram mantidas.` : "Nenhum município desta lista está no Mapa do dia.");
+});
+/* data, temperatura e textos */
+const cEl = {date:C$("#cDate"), dateText:C$("#cDateText"), dateAuto:C$("#cDateAuto"), top:C$("#cTop"), obs:C$("#cObs")};
+function fillCid(){
+  cEl.date.value = S.date || "";
+  cEl.dateAuto.checked = S.cid.dateAuto; cEl.dateText.readOnly = S.cid.dateAuto; cEl.dateText.value = cidDate();
+  cEl.top.value = S.cid.top; cEl.obs.value = S.cid.obs;
+  document.querySelectorAll("[data-ctemps]").forEach(b => { const on = b.dataset.ctemps === S.cid.temps; b.setAttribute("aria-checked", on); b.tabIndex = on ? 0 : -1; });
+}
+// a data é a mesma do Mapa do dia: mudar aqui muda lá também
+cEl.date.addEventListener("input", () => { dateEl.value = cEl.date.value; dateEl.dispatchEvent(new Event("input")); fillCid(); drawCid(); });
+cEl.dateAuto.addEventListener("change", () => { S.cid.dateAuto = cEl.dateAuto.checked; if (!S.cid.dateAuto) S.cid.dateText = cidLongDate(S.date); fillCid(); persist(); drawCid(); });
+cEl.dateText.addEventListener("input", () => { S.cid.dateText = cEl.dateText.value; persist(); drawCid(); });
+cEl.top.addEventListener("input", () => { S.cid.top = cEl.top.value; persist(); drawCid(); });
+cEl.obs.addEventListener("input", () => { S.cid.obs = cEl.obs.value; persist(); drawCid(); });
+document.querySelectorAll("[data-ctemps]").forEach(b => b.addEventListener("click", () => { S.cid.temps = b.dataset.ctemps; fillCid(); renderCid(); persist(); drawCid(); }));
+C$("#cTempsSeg").addEventListener("keydown", e => {
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return; e.preventDefault(); e.stopPropagation();
+  const o = ["max","min","both"]; S.cid.temps = o[(o.indexOf(S.cid.temps) + (e.key === "ArrowRight" ? 1 : 2)) % 3];
+  fillCid(); renderCid(); persist(); drawCid(); C$(`[data-ctemps="${S.cid.temps}"]`).focus();
+});
+
+/* ---- layout A4 (mesmas medidas na prévia e no PDF) ---- */
+const CPG = {w:210, h:297, m:18, head:34, row:25, foot:16};
+const CCOL = {ink:"#1d1d1f", sub:"#2f2f33", muted:"#6e6e73", line:"#e3e3e6", min:"#1764bf"};
+let _cdoc = null;
+function cTextW(t, pt, bold){
+  if (!_cdoc && window.jspdf) _cdoc = new window.jspdf.jsPDF({unit:"mm", format:"a4"});
+  if (!_cdoc) return String(t).length * pt * PT * .55;
+  _cdoc.setFont("helvetica", bold ? "bold" : "normal"); _cdoc.setFontSize(pt); return _cdoc.getTextWidth(String(t));
+}
+const cFit = (t, pt, maxW, bold) => { let s = pt; while (s > 6 && cTextW(t, s, bold) > maxW) s -= .25; return s; };   // diminui a letra se o texto não couber na linha
+function cidPages(){
+  const obs = pdfSafe(S.cid.obs).trim(), obsH = obs ? 6 + obs.split("\n").length * 4.4 : 0;
+  const per = Math.max(1, Math.floor((CPG.h - CPG.head - CPG.foot) / CPG.row));
+  const pages = [];
+  for (let i = 0; i < S.cid.rows.length; i += per) pages.push(S.cid.rows.slice(i, i+per));
+  if (!pages.length) pages.push([]);
+  if (obsH && CPG.head + pages[pages.length-1].length * CPG.row + obsH > CPG.h - CPG.foot) pages.push([]);
+  return {pages, obs, obsH};
+}
+function cIconBox(c, cx, cy){ const s = 13; let w = s, h = s * (c.ar || 1); if (h > s){ h = s; w = s / (c.ar || 1); } return {x:cx - w/2, y:cy - h/2, w, h}; }
+function cidItems(rows, pi, total, obs){
+  const it = [], L = CPG.m, R = CPG.w - CPG.m, X = L + 22;
+  const top = pdfSafe(S.cid.top).toUpperCase();
+  it.push({k:"t", x:L, y:20, pt:cFit(top, 7.5, R-L, true), t:top, c:CCOL.muted, b:true});
+  const dt = pdfSafe(cidDate());
+  it.push({k:"t", x:L, y:28.2, pt:cFit(dt, 15, R-L, true), t:dt, c:CCOL.ink, b:true});
+  it.push({k:"l", y:CPG.head});
+  rows.forEach((r, i) => {
+    const y0 = CPG.head + i*CPG.row, c = CAT[r.tempo] || CAT[NONE];
+    const [t1, t2] = cidTemps(r);
+    const tw = Math.max(t1 ? cTextW(t1, 12, true) : 0, t2 ? cTextW(t2, 9.5) : 0);
+    const maxW = R - X - (tw ? tw + 5 : 0);
+    it.push({k:"i", c, ...cIconBox(c, L + 8, y0 + CPG.row/2)});
+    it.push({k:"t", x:X, y:y0+8.6, pt:cFit(r.name, 12, maxW, true), t:r.name, c:CCOL.ink, b:true});
+    const d = pdfSafe(r.desc).trim(); if (d) it.push({k:"t", x:X, y:y0+14.4, pt:cFit(d, 10, R - X), t:d, c:CCOL.sub});
+    const ex = cidExtraText(r); if (ex) it.push({k:"t", x:X, y:y0+19.6, pt:9, t:ex, c:CCOL.muted});
+    if (t1) it.push({k:"t", x:R, y:y0+8.6, pt:12, t:t1, c:S.cid.temps === "min" ? CCOL.min : CCOL.ink, b:true, r:1});
+    if (t2) it.push({k:"t", x:R, y:y0+14.4, pt:9.5, t:t2, c:CCOL.min, r:1});
+    if (i < rows.length-1 || pi < total-1 || obs) it.push({k:"l", y:y0+CPG.row});
+  });
+  if (pi === total-1 && obs){ let y = CPG.head + rows.length*CPG.row + 7; obs.split("\n").forEach(l => { it.push({k:"t", x:L, y, pt:cFit(l, 8.5, R-L), t:l, c:CCOL.muted}); y += 4.4; }); }
+  it.push({k:"t", x:R, y:CPG.h-9, pt:8, t:`Página ${pi+1} de ${total}`, c:CCOL.muted, r:1});
+  return it;
+}
+function cidSVG(items){
+  const p = [`<svg viewBox="0 0 ${CPG.w} ${CPG.h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Página da previsão por cidade"><rect width="${CPG.w}" height="${CPG.h}" fill="#fff"/>`];
+  for (const o of items){
+    if (o.k === "l") p.push(`<line x1="${CPG.m}" x2="${CPG.w-CPG.m}" y1="${o.y}" y2="${o.y}" stroke="${CCOL.line}" stroke-width=".3"/>`);
+    else if (o.k === "i") p.push(`<image href="${o.c.src}" x="${f2(o.x)}" y="${f2(o.y)}" width="${f2(o.w)}" height="${f2(o.h)}" preserveAspectRatio="xMidYMid meet"/>`);
+    else p.push(`<text x="${f2(o.x)}" y="${f2(o.y)}" font-family="Helvetica, Arial, 'Liberation Sans', sans-serif" font-size="${(o.pt*PT).toFixed(3)}" font-weight="${o.b?700:400}" fill="${o.c}"${o.r?' text-anchor="end"':""}>${esc(o.t)}</text>`);
+  }
+  p.push("</svg>"); return p.join("");
+}
+let cidQ = 0;
+function drawCid(){
+  if (C$("#viewCid").hidden) return;
+  cancelAnimationFrame(cidQ);
+  cidQ = requestAnimationFrame(() => {
+    const {pages, obs} = cidPages();
+    C$("#cPages").innerHTML = pages.map((rows, i) => `<div class="a4">${cidSVG(cidItems(rows, i, pages.length, obs))}</div>` + (pages.length > 1 ? `<div class="pgnum">Página ${i+1} de ${pages.length}</div>` : "")).join("");
+    const n = S.cid.rows.length;
+    C$("#cPagesInfo").textContent = `210 × 297 mm · ${n} município${n===1?"":"s"} · ${pages.length} página${pages.length>1?"s":""}`;
+  });
+}
+/* ---- PDF: baixado direto no PC (data-local="1" faz a ponte do Drive deixar passar) ---- */
+const cPng = new Map();
+function cidPng(c){
+  if (!cPng.has(c.value)) cPng.set(c.value, new Promise((res, rej) => { const im = new Image();
+    im.onload = () => { const cv = document.createElement("canvas"); cv.width = im.naturalWidth; cv.height = im.naturalHeight; cv.getContext("2d").drawImage(im, 0, 0); res(cv.toDataURL("image/png")); };
+    im.onerror = () => rej(new Error("ícone")); im.src = c.src; }));
+  return cPng.get(c.value);
+}
+const cHex = h => [1,3,5].map(i => parseInt(h.slice(i, i+2), 16));
+function baixarLocal(filename, blob){
+  if (typeof window.ponteBaixarNoPc === "function") return window.ponteBaixarNoPc(filename, blob);
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; a.setAttribute("data-local", "1");
+  document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+}
+C$("#btnCidPdf").addEventListener("click", e => busy(e.currentTarget, async () => {
+  if (!S.date){ cEl.date.setAttribute("aria-invalid", "true"); cEl.date.focus(); showCMsg("err", "Escolha a data da previsão."); return; }
+  cEl.date.removeAttribute("aria-invalid");
+  if (!S.cid.rows.length){ showCMsg("err", "Adicione pelo menos um município antes de gerar o PDF."); return; }
+  const semT = S.cid.rows.filter(r => cidTemps(r).every(t => !t)).map(r => r.name);
+  const semI = S.cid.rows.filter(r => r.tempo === NONE).map(r => r.name);
+  const issues = [];
+  if (semT.length) issues.push(`Sem temperatura: ${semT.join(", ")}.`);
+  if (semI.length) issues.push(`Com ícone “Sem informação”: ${semI.join(", ")}.`);
+  if (issues.length && !await ask("Conferir antes de gerar", `<ul style="margin:0;padding-left:18px">${issues.map(i => `<li>${esc(i)}</li>`).join("")}</ul>`, [["Voltar e completar", false, "ghost"], ["Gerar assim mesmo", true, "primary"]])) return;
+  try {
+    const JsPDF = await loadJsPdf();
+    const pdf = new JsPDF({orientation:"portrait", unit:"mm", format:"a4", compress:true});
+    const {pages, obs} = cidPages();
+    for (let pi = 0; pi < pages.length; pi++){
+      if (pi) pdf.addPage("a4", "portrait");
+      for (const o of cidItems(pages[pi], pi, pages.length, obs)){
+        if (o.k === "l"){ pdf.setDrawColor(...cHex(CCOL.line)); pdf.setLineWidth(.3); pdf.line(CPG.m, o.y, CPG.w - CPG.m, o.y); }
+        else if (o.k === "i") pdf.addImage(await cidPng(o.c), "PNG", o.x, o.y, o.w, o.h, undefined, "FAST");
+        else { pdf.setFont("helvetica", o.b ? "bold" : "normal"); pdf.setFontSize(o.pt); pdf.setTextColor(...cHex(o.c)); pdf.text(o.t, o.x, o.y, o.r ? {align:"right"} : undefined); }
+      }
+    }
+    pdf.setProperties({title:`Previsão por cidade - ${cidDate()}`, author:"SIMGE/IGAM", creator:"Previsão diária MG 1.11"});
+    baixarLocal(`previsao_cidades_${S.date}.pdf`, pdf.output("blob"));
+    showCMsg("ok", `PDF de ${fmtDateBR(S.date)} baixado no seu computador (${pages.length} página${pages.length>1?"s":""}).`);
+  } catch(err){ showCMsg("err", "Não foi possível gerar o PDF. Tente novamente."); }
+}));
+
 /* ================= início ================= */
 fillTexts(); fillOpts(); applyTempsUI(); renderRows(); updateNotice(); updateStatus(); renderBg(); drawPreview();
-try { if (sessionStorage.getItem("prevmg:view") === "bul") setView("bul"); } catch(e){}
+try { const v = sessionStorage.getItem("prevmg:view"); if (v === "bul" || v === "cid") setView(v); } catch(e){}
 idb.all().then(list => { BG = (list || []).sort((a,b) => a.id.localeCompare(b.id)); renderBg(); drawPreview(); }).catch(() => {});
