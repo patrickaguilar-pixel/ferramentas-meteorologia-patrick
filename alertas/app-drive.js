@@ -1,8 +1,8 @@
-/* Alertas e passagem de plantão — código da página (v3.4.1, 09/10/2026).
-   v3.4.1: proteção de turno — aviso quando o plantão aberto é de um turno que já terminou (ex.: Diurno
-   ainda aberto às 19h30: os alertas entrariam no relatório do Diurno); confirmação ao marcar um turno
-   diferente do horário atual; aviso ao encerrar plantão sem nenhum alerta; mensagem clara quando a conta
-   ainda não autorizou o envio de e-mail.
+/* Alertas e passagem de plantão — código da página (v3.5, 13/10/2026).
+   v3.5: municípios com alerta ainda VIGENTE de plantões anteriores continuam pintados no mapa
+   (cor mais clara e contorno tracejado), entram na dica do mouse e no aviso de duplicação, e aparecem
+   numa lista própria. Não entram no relatório, no TXT nem em "Alertas gerados", e não podem ser
+   excluídos daqui. Usa a função alertasVigentesAnteriores (AlertasVigentes.gs); sem ela, nada muda.
    v3.4: ao salvar a passagem, o PDF do relatório sempre baixa no PC e vai para o Drive, e a página
    pergunta "Enviar e-mail para Flávia, Laís e Paula?". Sim = envia (Email.gs); Não = só PC e Drive.
    Sem o Email.gs no Apps Script, a página mostra o lembrete antigo de e-mail.
@@ -259,7 +259,7 @@ const RANK={alerted:3,expiring:2,expired:1};
 /* Alerta que define a situação atual do município (para a dica do mouse). */
 function alertaDoMunicipio(name){
   const nowTs=Date.now();let melhor=null,rm=0;
-  state.active.forEach(a=>{
+  state.active.concat(herdadosVigentes(nowTs)).forEach(a=>{
     if(!a.cities.includes(name))return;
     const r=RANK[classeDoAlerta(a,nowTs)];
     if(!melhor||r>rm||(r===rm&&(a.expiresAt||0)>(melhor.expiresAt||0))){melhor=a;rm=r;}
@@ -267,12 +267,14 @@ function alertaDoMunicipio(name){
   return melhor;
 }
 function pintarMapa(){
-  const nowTs=Date.now(),cls=new Map();
+  const nowTs=Date.now(),cls=new Map(),herd=new Set();
   state.active.forEach(a=>{const c=classeDoAlerta(a,nowTs);a.cities.forEach(n=>{if(!cls.has(n)||RANK[c]>RANK[cls.get(n)])cls.set(n,c);});});
+  // v3.5: alertas vigentes de plantões anteriores — só pintam se o plantão atual não tiver coisa mais importante no município
+  herdadosVigentes(nowTs).forEach(a=>{const c=classeDoAlerta(a,nowTs);a.cities.forEach(n=>{if(!cls.has(n)||RANK[c]>RANK[cls.get(n)]){cls.set(n,c);herd.add(n);}});});
   pathByName.forEach((p,n)=>{
-    p.classList.remove('selected','alerted','expiring','expired');
+    p.classList.remove('selected','alerted','expiring','expired','herdado');
     if(state.selected.has(n))p.classList.add('selected');
-    else if(cls.has(n))p.classList.add(cls.get(n));
+    else if(cls.has(n)){p.classList.add(cls.get(n));if(herd.has(n))p.classList.add('herdado');}
   });
 }
 function atualizarCards(){
@@ -285,7 +287,7 @@ function atualizarCards(){
     if(s)s.textContent=c==='expired'?'Prazo vencido':(c==='expiring'?'Perto de vencer':'Vigente');
   });
 }
-setInterval(()=>{pintarMapa();atualizarCards();try{mostrarTurno();}catch(e){}},30000);
+setInterval(()=>{pintarMapa();atualizarCards();},30000);
 
 function toggleCity(name){state.selected.has(name)?state.selected.delete(name):state.selected.add(name);updateSelection();}
 function updateSelection(){
@@ -304,7 +306,7 @@ function showTip(ev,name){
   const n=a?state.active.filter(x=>x.cities.includes(name)).length:0;
   const f=featureByName.get(name),meso=f&&f.properties.meso?'<br>'+esc(f.properties.meso):'';
   tooltip.style.display='block';tooltip.style.left=(ev.clientX+12)+'px';tooltip.style.top=(ev.clientY+12)+'px';
-  tooltip.innerHTML=a?`<b>${esc(name)}</b>${meso}<br>${esc(a.type)}<br>${esc(a.start)}–${esc(a.end)}<br>Responsável: ${esc(a.owner)}${n>1?`<br><i>${n} alertas neste plantão</i>`:''}`:`<b>${esc(name)}</b>${meso}`;
+  tooltip.innerHTML=a?`<b>${esc(name)}</b>${meso}<br>${esc(a.type)}<br>${esc(a.start)}–${esc(a.end)}<br>Responsável: ${esc(a.owner)}${a.herdado?'<br><i>Plantão anterior (só visual)</i>':''}${n>1?`<br><i>${n} alertas neste plantão</i>`:''}`:`<b>${esc(name)}</b>${meso}`;
 }
 function now(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
 function hojeLocal(){const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
@@ -468,6 +470,7 @@ function desenharAlertas(){
     a.cardEl=card;box.appendChild(card);
   });
   $('activeCount').textContent=state.active.length;
+  desenharHerdados();
   preencherAlertasGerados();
   atualizarCards();
   agendarRelatorio(true);
@@ -897,28 +900,19 @@ async function relatorioFinal(snap,nomesLocais){
   if(envio&&envio.ok)partes.push('E-mail enviado para <b>'+esc(NOMES_EMAIL_PLANTAO)+'</b>'+(envio.x&&envio.x.cc?' (cópia para você)':'')+'.');
   else if(envio){
     erro=true;
-    partes.push('<b>O e-mail NÃO foi enviado</b> '+motivoEmail(envio.e)+' Envie o PDF manualmente desta vez.');
+    partes.push('<b>O e-mail NÃO foi enviado</b> ('+esc(envio.e&&envio.e.message?envio.e.message:envio.e)+'). Tente de novo ou envie o PDF manualmente.');
     let enviando=false;
     acoes.push(['Tentar enviar o e-mail de novo',async()=>{
       if(enviando)return;enviando=true;
       const x=await enviarEmailRelatorio(snap.id,nome,b64,t);enviando=false;
-      aviso(x.ok?'E-mail enviado para <b>'+esc(NOMES_EMAIL_PLANTAO)+'</b>.':'<b>O e-mail NÃO foi enviado</b> '+motivoEmail(x.e)+' Envie o PDF manualmente.',!x.ok,[['Baixar de novo',pc]]);
+      aviso(x.ok?'E-mail enviado para <b>'+esc(NOMES_EMAIL_PLANTAO)+'</b>.':'<b>O e-mail NÃO foi enviado</b> ('+esc(x.e&&x.e.message?x.e.message:x.e)+'). Envie o PDF manualmente.',!x.ok,[['Baixar de novo',pc]]);
     }]);
   }else if(temFuncao('enviarRelatorioPorEmail'))partes.push('E-mail não enviado (você escolheu "Não").');
   aviso(partes.join('<br>'),erro,acoes);
 }
 
 /* ---- v3.4: envio do relatório por e-mail (função enviarRelatorioPorEmail do Email.gs) ---- */
-const NOMES_EMAIL_PLANTAO='Flávia, Laís e Paula';
-/* Explica o erro do envio. Falta de permissão (script.send_mail) não adianta "tentar de novo":
-   a conta precisa autorizar o envio de e-mail abrindo o link do app de novo. */
-function motivoEmail(e){
-  const m=String(e&&e.message?e.message:e||'');
-  if(/send_mail|MailApp|permiss/i.test(m))
-    return '— sua conta ainda não autorizou o app a enviar e-mail. <b>Feche esta aba, abra o link do app de novo</b> e aceite a permissão '+
-      '"Enviar e-mail como você". Se a tela de permissão não aparecer, avise quem administra o app.';
-  return '('+esc(m)+').';
-}   // só o texto da pergunta; os endereços ficam no Email.gs
+const NOMES_EMAIL_PLANTAO='Flávia, Laís e Paula';   // só o texto da pergunta; os endereços ficam no Email.gs
 function enviarEmailRelatorio(id,nome,b64,t){
   return new Promise(ok=>google.script.run
     .withSuccessHandler(x=>ok({ok:true,x}))
@@ -938,7 +932,7 @@ function perguntarEnvioEmail(t){
         '<div class="r"><button type="button" class="btn" data-nao>Não</button> <button type="button" class="btn primary" data-sim>Sim, enviar</button></div>';
       document.body.appendChild(dlg);
     }
-    dlg.querySelector('[data-rotulo]').textContent=rotuloTurno(t);
+    dlg.querySelector('[data-rotulo]').textContent=(t&&t.data?t.data:'')+(t&&t.turno?' – '+t.turno:'');
     let resposta=false;
     dlg.querySelector('[data-sim]').onclick=()=>{resposta=true;dlg.close();};
     dlg.querySelector('[data-nao]').onclick=()=>{resposta=false;dlg.close();};
@@ -989,6 +983,7 @@ function salvarPassagemAgora(){
       status('Passagem do plantão '+(snap.id||'')+' salva. O próximo plantonista verá este registro ao abrir.','ok');
       carregarContexto();
       limparMapaPrevisoes();
+      sincronizarAlertas();   // v3.5: os alertas ainda vigentes do plantão encerrado voltam ao mapa como "plantão anterior"
       relatorioFinal(snap,nomesLocais);   // v3.4: a pergunta do e-mail (ou o lembrete antigo) vem de dentro do relatorioFinal
     })
     .withFailureHandler(err=>{
@@ -1007,14 +1002,6 @@ $('salvarPlantao').onclick=()=>{
   $('salvarPlantao').disabled=true;status('Conferindo os alertas da equipe…');
   sincronizarAlertas(()=>{
     $('salvarPlantao').disabled=false;
-    const j=janelaTurno(state.turno),agora=Date.now();
-    if(j&&(agora<j.ini-3600000||agora>j.fim+4*3600000)&&!confirm('O plantão está marcado como '+rotuloTurno(state.turno)+
-      ', mas pelo horário atual o turno é '+rotuloTurno(turnoPeloRelogio())+'.\n\nO relatório e o PDF vão sair como '+rotuloTurno(state.turno)+'. Encerrar mesmo assim?')){
-      status('Encerramento cancelado. Confira o turno no campo "Plantão".');return;}
-    if(!state.active.length&&!confirm('Este plantão não tem nenhum alerta registrado — o relatório vai sair com o mapa vazio.\n\n'+
-      'Se você emitiu alertas neste turno, eles podem ter ido para o plantão anterior, que outra pessoa encerrou. '+
-      'Confira a aba Alertas da planilha antes.\n\nEncerrar mesmo assim?')){
-      status('Encerramento cancelado.');return;}
     const outros=[...new Set(state.active.filter(a=>!podeExcluir(a)).map(a=>a.owner||a.email).filter(Boolean))];
     if(outros.length&&!confirm(textList(outros)+(outros.length>1?' também emitiram':' também emitiu')+
       ' alertas neste plantão ('+rotuloTurno(state.turno)+').\n\nEncerrar o plantão para todos?')){status('Encerramento cancelado.');return;}
@@ -1096,7 +1083,6 @@ function sincronizarAlertas(cb){
       });
       state.active=lista.concat(manter).sort((x,y)=>(y.expiresAt||0)-(x.expiresAt||0));
       state.plantaoId=agora;
-      try{mostrarTurno();}catch(e){}   // atualiza o aviso de turno com o plantão já conhecido
       if(antes!==agora)mostrarIdPlantao(agora?{id:agora,iniciadoEm:r.iniciadoEm}:null);
       if(encerradoPorOutro){
         status('O plantão '+antes+' foi encerrado por outro plantonista. Os alertas dele já estão no relatório; '+
@@ -1104,9 +1090,9 @@ function sincronizarAlertas(cb){
         carregarContexto();
       }
       desenharAlertas();pintarMapa();salvarRascunho();
-      fimSync();
+      carregarHerdados(fimSync);   // v3.5: atualiza os vigentes de plantões anteriores antes de liberar quem esperava
     })
-    .withFailureHandler(()=>{sincronizando=false;fimSync();})   // sem conexão: mantém o que está na tela
+    .withFailureHandler(()=>{sincronizando=false;carregarHerdados(fimSync);})   // sem conexão: mantém o que está na tela
     [temFuncao('alertasDoPlantaoAtualTurno')?'alertasDoPlantaoAtualTurno':'alertasDoPlantaoAtual']();
 }
 setInterval(sincronizarAlertas,60000);
@@ -1134,19 +1120,6 @@ function turnoPeloRelogio(){
   const agora=new Date(),h=Number(partesMG(agora).hour);
   if(h>=7&&h<19)return {turno:'Diurno',data:isoMG(agora)};
   return {turno:'Noturno',data:isoMG(h<7?new Date(agora.getTime()-12*3600000):agora)};
-}
-/* início e fim do turno em milissegundos (horário de Brasília, UTC-3, sem horário de verão) */
-function janelaTurno(t){
-  if(!t||!t.data||!TURNOS[t.turno])return null;
-  const ini=Date.parse(t.data+'T'+TURNOS[t.turno].inicio+':00-03:00');
-  return {ini,fim:ini+12*3600000};
-}
-const mesmoTurno=(a,b)=>!!a&&!!b&&a.turno===b.turno&&a.data===b.data;
-/* plantão aberto pertence a um turno que já terminou (ex.: Diurno de hoje, agora 19h30) */
-function turnoDoPlantaoJaTerminou(){
-  if(!state.plantaoId||!turnoServidor)return false;
-  const j=janelaTurno(turnoServidor);
-  return !!j&&Date.now()>=j.fim;
 }
 function rotuloTurno(t){return t&&t.turno?dataBR(t.data)+' – '+t.turno:'(turno não escolhido)';}
 function nomeRelatorio(snap){
@@ -1193,16 +1166,6 @@ function mostrarTurno(){
     const quem=turnoServidor&&turnoServidor.por&&state.plantaoId?String(turnoServidor.por).split('@')[0]:'';
     info.textContent='Pasta no Drive: '+pasta+(quem?' · definido no 1º alerta ('+quem+')':'');
     info.title=quem?'Turno definido no primeiro alerta do plantão por '+turnoServidor.por+'.':'';
-    info.style.opacity='.75';info.style.color='';info.style.fontWeight='';
-    const relogio=turnoPeloRelogio();
-    if(turnoDoPlantaoJaTerminou()){
-      info.textContent='⚠ O plantão aberto é do turno '+rotuloTurno(turnoServidor)+', que já terminou e ainda não foi encerrado. '+
-        'Os alertas emitidos agora entram no relatório desse turno. Se você estava nesse turno, encerre o plantão (botão de salvar a passagem); se não, peça a quem estava.';
-      info.style.opacity='1';info.style.color='#b45309';info.style.fontWeight='600';
-    }else if(!mesmoTurno(state.turno,relogio)&&!state.plantaoId){
-      info.textContent='⚠ Pelo horário atual o turno é '+rotuloTurno(relogio)+'. Confira se o turno marcado está certo. · Pasta: '+pasta;
-      info.style.opacity='1';info.style.color='#b45309';info.style.fontWeight='600';
-    }
   }
 }
 function preencherHorariosTurno(){
@@ -1220,10 +1183,6 @@ function aplicarTurnoDoServidor(t){
 }
 function alterarTurno(novo){
   const antes={...state.turno};
-  const relogio=turnoPeloRelogio();
-  if(!mesmoTurno(novo,relogio)&&!confirm('Pelo horário atual (Brasília), o turno é '+rotuloTurno(relogio)+'.\n\n'+
-    'Você está marcando '+rotuloTurno(novo)+'. O relatório, as pastas do Drive e o .txt vão sair com esse turno.\n\n'+
-    'Confirmar '+rotuloTurno(novo)+'?')){mostrarTurno();return;}
   if(state.plantaoId&&turnoServidor&&temFuncao('definirTurnoPlantao')){
     if(!confirm('O plantão '+state.plantaoId+' já está como '+rotuloTurno(antes)+'.\n\n'+
       'Mudar para '+rotuloTurno(novo)+' vale para toda a equipe neste plantão. Os próximos arquivos irão para a nova pasta '+
@@ -1255,33 +1214,81 @@ function preencherAlertasGerados(){
 /* ---- aviso de duplicação: só para alertas ainda vigentes ---- */
 function alertasVigentesEm(cities){
   const t=Date.now(),alvo=new Set(cities),out=[];
-  state.active.forEach(a=>{
+  state.active.concat(herdadosVigentes(t)).forEach(a=>{
     if(a.expiresAt&&a.expiresAt<=t)return;            // vencido: pode emitir de novo
     const em=(a.cities||[]).filter(n=>alvo.has(n));
     if(em.length)out.push({a,em});
   });
   return out;
 }
+/* ---- v3.5: alertas vigentes de plantões anteriores (só visual + aviso de duplicação) ---- */
+state.herdados=[];
+(function estiloHerdado(){
+  const st=document.createElement('style');
+  st.textContent='path.herdado{fill-opacity:.5;stroke-dasharray:3 2;stroke-width:1.2px}'+
+    '#herdadosBox{margin-top:12px}#herdadosBox h4{margin:0 0 6px;font-size:.95em}'+
+    '#herdadosBox .alert-card{border-style:dashed;opacity:.85}';
+  document.head.appendChild(st);
+})();
+/* Só os que ainda estão no prazo e que não são do plantão em andamento. */
+function herdadosVigentes(t){
+  t=t||Date.now();
+  const doPlantao=new Set(state.active.map(a=>a.id));
+  return (state.herdados||[]).filter(a=>a.expiresAt&&a.expiresAt>t&&!doPlantao.has(a.id)&&!(state.plantaoId&&a.plantaoId===state.plantaoId));
+}
+function carregarHerdados(cb){
+  let feito=false;const fim=()=>{if(!feito){feito=true;if(typeof cb==='function')cb();}};
+  if(!temFuncao('alertasVigentesAnteriores')){fim();return;}
+  setTimeout(fim,15000);
+  google.script.run
+    .withSuccessHandler(r=>{
+      state.herdados=((r&&r.alertas)||[]).map(sv=>{
+        const start=hhmm(sv.start),duration=hhmm(sv.duration)||'02:00';
+        return {id:sv.id,plantaoId:sv.plantaoId||'',herdado:true,type:sv.type||'',
+          owner:sv.owner||sv.email||'',email:String(sv.email||'').toLowerCase(),
+          start,duration,end:hhmm(sv.end)||(start?endTime(start,duration):''),
+          cities:Array.isArray(sv.cities)?sv.cities:[],
+          phen:String(sv.phen||'').split(',').map(x=>x.trim()).filter(Boolean),
+          kmlUrl:sv.kmlUrl||'',expiresAt:expiraEm(sv.registradoEm,start,duration)};
+      });
+      desenharHerdados();pintarMapa();fim();
+    })
+    .withFailureHandler(()=>fim())   // sem conexão: mantém a última lista
+    .alertasVigentesAnteriores();
+}
+/* Lista "Alertas vigentes de plantões anteriores", logo abaixo da lista do plantão. Sem botão de excluir. */
+function desenharHerdados(){
+  const lista=$('activeList');if(!lista)return;
+  let box=document.getElementById('herdadosBox');
+  if(!box){box=document.createElement('div');box.id='herdadosBox';lista.insertAdjacentElement('afterend',box);}
+  const h=herdadosVigentes().sort((x,y)=>(x.expiresAt||0)-(y.expiresAt||0));
+  if(!h.length){box.innerHTML='';box.hidden=true;return;}
+  box.hidden=false;
+  box.innerHTML='<h4>Alertas vigentes de plantões anteriores ('+h.length+')</h4>'+
+    '<p class="hint" style="margin:0 0 6px">Só para controle no mapa: não entram no relatório nem no TXT deste plantão.</p>';
+  const nowTs=Date.now();
+  h.forEach(a=>{
+    const c=classeDoAlerta(a,nowTs);
+    const card=document.createElement('div');card.className='alert-card'+(c==='expiring'?' expiring':'');
+    card.innerHTML=`<b>${esc(a.type)}</b><div>${esc(a.start)}–${esc(a.end)} • ${esc(a.owner)}</div>`+
+      `<div class="alert-status">${c==='expiring'?'Perto de vencer':'Vigente'} · plantão anterior</div>`+
+      `<div>${a.cities.length} município(s): ${esc(a.cities.join(', '))}</div>`+
+      (/^https:\/\//.test(a.kmlUrl||'')?`<div><a href="${esc(a.kmlUrl)}" target="_blank" rel="noopener">Abrir KML no Drive</a></div>`:'');
+    box.appendChild(card);
+  });
+}
+setInterval(desenharHerdados,30000);   // tira da lista quem venceu (o mapa já é repintado a cada 30 s)
+
 const emitirAgora=$('emit').onclick;
-let avisoTurnoAceito='';
 $('emit').onclick=()=>{
   const cities=[...state.selected];if(!cities.length)return;
   if(!/^([01]?\d|2[0-3]):[0-5]\d$/.test($('time').value.trim())){emitirAgora();return;}   // a própria emissão mostra o erro
   $('emit').disabled=true;emitStatus('Conferindo os alertas vigentes da equipe…');
   sincronizarAlertas(()=>{
     $('emit').disabled=false;
-    if(turnoDoPlantaoJaTerminou()&&avisoTurnoAceito!==state.plantaoId){
-      if(!confirm('ATENÇÃO: o plantão aberto ('+state.plantaoId+') é do turno '+rotuloTurno(turnoServidor)+', que já terminou e ainda não foi encerrado.\n\n'+
-        'Se você emitir agora, este alerta vai para o relatório do turno '+rotuloTurno(turnoServidor)+' — e quando esse plantão for encerrado, ele sai da sua tela.\n\n'+
-        'O certo é quem estava nesse turno encerrar o plantão antes (aba Plantão e relatório). Depois disso, o próximo alerta abre o plantão '+rotuloTurno(turnoPeloRelogio())+'.\n\n'+
-        'OK = emitir mesmo assim neste plantão   ·   Cancelar = não emitir agora')){
-        emitStatus('Emissão cancelada: o plantão do turno anterior ainda está aberto.','erro');return;
-      }
-      avisoTurnoAceito=state.plantaoId;   // pergunta uma vez por plantão
-    }
     const dup=alertasVigentesEm(cities);
     if(dup.length){
-      const linhas=dup.slice(0,12).map(({a,em})=>'• '+em.join(', ')+': '+(a.type||'alerta')+' até '+(a.end||'?')+(a.owner?' ('+a.owner+')':''));
+      const linhas=dup.slice(0,12).map(({a,em})=>'• '+em.join(', ')+': '+(a.type||'alerta')+' até '+(a.end||'?')+(a.owner?' ('+a.owner+')':'')+(a.herdado?' — plantão anterior':''));
       if(dup.length>12)linhas.push('• … e mais '+(dup.length-12)+' alerta(s)');
       if(!confirm('Já há alerta VIGENTE para:\n\n'+linhas.join('\n')+'\n\nEmitir mesmo assim?')){
         emitStatus('Emissão cancelada. Tire do alerta os municípios que já estão cobertos, se for o caso.');return;
