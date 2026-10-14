@@ -1,6 +1,6 @@
 /* Alertas e passagem de plantão — código da página (v3.6, 14/10/2026).
    v3.6: "Ferramentas utilizadas" com caixas de seleção (obrigatório nos dois turnos; "Outros" pede descrição);
-   várias imagens no relatório ("+ Imagens"; cada uma é reduzida no navegador para o PDF não passar do limite);
+   Mapa de Previsões continua separado; "Outras imagens" aceita várias ("+ Imagens" ou Ctrl+V de print), reduzidas no navegador para o PDF não passar do limite;
    intercorrências estruturadas ("+ Intercorrência", obrigatório nos dois turnos), gravadas uma por linha na
    planilha de intercorrências com o ID do plantão (Intercorrencias.gs); evidência = link ou imagem.
    v3.5: municípios com alerta ainda VIGENTE de plantões anteriores continuam pintados no mapa
@@ -552,12 +552,33 @@ $('abaMapa').onclick=()=>mostrarAba('mapa');
 $('abaPlantao').onclick=()=>mostrarAba('plantao');
 document.querySelector('.tabs').addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const to=$('viewPlantao').hidden?'plantao':'mapa';mostrarAba(to);$(to==='mapa'?'abaMapa':'abaPlantao').focus();}});
 
-/* ---------------- Mapa de Previsões e outras imagens (v3.6: várias) ----------------
-   Cada imagem é redesenhada no navegador (lado maior até 2000 px, JPEG) antes de entrar no PDF,
+/* ---------------- Mapa de Previsões (imagem do formulário) ---------------- */
+let mapaPrevisoesB64='',mapaPrev={url:'',w:0,h:0};
+function limparMapaPrevisoes(){mapaPrevisoesB64='';mapaPrev={url:'',w:0,h:0};$('pMapaPrev').value='';$('pMapaPrevInfo').textContent=TXT_MAPA_PREV;agendarRelatorio();}
+$('pMapaPrev').onchange=()=>{
+  const f=$('pMapaPrev').files[0];mapaPrevisoesB64='';mapaPrev={url:'',w:0,h:0};
+  if(!f){limparMapaPrevisoes();return;}
+  if(f.type!=='image/png'&&!/\.png$/i.test(f.name)){limparMapaPrevisoes();$('pMapaPrevInfo').textContent='Envie uma imagem PNG.';return;}
+  if(f.size>8*1024*1024){limparMapaPrevisoes();$('pMapaPrevInfo').textContent='Imagem grande demais (máximo de 8 MB).';return;}
+  const r=new FileReader();
+  r.onload=()=>{
+    const url=String(r.result);mapaPrevisoesB64=url.split(',')[1]||'';
+    const img=new Image();
+    img.onload=()=>{mapaPrev={url,w:img.naturalWidth,h:img.naturalHeight};$('pMapaPrevInfo').textContent='Imagem pronta: '+f.name+' ('+Math.round(f.size/1024)+' KB).';agendarRelatorio();};
+    img.onerror=()=>{limparMapaPrevisoes();$('pMapaPrevInfo').textContent='Não foi possível ler a imagem.';};
+    img.src=url;
+  };
+  r.onerror=()=>{limparMapaPrevisoes();$('pMapaPrevInfo').textContent='Não foi possível ler a imagem.';};
+  r.readAsDataURL(f);
+};
+
+/* ---------------- v3.6: Outras imagens (várias; botão "+ Imagens" ou Ctrl+V de um print) ----------------
+   Separadas do Mapa de Previsões. Cada imagem é redesenhada no navegador (lado maior até 2000 px, JPEG)
    e a soma fica limitada, para o PDF caber no Drive e no e-mail (24 MB) sem falhar. */
-const IMG_LADO_MAX=2000,IMG_QUALIDADE=0.88,IMG_TOTAL_MAX=14*1024*1024,IMG_ARQ_MAX=25*1024*1024;
-let imagensPrev=[];   // [{nome,url,w,h,bytes}]
-const imgBytes=()=>imagensPrev.reduce((a,i)=>a+i.bytes,0);
+const IMG_LADO_MAX=2000,IMG_QUALIDADE=0.88,IMG_TOTAL_MAX=12*1024*1024,IMG_ARQ_MAX=25*1024*1024;
+const TXT_OUTRAS='Opcional. Use “+ Imagens” ou cole um print com Ctrl+V nesta aba. Saem no relatório em PDF, depois do Mapa de Previsões.';
+let imagensOutras=[];   // [{nome,url,w,h,bytes}]
+const imgBytes=()=>imagensOutras.reduce((a,i)=>a+i.bytes,0);
 function reduzirImagem(file){
   return new Promise((ok,no)=>{
     const u=URL.createObjectURL(file),img=new Image();
@@ -575,36 +596,50 @@ function reduzirImagem(file){
     img.src=u;
   });
 }
-function listarImagens(msg){
-  const box=$('pMapaPrevLista');box.innerHTML='';
-  imagensPrev.forEach((im,i)=>{
+function listarOutras(msg){
+  const box=$('pOutrasLista');box.innerHTML='';
+  imagensOutras.forEach((im,i)=>{
     const d=document.createElement('div');d.className='it';
     d.innerHTML=`<img alt="" src="${im.url}"><span title="${esc(im.nome)}">${i+1}. ${esc(im.nome)}</span><small>${Math.round(im.bytes/1024)} KB</small>`;
     const b=document.createElement('button');b.type='button';b.className='btn small';b.textContent='Remover';
-    b.onclick=()=>{imagensPrev.splice(i,1);listarImagens();agendarRelatorio();};
+    b.onclick=()=>{imagensOutras.splice(i,1);listarOutras();agendarRelatorio();};
     d.appendChild(b);box.appendChild(d);
   });
-  $('pMapaPrevInfo').textContent=msg||(imagensPrev.length
-    ?imagensPrev.length+(imagensPrev.length>1?' imagens':' imagem')+' no relatório · '+(imgBytes()/1048576).toFixed(1)+' MB de '+Math.round(IMG_TOTAL_MAX/1048576)+' MB permitidos.'
-    :TXT_MAPA_PREV);
+  $('pOutrasInfo').textContent=msg||(imagensOutras.length
+    ?imagensOutras.length+(imagensOutras.length>1?' imagens':' imagem')+' no relatório · '+(imgBytes()/1048576).toFixed(1)+' MB de '+Math.round(IMG_TOTAL_MAX/1048576)+' MB permitidos.'
+    :TXT_OUTRAS);
 }
-function limparMapaPrevisoes(){imagensPrev=[];$('pMapaPrev').value='';listarImagens();agendarRelatorio();}
-$('pMapaPrev').onchange=async()=>{
-  const fs=[...$('pMapaPrev').files];$('pMapaPrev').value='';
+function limparOutrasImagens(){imagensOutras=[];$('pOutras').value='';listarOutras();agendarRelatorio();}
+async function adicionarOutras(fs){
   const avisos=[];
   for(const f of fs){
-    if(f.type!=='image/png'&&!/\.png$/i.test(f.name)){avisos.push(f.name+': envie uma imagem PNG.');continue;}
+    if(!/^image\/(png|jpeg)$/.test(f.type)&&!/\.(png|jpe?g)$/i.test(f.name)){avisos.push((f.name||'imagem')+': envie PNG ou JPG.');continue;}
     if(f.size>IMG_ARQ_MAX){avisos.push(f.name+': arquivo grande demais (máximo de 25 MB).');continue;}
-    $('pMapaPrevInfo').textContent='Preparando '+f.name+'…';
+    $('pOutrasInfo').textContent='Preparando '+(f.name||'imagem')+'…';
     try{
       const r=await reduzirImagem(f);
-      if(imgBytes()+r.bytes>IMG_TOTAL_MAX){avisos.push(f.name+': não coube — o relatório chegou ao limite de imagens. Remova alguma para incluir esta.');continue;}
-      imagensPrev.push({nome:f.name,...r});
-    }catch(e){avisos.push(f.name+': não foi possível ler a imagem.');}
+      if(imgBytes()+r.bytes>IMG_TOTAL_MAX){avisos.push((f.name||'imagem')+': não coube — o relatório chegou ao limite de imagens. Remova alguma para incluir esta.');continue;}
+      imagensOutras.push({nome:f.name||'imagem',...r});
+    }catch(e){avisos.push((f.name||'imagem')+': não foi possível ler a imagem.');}
   }
-  listarImagens(avisos.join(' '));
+  listarOutras(avisos.join(' '));
   agendarRelatorio();
-};
+}
+$('pOutras').onchange=()=>{const fs=[...$('pOutras').files];$('pOutras').value='';adicionarOutras(fs);};
+/* Ctrl+V: com a aba do plantão aberta, um print colado vira "Outra imagem" (texto colado em campos continua normal) */
+document.addEventListener('paste',e=>{
+  if($('viewPlantao').hidden)return;
+  const itens=[...((e.clipboardData&&e.clipboardData.items)||[])].filter(it=>it.kind==='file'&&/^image\//.test(it.type));
+  if(!itens.length)return;
+  e.preventDefault();
+  const p=n=>String(n).padStart(2,'0'),d=new Date();
+  const fs=itens.map((it,i)=>{const f=it.getAsFile();
+    const nome='print_'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())+(itens.length>1?'_'+(i+1):'')+'.png';
+    try{return new File([f],nome,{type:f.type||'image/png'});}catch(x){f.name2=nome;return f;}});
+  adicionarOutras(fs.filter(Boolean));
+  try{$('pOutrasLista').scrollIntoView({block:'nearest'});}catch(x){}
+});
+listarOutras();
 
 /* ---------------- plantão ---------------- */
 const CAMPOS_PLANTAO={responsavel:'pResp',data:'pData',inicio:'pInicio',fim:'pFim',intercorrencias:'pInter',alertas:'pAlertas',ferramentas:'pFerr',passagem:'pPassagem'};
@@ -710,7 +745,7 @@ function dadosRelatorio(){
   const c={};Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>c[k]=$(id).value);
   const ids=new Set(state.active.map(a=>a.id).filter(Boolean));
   return {id:state.plantaoId||'',geradoEm:new Date(),campos:c,nAlertas:ids.size,turno:{...state.turno},
-    nArquivos:1,pastaUrl:state.pastaUrl||'',mapa:'',imagens:imagensPrev.map(i=>({...i}))};
+    nArquivos:1,pastaUrl:state.pastaUrl||'',mapa:'',prev:mapaPrev.url?{...mapaPrev}:null,outras:imagensOutras.map(i=>({...i}))};
 }
 function linhasDaTabela(d){
   const c=d.campos;
@@ -766,10 +801,17 @@ function layoutRelatorio(d){
   if(d.mapa){y+=3;if(y+mh>fundo)nova();pg.push({k:'img',src:d.mapa,fmt:'PNG',x:A4.m,y,w:Wt,h:mh});y+=mh;}
   else texto(d.mapaPendente?'Gerando a imagem do mapa…':'Mapa não disponível (não foi possível capturar a imagem do mapa).',10,false,3);
   // Mapa de Previsões
-  const imgs=(d.imagens||[]).filter(p=>p&&p.url&&p.w&&p.h);
-  if(imgs.length){
+  if(d.prev&&d.prev.url&&d.prev.w&&d.prev.h){
     secao('Mapa de Previsões');
-    imgs.forEach((p,i)=>{
+    const maxH=A4.h-2*A4.m-60*PT,k=Math.min(Wt/d.prev.w,maxH/d.prev.h),w=d.prev.w*k,h=d.prev.h*k;
+    if(y+h>fundo)nova();
+    pg.push({k:'img',src:d.prev.url,fmt:'PNG',x:A4.m+(Wt-w)/2,y,w,h});y+=h;
+  }
+  // v3.6: outras imagens (prints etc.), cada uma em JPEG reduzido
+  const outras=(d.outras||[]).filter(p=>p&&p.url&&p.w&&p.h);
+  if(outras.length){
+    secao('Outras imagens');
+    outras.forEach((p,i)=>{
       const maxH=A4.h-2*A4.m-60*PT,k=Math.min(Wt/p.w,maxH/p.h),w=p.w*k,h=p.h*k;
       if(i)y+=3;
       if(y+h>fundo)nova();
@@ -1041,7 +1083,7 @@ function salvarPassagemAgora(){
 $('salvarPlantao').onclick=()=>{
   if(!$('pResp').value.trim()){status('Preencha o campo "Responsável".','erro');$('pResp').focus();return;}
   if(!conferirObrigatorios())return;   // v3.6: ferramentas e intercorrências (os dois turnos)
-  if(!imagensPrev.length&&state.turno.turno==='Diurno'){   // no plantão noturno o PNG é opcional
+  if(!mapaPrev.url&&state.turno.turno==='Diurno'){   // no plantão noturno o PNG é opcional
     status('Anexe o Mapa de Previsões (PNG) antes de encerrar o plantão diurno.','erro');
     aviso('Para encerrar o plantão <b>diurno</b>, anexe a imagem do <b>Mapa de Previsões (PNG)</b> no formulário.',true);
     $('pMapaPrev').focus();return;
@@ -1349,15 +1391,15 @@ $('emit').onclick=()=>{
 };
 
 /* ---- Mapa de Previsões: obrigatório para encerrar ---- */
-const TXT_MAPA_PREV='Pelo menos uma imagem é obrigatória para encerrar o plantão diurno (no noturno é opcional). Use “+ Imagens” para anexar quantas precisar; saem no relatório em PDF, embaixo do mapa de alertas (não são salvas à parte no Drive).';
+const TXT_MAPA_PREV='Obrigatório para encerrar o plantão diurno (no noturno é opcional). Sai no relatório em PDF, embaixo do mapa de alertas (não é salvo à parte no Drive).';
 (function ajustarRotuloMapaPrev(){
   const inp=$('pMapaPrev');if(!inp)return;
-  const lab=inp.closest('div[style]');
+  const lab=document.querySelector('label[for="pMapaPrev"]')||inp.closest('label')||(inp.parentElement&&inp.parentElement.querySelector('label'));
   if(lab){
     const w=document.createTreeWalker(lab,NodeFilter.SHOW_TEXT);let n;
     while((n=w.nextNode()))if(/opcional/i.test(n.nodeValue))n.nodeValue=n.nodeValue.replace(/,?\s*opcional/i,', obrigatório no diurno');
   }
-  if(!imagensPrev.length&&$('pMapaPrevInfo'))$('pMapaPrevInfo').textContent=TXT_MAPA_PREV;
+  if(!mapaPrev.url&&$('pMapaPrevInfo'))$('pMapaPrevInfo').textContent=TXT_MAPA_PREV;
 })();
 
 /* ---- botão "Trocar conta" ---- */
@@ -1460,6 +1502,7 @@ function carregarExtras(){
   }catch(e){}
 }
 function limparExtrasPlantao(){
+  limparOutrasImagens();
   try{localStorage.removeItem(CHAVE_EXTRAS);}catch(e){}
   document.querySelectorAll('.ferr').forEach(c=>c.checked=false);$('ferrOutros').value='';
   interItens=[novaIntercorrencia()];desenharIntercorrencias();
