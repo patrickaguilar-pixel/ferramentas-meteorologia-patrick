@@ -1,4 +1,8 @@
-/* Alertas e passagem de plantão — código da página (v3.5, 13/10/2026).
+/* Alertas e passagem de plantão — código da página (v3.6, 14/10/2026).
+   v3.6: "Ferramentas utilizadas" com caixas de seleção (obrigatório nos dois turnos; "Outros" pede descrição);
+   várias imagens no relatório ("+ Imagens"; cada uma é reduzida no navegador para o PDF não passar do limite);
+   intercorrências estruturadas ("+ Intercorrência", obrigatório nos dois turnos), gravadas uma por linha na
+   planilha de intercorrências com o ID do plantão (Intercorrencias.gs); evidência = link ou imagem.
    v3.5: municípios com alerta ainda VIGENTE de plantões anteriores continuam pintados no mapa
    (cor mais clara e contorno tracejado), entram na dica do mouse e no aviso de duplicação, e aparecem
    numa lista própria. Não entram no relatório, no TXT nem em "Alertas gerados", e não podem ser
@@ -548,24 +552,58 @@ $('abaMapa').onclick=()=>mostrarAba('mapa');
 $('abaPlantao').onclick=()=>mostrarAba('plantao');
 document.querySelector('.tabs').addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const to=$('viewPlantao').hidden?'plantao':'mapa';mostrarAba(to);$(to==='mapa'?'abaMapa':'abaPlantao').focus();}});
 
-/* ---------------- Mapa de Previsões (imagem do formulário) ---------------- */
-let mapaPrevisoesB64='',mapaPrev={url:'',w:0,h:0};
-function limparMapaPrevisoes(){mapaPrevisoesB64='';mapaPrev={url:'',w:0,h:0};$('pMapaPrev').value='';$('pMapaPrevInfo').textContent=TXT_MAPA_PREV;agendarRelatorio();}
-$('pMapaPrev').onchange=()=>{
-  const f=$('pMapaPrev').files[0];mapaPrevisoesB64='';mapaPrev={url:'',w:0,h:0};
-  if(!f){limparMapaPrevisoes();return;}
-  if(f.type!=='image/png'&&!/\.png$/i.test(f.name)){limparMapaPrevisoes();$('pMapaPrevInfo').textContent='Envie uma imagem PNG.';return;}
-  if(f.size>8*1024*1024){limparMapaPrevisoes();$('pMapaPrevInfo').textContent='Imagem grande demais (máximo de 8 MB).';return;}
-  const r=new FileReader();
-  r.onload=()=>{
-    const url=String(r.result);mapaPrevisoesB64=url.split(',')[1]||'';
-    const img=new Image();
-    img.onload=()=>{mapaPrev={url,w:img.naturalWidth,h:img.naturalHeight};$('pMapaPrevInfo').textContent='Imagem pronta: '+f.name+' ('+Math.round(f.size/1024)+' KB).';agendarRelatorio();};
-    img.onerror=()=>{limparMapaPrevisoes();$('pMapaPrevInfo').textContent='Não foi possível ler a imagem.';};
-    img.src=url;
-  };
-  r.onerror=()=>{limparMapaPrevisoes();$('pMapaPrevInfo').textContent='Não foi possível ler a imagem.';};
-  r.readAsDataURL(f);
+/* ---------------- Mapa de Previsões e outras imagens (v3.6: várias) ----------------
+   Cada imagem é redesenhada no navegador (lado maior até 2000 px, JPEG) antes de entrar no PDF,
+   e a soma fica limitada, para o PDF caber no Drive e no e-mail (24 MB) sem falhar. */
+const IMG_LADO_MAX=2000,IMG_QUALIDADE=0.88,IMG_TOTAL_MAX=14*1024*1024,IMG_ARQ_MAX=25*1024*1024;
+let imagensPrev=[];   // [{nome,url,w,h,bytes}]
+const imgBytes=()=>imagensPrev.reduce((a,i)=>a+i.bytes,0);
+function reduzirImagem(file){
+  return new Promise((ok,no)=>{
+    const u=URL.createObjectURL(file),img=new Image();
+    img.onload=()=>{
+      try{
+        const k=Math.min(1,IMG_LADO_MAX/Math.max(img.naturalWidth,img.naturalHeight));
+        const w=Math.max(1,Math.round(img.naturalWidth*k)),h=Math.max(1,Math.round(img.naturalHeight*k));
+        const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');
+        g.fillStyle='#ffffff';g.fillRect(0,0,w,h);g.drawImage(img,0,0,w,h);
+        const url=c.toDataURL('image/jpeg',IMG_QUALIDADE);URL.revokeObjectURL(u);
+        ok({url,w,h,bytes:Math.round((url.length-url.indexOf(',')-1)*0.75)});
+      }catch(e){URL.revokeObjectURL(u);no(e);}
+    };
+    img.onerror=()=>{URL.revokeObjectURL(u);no(new Error('não foi possível ler a imagem'));};
+    img.src=u;
+  });
+}
+function listarImagens(msg){
+  const box=$('pMapaPrevLista');box.innerHTML='';
+  imagensPrev.forEach((im,i)=>{
+    const d=document.createElement('div');d.className='it';
+    d.innerHTML=`<img alt="" src="${im.url}"><span title="${esc(im.nome)}">${i+1}. ${esc(im.nome)}</span><small>${Math.round(im.bytes/1024)} KB</small>`;
+    const b=document.createElement('button');b.type='button';b.className='btn small';b.textContent='Remover';
+    b.onclick=()=>{imagensPrev.splice(i,1);listarImagens();agendarRelatorio();};
+    d.appendChild(b);box.appendChild(d);
+  });
+  $('pMapaPrevInfo').textContent=msg||(imagensPrev.length
+    ?imagensPrev.length+(imagensPrev.length>1?' imagens':' imagem')+' no relatório · '+(imgBytes()/1048576).toFixed(1)+' MB de '+Math.round(IMG_TOTAL_MAX/1048576)+' MB permitidos.'
+    :TXT_MAPA_PREV);
+}
+function limparMapaPrevisoes(){imagensPrev=[];$('pMapaPrev').value='';listarImagens();agendarRelatorio();}
+$('pMapaPrev').onchange=async()=>{
+  const fs=[...$('pMapaPrev').files];$('pMapaPrev').value='';
+  const avisos=[];
+  for(const f of fs){
+    if(f.type!=='image/png'&&!/\.png$/i.test(f.name)){avisos.push(f.name+': envie uma imagem PNG.');continue;}
+    if(f.size>IMG_ARQ_MAX){avisos.push(f.name+': arquivo grande demais (máximo de 25 MB).');continue;}
+    $('pMapaPrevInfo').textContent='Preparando '+f.name+'…';
+    try{
+      const r=await reduzirImagem(f);
+      if(imgBytes()+r.bytes>IMG_TOTAL_MAX){avisos.push(f.name+': não coube — o relatório chegou ao limite de imagens. Remova alguma para incluir esta.');continue;}
+      imagensPrev.push({nome:f.name,...r});
+    }catch(e){avisos.push(f.name+': não foi possível ler a imagem.');}
+  }
+  listarImagens(avisos.join(' '));
+  agendarRelatorio();
 };
 
 /* ---------------- plantão ---------------- */
@@ -604,7 +642,7 @@ function mostrarAnterior(u){
   box.innerHTML=`<p class="meta2">${esc(meta)}</p><div class="passagem"><strong>Áreas suscetíveis e pendências</strong>${esc(u.passagem||'Nada registrado.')}</div>`;
   const det=document.createElement('details');
   det.innerHTML='<summary>Ver o resto do plantão anterior</summary>'+
-    [['Intercorrências',u.intercorrencias],['Alertas gerados',u.alertas],['Ferramentas usadas',u.ferramentas]]
+    [['Intercorrências',u.intercorrencias],['Alertas gerados',u.alertas],['Ferramentas utilizadas',u.ferramentas]]
       .filter(x=>x[1]).map(x=>`<b>${x[0]}</b><p>${esc(x[1])}</p>`).join('');
   if(det.querySelector('b'))box.appendChild(det);
 }
@@ -672,14 +710,14 @@ function dadosRelatorio(){
   const c={};Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>c[k]=$(id).value);
   const ids=new Set(state.active.map(a=>a.id).filter(Boolean));
   return {id:state.plantaoId||'',geradoEm:new Date(),campos:c,nAlertas:ids.size,turno:{...state.turno},
-    nArquivos:1,pastaUrl:state.pastaUrl||'',mapa:'',prev:mapaPrev.url?{...mapaPrev}:null};
+    nArquivos:1,pastaUrl:state.pastaUrl||'',mapa:'',imagens:imagensPrev.map(i=>({...i}))};
 }
 function linhasDaTabela(d){
   const c=d.campos;
   return [
     ['ID do plantão',d.id||'(criado ao salvar)'],
     ['Responsável',c.responsavel],['Data do plantão',dataBR(c.data)],['Turno',d.turno&&d.turno.turno||''],['Início',c.inicio],['Fim',c.fim],
-    ['Intercorrências',c.intercorrencias],['Ferramentas usadas',c.ferramentas],['Alertas gerados',c.alertas],
+    ['Intercorrências',c.intercorrencias],['Ferramentas utilizadas',c.ferramentas],['Alertas gerados',c.alertas],
     ['Passagem de plantão (áreas suscetíveis e pendências)',c.passagem],
     ['Nº de alertas',String(d.nAlertas)],['Nº de arquivos',String(d.nArquivos)],
     ['Link de acesso',d.pastaUrl,true]
@@ -728,11 +766,15 @@ function layoutRelatorio(d){
   if(d.mapa){y+=3;if(y+mh>fundo)nova();pg.push({k:'img',src:d.mapa,fmt:'PNG',x:A4.m,y,w:Wt,h:mh});y+=mh;}
   else texto(d.mapaPendente?'Gerando a imagem do mapa…':'Mapa não disponível (não foi possível capturar a imagem do mapa).',10,false,3);
   // Mapa de Previsões
-  if(d.prev&&d.prev.url&&d.prev.w&&d.prev.h){
+  const imgs=(d.imagens||[]).filter(p=>p&&p.url&&p.w&&p.h);
+  if(imgs.length){
     secao('Mapa de Previsões');
-    const maxH=A4.h-2*A4.m-60*PT,k=Math.min(Wt/d.prev.w,maxH/d.prev.h),w=d.prev.w*k,h=d.prev.h*k;
-    if(y+h>fundo)nova();
-    pg.push({k:'img',src:d.prev.url,fmt:'PNG',x:A4.m+(Wt-w)/2,y,w,h});y+=h;
+    imgs.forEach((p,i)=>{
+      const maxH=A4.h-2*A4.m-60*PT,k=Math.min(Wt/p.w,maxH/p.h),w=p.w*k,h=p.h*k;
+      if(i)y+=3;
+      if(y+h>fundo)nova();
+      pg.push({k:'img',src:p.url,fmt:'JPEG',x:A4.m+(Wt-w)/2,y,w,h});y+=h;
+    });
   }
   return pages;
 }
@@ -968,6 +1010,8 @@ function salvarPassagemAgora(){
   if(!d.data){status('Preencha a data do plantão.','erro');$('pData').focus();return;}
   d.alertaIds=state.active.map(a=>a.id).filter(id=>id&&!/^local_/.test(id));
   d.kmls=state.active.map(a=>a.kmlUrl).filter(Boolean);
+  d.ferramentasLista=ferramentasMarcadas();
+  d.intercorrenciasLista=interItens.map(it=>({tipo:it.tipo,descricao:it.descricao,acao:it.acao,evidencia:it.evidencia}));
   const snap=dadosRelatorio();     // retrato do formulário antes de limpar
   const nomesLocais=[...municipiosAlertados()];
   $('salvarPlantao').disabled=true;status('Salvando a passagem de plantão…');
@@ -980,32 +1024,38 @@ function salvarPassagemAgora(){
       Object.values(CAMPOS_PLANTAO).forEach(id=>$(id).value='');
       turnoServidor=null;state.turno=turnoPeloRelogio();mostrarTurno();preencherHorariosTurno();
       state.active=[];state.dailyRows=[];state.plantaoId='';state.selected.clear();desenharAlertas();updateSelection();apagarRascunho();
+      limparExtrasPlantao();
       status('Passagem do plantão '+(snap.id||'')+' salva. O próximo plantonista verá este registro ao abrir.','ok');
       carregarContexto();
       limparMapaPrevisoes();
       sincronizarAlertas();   // v3.5: os alertas ainda vigentes do plantão encerrado voltam ao mapa como "plantão anterior"
+      if(r&&r.avisoIntercorrencias)avisoIntercorrencias(r,d);   // v3.6: só se a planilha de intercorrências falhou
       relatorioFinal(snap,nomesLocais);   // v3.4: a pergunta do e-mail (ou o lembrete antigo) vem de dentro do relatorioFinal
     })
     .withFailureHandler(err=>{
       $('salvarPlantao').disabled=false;
       status('Não foi possível salvar: '+(err&&err.message?err.message:err)+' Seus dados continuam aqui. Se precisar, use “Baixar PDF no PC”.','erro');
     })
-    .salvarPlantao(d);
+    [temFuncao('salvarPlantaoComIntercorrencias')?'salvarPlantaoComIntercorrencias':'salvarPlantao'](d);
 }
 $('salvarPlantao').onclick=()=>{
   if(!$('pResp').value.trim()){status('Preencha o campo "Responsável".','erro');$('pResp').focus();return;}
-  if(!mapaPrev.url&&state.turno.turno==='Diurno'){   // no plantão noturno o PNG é opcional
+  if(!conferirObrigatorios())return;   // v3.6: ferramentas e intercorrências (os dois turnos)
+  if(!imagensPrev.length&&state.turno.turno==='Diurno'){   // no plantão noturno o PNG é opcional
     status('Anexe o Mapa de Previsões (PNG) antes de encerrar o plantão diurno.','erro');
     aviso('Para encerrar o plantão <b>diurno</b>, anexe a imagem do <b>Mapa de Previsões (PNG)</b> no formulário.',true);
     $('pMapaPrev').focus();return;
   }
-  $('salvarPlantao').disabled=true;status('Conferindo os alertas da equipe…');
+  $('salvarPlantao').disabled=true;
+  enviarEvidencias().then(okEv=>{if(!okEv){$('salvarPlantao').disabled=false;return;}   // v3.6
+  status('Conferindo os alertas da equipe…');
   sincronizarAlertas(()=>{
     $('salvarPlantao').disabled=false;
     const outros=[...new Set(state.active.filter(a=>!podeExcluir(a)).map(a=>a.owner||a.email).filter(Boolean))];
     if(outros.length&&!confirm(textList(outros)+(outros.length>1?' também emitiram':' também emitiu')+
       ' alertas neste plantão ('+rotuloTurno(state.turno)+').\n\nEncerrar o plantão para todos?')){status('Encerramento cancelado.');return;}
     salvarPassagemAgora();
+  });
   });
 };
 
@@ -1299,15 +1349,15 @@ $('emit').onclick=()=>{
 };
 
 /* ---- Mapa de Previsões: obrigatório para encerrar ---- */
-const TXT_MAPA_PREV='Obrigatório para encerrar o plantão diurno (no noturno é opcional). Sai no relatório em PDF, embaixo do mapa de alertas (não é salvo à parte no Drive).';
+const TXT_MAPA_PREV='Pelo menos uma imagem é obrigatória para encerrar o plantão diurno (no noturno é opcional). Use “+ Imagens” para anexar quantas precisar; saem no relatório em PDF, embaixo do mapa de alertas (não são salvas à parte no Drive).';
 (function ajustarRotuloMapaPrev(){
   const inp=$('pMapaPrev');if(!inp)return;
-  const lab=document.querySelector('label[for="pMapaPrev"]')||inp.closest('label')||(inp.parentElement&&inp.parentElement.querySelector('label'));
+  const lab=inp.closest('div[style]');
   if(lab){
     const w=document.createTreeWalker(lab,NodeFilter.SHOW_TEXT);let n;
     while((n=w.nextNode()))if(/opcional/i.test(n.nodeValue))n.nodeValue=n.nodeValue.replace(/,?\s*opcional/i,', obrigatório no diurno');
   }
-  if(!mapaPrev.url&&$('pMapaPrevInfo'))$('pMapaPrevInfo').textContent=TXT_MAPA_PREV;
+  if(!imagensPrev.length&&$('pMapaPrevInfo'))$('pMapaPrevInfo').textContent=TXT_MAPA_PREV;
 })();
 
 /* ---- botão "Trocar conta" ---- */
@@ -1331,9 +1381,145 @@ function temAlertaNaoEmitido(){
   }).withFailureHandler(()=>{}).urlDoApp();
 })();
 
+/* ===================== v3.6: Ferramentas utilizadas e Intercorrências =====================
+   Os textos continuam nos campos (ocultos) pFerr e pInter, então rascunho, prévia, PDF e a aba
+   Plantoes seguem iguais. As escolhas ficam num rascunho próprio deste navegador. */
+const CHAVE_EXTRAS='simge-plantao-extras-v1';
+const TIPOS_INTER=['SIMGE fora do ar','SIMGE instável','Falta de energia','Falta de interação com o pessoal do grupo Alerta CEDEC','Sem intercorrências','Outros'];
+const SEM_INTER='Sem intercorrências';
+let interItens=[];   // [{tipo,descricao,acao,link,arquivo(File, só nesta tela),evidencia}]
+function ferramentasMarcadas(){return [...document.querySelectorAll('.ferr:checked')].map(x=>x.value);}
+function textoFerramentas(){
+  return ferramentasMarcadas().map(v=>v==='Outros'?'Outros'+($('ferrOutros').value.trim()?': '+$('ferrOutros').value.trim():''):v).join(', ');
+}
+function textoIntercorrencias(){
+  return interItens.filter(it=>it.tipo).map(it=>{
+    if(it.tipo===SEM_INTER)return SEM_INTER;
+    let t='• '+it.tipo+(it.descricao.trim()?' — '+it.descricao.trim():'');
+    if(it.acao.trim())t+=' (ação tomada: '+it.acao.trim()+')';
+    if(it.link.trim())t+=' [evidência: '+it.link.trim()+']';
+    else if(it.arquivo)t+=' [evidência: imagem '+it.arquivo.name+']';
+    return t;
+  }).join('\n');
+}
+function sincronizarExtras(){
+  $('pFerr').value=textoFerramentas();
+  $('pInter').value=textoIntercorrencias();
+  $('ferrOutrosLbl').hidden=!$('ferrOutrosChk').checked;
+  try{localStorage.setItem(CHAVE_EXTRAS,JSON.stringify({ferr:ferramentasMarcadas(),ferrOutros:$('ferrOutros').value,
+    inter:interItens.map(it=>({tipo:it.tipo,descricao:it.descricao,acao:it.acao,link:it.link}))}));}catch(e){}
+  clearTimeout(window._tRasc);window._tRasc=setTimeout(salvarRascunho,600);agendarRelatorio();
+}
+function novaIntercorrencia(dados){
+  const o={tipo:'',descricao:'',acao:'',link:'',arquivo:null,evidencia:''};
+  if(dados)['tipo','descricao','acao','link'].forEach(k=>{if(typeof dados[k]==='string')o[k]=dados[k];});
+  if(o.tipo&&TIPOS_INTER.indexOf(o.tipo)<0)o.tipo='';
+  return o;
+}
+function desenharIntercorrencias(){
+  const box=$('interLista');box.innerHTML='';
+  interItens.forEach((it,i)=>{
+    const d=document.createElement('div');d.className='inter-item';
+    const sem=it.tipo===SEM_INTER;
+    d.innerHTML=`<div class="topo"><select class="field" aria-label="Tipo da intercorrência ${i+1}"><option value="">Tipo da intercorrência…</option>${
+      TIPOS_INTER.map(t=>`<option${t===it.tipo?' selected':''}>${esc(t)}</option>`).join('')}</select>
+      <button type="button" class="btn small" data-rm>Remover</button></div>
+      <div data-det${sem||!it.tipo?' hidden':''} style="display:grid;gap:8px">
+        <label>Descrição${it.tipo==='Outros'?' (obrigatória)':''}<textarea class="field" data-k="descricao"></textarea></label>
+        <label>Ação tomada<input class="field" data-k="acao"></label>
+        <div class="evid"><label>Evidência — link (opcional)<input class="field" data-k="link" placeholder="https://…"></label>
+          <label class="btn small" style="display:inline-flex;font-weight:600">${it.arquivo?'Trocar imagem':'Anexar imagem'}<input class="sr" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg"></label></div>
+        <div class="rascunho">${it.arquivo?'Imagem: '+esc(it.arquivo.name)+' (vai para a pasta de intercorrências ao salvar). <a href="#" data-rmarq>Tirar</a>':'Evidência opcional: um link ou uma imagem.'}</div>
+      </div>`;
+    const sel=d.querySelector('select');
+    sel.onchange=()=>{
+      if(sel.value===SEM_INTER&&interItens.some((o,j)=>j!==i&&o.tipo&&o.tipo!==SEM_INTER)){
+        alert('“Sem intercorrências” não pode ser usado junto com outras intercorrências. Remova as outras antes.');sel.value=it.tipo;return;}
+      it.tipo=sel.value;desenharIntercorrencias();sincronizarExtras();
+    };
+    d.querySelectorAll('[data-k]').forEach(el=>{el.value=it[el.dataset.k]||'';el.addEventListener('input',()=>{it[el.dataset.k]=el.value;sincronizarExtras();});});
+    d.querySelector('input[type=file]').onchange=e=>{const f=e.target.files[0];if(f){it.arquivo=f;it.evidencia='';}desenharIntercorrencias();sincronizarExtras();};
+    const rmArq=d.querySelector('[data-rmarq]');if(rmArq)rmArq.onclick=e=>{e.preventDefault();it.arquivo=null;it.evidencia='';desenharIntercorrencias();sincronizarExtras();};
+    d.querySelector('[data-rm]').onclick=()=>{interItens.splice(i,1);if(!interItens.length)interItens.push(novaIntercorrencia());desenharIntercorrencias();sincronizarExtras();};
+    box.appendChild(d);
+  });
+}
+$('interAdd').onclick=()=>{
+  if(interItens.some(o=>o.tipo===SEM_INTER)){alert('Você marcou “Sem intercorrências”. Troque o tipo dela se houve alguma intercorrência.');return;}
+  interItens.push(novaIntercorrencia());desenharIntercorrencias();sincronizarExtras();
+  const s=$('interLista').querySelectorAll('select');if(s.length)s[s.length-1].focus();
+};
+document.querySelectorAll('.ferr').forEach(c=>c.addEventListener('change',sincronizarExtras));
+$('ferrOutros').addEventListener('input',sincronizarExtras);
+function carregarExtras(){
+  try{
+    const r=JSON.parse(localStorage.getItem(CHAVE_EXTRAS)||'null');if(!r)return;
+    document.querySelectorAll('.ferr').forEach(c=>c.checked=(r.ferr||[]).includes(c.value));
+    $('ferrOutros').value=r.ferrOutros||'';
+    interItens=(r.inter||[]).map(x=>novaIntercorrencia(x));
+  }catch(e){}
+}
+function limparExtrasPlantao(){
+  try{localStorage.removeItem(CHAVE_EXTRAS);}catch(e){}
+  document.querySelectorAll('.ferr').forEach(c=>c.checked=false);$('ferrOutros').value='';
+  interItens=[novaIntercorrencia()];desenharIntercorrencias();
+  $('ferrOutrosLbl').hidden=true;$('pFerr').value='';$('pInter').value='';
+  $('grpFerr').classList.remove('erro');$('grpInter').classList.remove('erro');
+}
+function conferirObrigatorios(){
+  const falha=(grp,msg,foco)=>{$(grp).classList.add('erro');status(msg,'erro');aviso(msg,true);
+    try{$(grp).scrollIntoView({block:'center',behavior:'smooth'});}catch(e){}if(foco)foco.focus();return false;};
+  $('grpFerr').classList.remove('erro');$('grpInter').classList.remove('erro');
+  const fs=ferramentasMarcadas();
+  if(!fs.length)return falha('grpFerr','Marque as ferramentas utilizadas no plantão (obrigatório).',document.querySelector('.ferr'));
+  if(fs.includes('Outros')&&!$('ferrOutros').value.trim())return falha('grpFerr','Descreva as “Outras” ferramentas utilizadas.',$('ferrOutros'));
+  const itens=[...$('interLista').querySelectorAll('.inter-item')];
+  if(!interItens.some(it=>it.tipo))return falha('grpInter','Registre as intercorrências do plantão (obrigatório). Se não houve, escolha “Sem intercorrências”.',itens[0]&&itens[0].querySelector('select'));
+  let i=interItens.findIndex(it=>!it.tipo);
+  if(i>=0)return falha('grpInter','Escolha o tipo de todas as intercorrências (ou remova as vazias).',itens[i]&&itens[i].querySelector('select'));
+  i=interItens.findIndex(it=>it.tipo==='Outros'&&!it.descricao.trim());
+  if(i>=0)return falha('grpInter','Descreva a intercorrência do tipo “Outros”.',itens[i]&&itens[i].querySelector('textarea'));
+  i=interItens.findIndex(it=>it.tipo!==SEM_INTER&&it.link.trim()&&!/^https?:\/\//i.test(it.link.trim()));
+  if(i>=0)return falha('grpInter','O link de evidência precisa começar com http:// ou https://.',itens[i]&&itens[i].querySelector('[data-k=link]'));
+  sincronizarExtras();
+  return true;
+}
+/* envia as imagens de evidência (uma por vez, reduzidas) antes de salvar a passagem */
+async function enviarEvidencias(){
+  interItens.forEach(it=>{if(it.tipo===SEM_INTER)it.evidencia='';else if(!it.arquivo)it.evidencia=it.link.trim();});
+  const pend=interItens.filter(it=>it.tipo&&it.tipo!==SEM_INTER&&it.arquivo&&!it.evidencia);
+  if(!pend.length)return true;
+  if(!temFuncao('salvarEvidenciaIntercorrencia')){status('O Apps Script ainda não tem o arquivo Intercorrencias.gs; não dá para enviar a imagem de evidência.','erro');return false;}
+  for(let i=0;i<pend.length;i++){
+    const it=pend[i];status('Enviando evidência '+(i+1)+' de '+pend.length+'…');
+    try{
+      const r=await reduzirImagem(it.arquivo);
+      const nome=String(state.turno.data||'').replace(/-/g,'')+'_'+String(state.turno.turno||'').toLowerCase()+'_'+it.arquivo.name.replace(/\.[^.]+$/,'')+'.jpg';
+      const s=await new Promise((ok,no)=>google.script.run.withSuccessHandler(ok).withFailureHandler(no)
+        .salvarEvidenciaIntercorrencia(nome,'image/jpeg',r.url.split(',')[1]));
+      const url=s&&s.url||'';
+      it.evidencia=it.link.trim()?it.link.trim()+' ; '+url:url;
+    }catch(e){status('Não foi possível enviar a imagem de evidência “'+it.arquivo.name+'”: '+(e&&e.message||e)+' A passagem ainda não foi salva; tente de novo.','erro');return false;}
+  }
+  return true;
+}
+/* plantão salvo, mas a planilha de intercorrências falhou: oferece tentar de novo */
+function avisoIntercorrencias(r,d){
+  const tentar=()=>google.script.run
+    .withSuccessHandler(x=>aviso('Intercorrências gravadas na planilha ('+((x&&x.linhas)||0)+' linha(s)).'))
+    .withFailureHandler(e=>aviso('As intercorrências <b>não</b> foram gravadas ('+esc(e&&e.message||e)+').',true,[['Tentar de novo',tentar]]))
+    .registrarIntercorrencias(r.id,d);
+  aviso('A passagem foi salva, mas as intercorrências <b>não</b> foram gravadas na planilha ('+esc(r.avisoIntercorrencias)+').',true,[['Tentar de novo',tentar]]);
+}
+
 /* ---------------- início ---------------- */
 const temRascunho=carregarRascunho();
+if(temRascunho)carregarExtras();else{try{localStorage.removeItem(CHAVE_EXTRAS);}catch(e){}}
+if(!interItens.length)interItens=[novaIntercorrencia()];
+desenharIntercorrencias();$('ferrOutrosLbl').hidden=!$('ferrOutrosChk').checked;
+if(temRascunho){$('pFerr').value=textoFerramentas();$('pInter').value=textoIntercorrencias();}
 if(!temRascunho||!$('pInicio').value)preencherHorariosTurno();
+
 mostrarTurno();
 aplicarLimites();desenharAlertas();updateSelection();applyView();carregarContexto();sincronizarAlertas();
 try{if(sessionStorage.getItem('alertas:aba')==='plantao')mostrarAba('plantao');}catch(e){}
