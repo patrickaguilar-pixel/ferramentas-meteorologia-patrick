@@ -1022,7 +1022,7 @@ const LIVE = [
   {id:"osmde", nome:"OpenStreetMap Alemanha (reserva 2)", curto:"OpenStreetMap Alemanha",
    url:(z, x, y) => `https://tile.openstreetmap.de/${z}/${x}/${y}.png`,
    credito:"© OpenStreetMap — estilo OSM Alemanha"},
-  {id:"carto", nome:"CARTO Voyager — sem nomes", curto:"CARTO Voyager (sem nomes)", reserva:false,
+  {id:"carto", nome:"CARTO Voyager — sem nomes" + (CARTO_KEY ? "" : " (precisa de chave)"), curto:"CARTO Voyager (sem nomes)", reserva:false,
    url:(z, x, y) => `https://${"abcd"[(x + y) % 4]}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/${z}/${x}/${y}.png${CARTO_KEY ? "?key=" + encodeURIComponent(CARTO_KEY) : ""}`,
    credito:"© OpenStreetMap © CARTO — estilo Voyager"}
 ];
@@ -1106,6 +1106,13 @@ function liveActivate(id, anterior, tentados){
       showMsg("err", `<b>O mapa de fundo não carregou.</b> Nenhum dos mapas da internet respondeu agora (OpenStreetMap padrão, França e Alemanha) — pode ser a internet ou a rede bloqueando esses endereços. Por enquanto o mapa usa a base de rios e rodovias.<br><b>O que fazer:</b> abra <b>Mapa de fundo</b>, abaixo da tabela de municípios, e troque o mapa (ou escolha “Nenhum”); depois de alguns minutos, tente de novo. <button class="btn small ghost" type="button" data-abrirbg>Abrir Mapa de fundo</button> <button class="btn small ghost" type="button" data-tentarbg>Tentar de novo</button>`);
     });
 }
+// Sem a chave, o CARTO não recusa: devolve imagens marcadas "API KEY REQUIRED". Por isso nem tenta carregar.
+function cartoSemChave(){
+  S.bgActive = liveById(S.livePref) && S.livePref !== "carto" ? S.livePref : "osm";
+  renderBg(); drawPreview(); persist();
+  if (OSM_OK) liveActivate(S.bgActive);
+  showMsg("err", `<b>O CARTO Voyager ainda não pode ser usado:</b> ele precisa de uma chave gratuita do CARTO, que ainda não foi configurada (sem ela, as imagens vêm marcadas “API KEY REQUIRED”). O fundo voltou para o <b>${esc(liveById(S.bgActive).curto)}</b>. Para liberar, peça a chave em carto.com/basemaps/apikey e envie para quem mantém a ferramenta. <button class="btn small ghost" type="button" data-abrirbg>Abrir Mapa de fundo</button>`);
+}
 const osmActivate = () => liveActivate(S.bgActive && liveById(S.bgActive) ? S.bgActive : "osm");
 BG = [...LIVE];
 // OSM padrão ao vivo: fundo padrão quando a ferramenta é aberta pela plataforma (endereço https).
@@ -1149,6 +1156,7 @@ function renderBg(){
 $("#bgList").addEventListener("change", e => {
   if (e.target.name !== "bgsel") return;
   const had = !!activeBg(); S.bgActive = e.target.value || null;
+  if (S.bgActive === "carto" && !CARTO_KEY){ cartoSemChave(); return; }
   if (liveById(S.bgActive)){ S.livePref = S.bgActive; liveActivate(S.bgActive); }
   if (S.bgActive && !had){ S.opts.mgFill = false; }   // ao ligar um fundo, deixa-o visível dentro de MG
   if (!S.bgActive){ S.opts.mgFill = true; }
@@ -1832,6 +1840,8 @@ C$("#btnCidPdf").addEventListener("click", e => busy(e.currentTarget, async () =
 fillTexts(); fillOpts(); applyTempsUI(); renderRows(); updateNotice(); updateStatus(); renderBg(); drawPreview();
 try { const v = sessionStorage.getItem("prevmg:view"); if (v === "bul" || v === "cid") setView(v); } catch(e){}
 // No painel: começa pelo mapa preferido (o OSM padrão, se ninguém escolheu outro). Fora dele: base de rios e rodovias, sem aviso.
+if (S.livePref === "carto" && !CARTO_KEY) S.livePref = "osm";
+if (S.bgActive === "carto" && !CARTO_KEY) S.bgActive = "osm";
 if (liveById(S.bgActive) && OSM_OK){ S.bgActive = liveById(S.livePref) ? S.livePref : "osm"; liveActivate(S.bgActive); }
 idb.all().then(list => { BG = [...(TEAM_BG ? [TEAM_BG] : []), ...LIVE, ...(list || []).sort((a,b) => a.id.localeCompare(b.id))]; renderBg(); drawPreview(); }).catch(() => {});
 
