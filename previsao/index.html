@@ -122,6 +122,10 @@ input[type=date].field{min-width:160px}
 .thead .tmx{color:var(--max)} .thead .tmn{color:var(--min)}
 .tempsel{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;padding:12px 18px 2px}
 .tempsel > span{font-weight:600;font-size:14px}
+.tempsel .acts{display:flex;gap:8px;margin-right:auto;flex-wrap:wrap}
+.tempsel .tgrp{display:flex;align-items:center;gap:10px;margin-left:auto}
+.tempsel .tgrp > span{font-weight:600;font-size:14px}
+.btn:disabled{opacity:.45;cursor:default;pointer-events:none}
 .seg{display:flex;background:var(--line-2);border-radius:9px;padding:3px;gap:2px}
 .seg button{border:0;background:transparent;border-radius:7px;padding:5px 11px;font-weight:600;font-size:13.5px;cursor:pointer;color:var(--ink-2);display:flex;align-items:center;gap:6px;min-height:30px}
 .seg button[aria-checked="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(9,43,106,.15)}
@@ -350,11 +354,17 @@ window.addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SC
     </div>
 
     <div class="tempsel">
+      <div class="acts">
+        <button class="btn small" type="button" id="btnRedef" title="Remove a condição do tempo e as temperaturas de todos os municípios"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>Redefinir</button>
+        <button class="btn small" type="button" id="btnUndo" disabled title="Volta a última alteração (Ctrl+Z)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>Desfazer</button>
+      </div>
+      <div class="tgrp">
       <span id="lblTemps">Temperaturas no mapa</span>
       <div class="seg" role="radiogroup" aria-labelledby="lblTemps">
         <button type="button" role="radio" data-temps="both">Máxima e mínima</button>
         <button type="button" role="radio" data-temps="max"><i class="dmx"></i>Só máxima</button>
         <button type="button" role="radio" data-temps="min"><i class="dmn"></i>Só mínima</button>
+      </div>
       </div>
     </div>
     <div class="sheet" role="table" aria-label="Previsão por município">
@@ -570,11 +580,11 @@ window.addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SC
 
 <dialog id="dlg"><h3 id="dlgT"></h3><div id="dlgB"></div><div class="r" id="dlgR"></div></dialog>
 
-<script src="../previsao/lib/jspdf.umd.min.js?v=1.14c-20261020"></script>
-<script src="../previsao/data/geo.js?v=1.14c-20261020"></script>
-<script src="../previsao/data/base-mg.js?v=1.14c-20261020"></script>
-<script src="../previsao/data/fundo.js?v=1.14c-20261020"></script>
-<script src="../previsao/app-drive.js?v=1.14c-20261020"></script>
-<script src="../assets/ponte-drive.js?v=1.14c-20261020"></script>
+<script src="../previsao/lib/jspdf.umd.min.js?v=1.14d-20261020"></script>
+<script src="../previsao/data/geo.js?v=1.14d-20261020"></script>
+<script src="../previsao/data/base-mg.js?v=1.14d-20261020"></script>
+<script src="../previsao/data/fundo.js?v=1.14d-20261020"></script>
+<script src="../previsao/app-drive.js?v=1.14d-20261020"></script>
+<script src="../assets/ponte-drive.js?v=1.14d-20261020"></script>
 </body>
 </html>

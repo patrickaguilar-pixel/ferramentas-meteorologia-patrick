@@ -159,7 +159,7 @@ const sortRows = () => S.rows.sort((a,b) => a.name.localeCompare(b.name, "pt-BR"
 const sig = () => JSON.stringify([S.date, validityText(), S.rows.map(r => [r.name, r.tempo, r.tmax, r.tmin])]);
 let saveTimer = null;
 const flush = () => { clearTimeout(saveTimer); saveTimer = null; store.set(LS.draft, {...S, rows: S.rows.map(({id, ...r}) => r)}); };
-function persist(){ clearTimeout(saveTimer); saveTimer = setTimeout(flush, 250); updateStatus(); }
+function persist(){ clearTimeout(saveTimer); saveTimer = setTimeout(flush, 250); updateStatus(); if (typeof histTouch === "function") histTouch(); }
 addEventListener("pagehide", () => { if (saveTimer) flush(); });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && saveTimer) flush(); });
 
@@ -1010,16 +1010,21 @@ function liveLoad(L){
     const tc = document.createElement("canvas"); tc.width = tc.height = 64; const tg = tc.getContext("2d", {willReadFrequently:true});
     const ehBloqueio = bm => { tg.clearRect(0, 0, 64, 64); tg.drawImage(bm, 0, 0, 64, 64); const d = tg.getImageData(0, 0, 64, 64).data; let am = 0;
       for (let k = 0; k < d.length; k += 4) if (d[k] > 220 && d[k+1] > 190 && d[k+2] < 70) am++; return am > 64*64*0.02; };
-    const work = async () => { while (i < jobs.length && !bloqueado){ const [x, y] = jobs[i++];
-      try { const r = await fetch(L.url(OSM_Z, x, y), {mode:"cors", credentials:"omit"});
+    // servidor que não responde: cada imagem espera no máximo 10 s e o mapa inteiro, 30 s
+    const t0 = Date.now(); let estourou = false;
+    const work = async () => { while (i < jobs.length && !bloqueado && !estourou){ const [x, y] = jobs[i++];
+      if (Date.now() - t0 > 30000){ estourou = true; break; }
+      const ac = typeof AbortController === "function" ? new AbortController() : null, tm = ac && setTimeout(() => ac.abort(), 10000);
+      try { const r = await fetch(L.url(OSM_Z, x, y), {mode:"cors", credentials:"omit", signal: ac ? ac.signal : undefined}); clearTimeout(tm);
         if (r.status === 403 || r.status === 429){ bloqueado = true; break; }
         if (!r.ok) throw new Error(r.status);
         const bm = await createImageBitmap(await r.blob());
         if (L.amarelo && ehBloqueio(bm)){ bloqueado = true; break; }
         g.drawImage(bm, (x - x0) * T, (y - y0) * T); }
-      catch(e){ falhas++; } } };
+      catch(e){ clearTimeout(tm); falhas++; if (falhas > jobs.length * 0.2) break; } } };
     await Promise.all(Array.from({length:4}, work));          // poucas requisições ao mesmo tempo, como um mapa comum
     if (bloqueado) throw new Error("bloqueado");
+    if (estourou) throw new Error("tempo");
     if (falhas > jobs.length * 0.2) throw new Error("tiles");
     const W = OSM_W, H = Math.round(OSM_W * (ex.n - ex.s) / (ex.e - ex.w));
     const out = document.createElement("canvas"); out.width = W; out.height = H;
@@ -1039,8 +1044,9 @@ const osmLoad = () => liveLoad(OSM_BG);
 const osmSemEndereco = () => location.protocol === "file:" && !window.__OSM_TESTE;
 const osmNoClaude = () => !!(window.claude && typeof window.claude.use === "function") && !window.__OSM_TESTE;
 // Carrega o mapa escolhido; se não responder, passa para a reserva seguinte (só na sessão, sem mudar a preferência).
-function liveActivate(id, anterior){
+function liveActivate(id, anterior, tentados){
   const L = liveById(id); if (!L) return;
+  tentados = tentados || new Set(); tentados.add(L.id);
   L.failed = false;
   if (osmSemEndereco()){ L.failed = true;
     showMsg("info", "Os mapas base da internet só carregam com a ferramenta aberta por um endereço da web (o painel). Aberto direto do computador, o mapa usa a base de rios e rodovias."); return; }
@@ -1049,13 +1055,15 @@ function liveActivate(id, anterior){
   liveLoad(L).then(() => {
       if (S.bgActive !== L.id) return;
       renderBg(); drawPreview();
-      if (anterior) showMsg("info", `O ${esc(anterior)} não respondeu agora; o fundo foi trocado automaticamente para o ${esc(L.curto)}. Os créditos do mapa já citam o novo fundo.`);
+      if (anterior){
+        showMsg("err", `<b>O mapa de fundo “${esc(anterior)}” não carregou.</b> Para o mapa não ficar sem fundo, ele foi trocado sozinho para o <b>${esc(L.curto)}</b> (os créditos já citam o novo fundo). Se preferir outro, troque em <b>Mapa de fundo</b>, abaixo da tabela de municípios. <button class="btn small ghost" type="button" data-abrirbg>Abrir Mapa de fundo</button>`);
+        histRebase(); }
     })
     .catch(() => {
       if (S.bgActive !== L.id) return;
-      const prox = LIVE[LIVE.indexOf(L) + 1];
-      if (prox){ S.bgActive = prox.id; renderBg(); drawPreview(); liveActivate(prox.id, anterior || L.curto); return; }
-      showMsg("err", "Nenhum dos três mapas base da internet respondeu agora (OpenStreetMap padrão, OpenStreetMap França e OpenStreetMap Alemanha). Por enquanto o mapa usa a base de rios e rodovias; tente de novo mais tarde.");
+      const prox = LIVE.find(o => !tentados.has(o.id));
+      if (prox){ S.bgActive = prox.id; renderBg(); drawPreview(); liveActivate(prox.id, anterior || L.curto, tentados); return; }
+      showMsg("err", `<b>O mapa de fundo não carregou.</b> Nenhum dos mapas da internet respondeu agora (OpenStreetMap padrão, França e Alemanha) — pode ser a internet ou a rede bloqueando esses endereços. Por enquanto o mapa usa a base de rios e rodovias.<br><b>O que fazer:</b> abra <b>Mapa de fundo</b>, abaixo da tabela de municípios, e troque o mapa (ou escolha “Nenhum”); depois de alguns minutos, tente de novo. <button class="btn small ghost" type="button" data-abrirbg>Abrir Mapa de fundo</button> <button class="btn small ghost" type="button" data-tentarbg>Tentar de novo</button>`);
     });
 }
 const osmActivate = () => liveActivate(S.bgActive && liveById(S.bgActive) ? S.bgActive : "osm");
@@ -1786,3 +1794,56 @@ try { const v = sessionStorage.getItem("prevmg:view"); if (v === "bul" || v === 
 // No painel: começa pelo mapa preferido (o OSM padrão, se ninguém escolheu outro). Fora dele: base de rios e rodovias, sem aviso.
 if (liveById(S.bgActive) && OSM_OK){ S.bgActive = liveById(S.livePref) ? S.livePref : "osm"; liveActivate(S.bgActive); }
 idb.all().then(list => { BG = [...(TEAM_BG ? [TEAM_BG] : []), ...LIVE, ...(list || []).sort((a,b) => a.id.localeCompare(b.id))]; renderBg(); drawPreview(); }).catch(() => {});
+
+/* ================= Redefinir e Desfazer =================
+   Desfazer volta qualquer alteração (municípios, condições, temperaturas, posições arrastadas, opções, textos,
+   mapa de fundo, boletim e previsão por cidade), uma de cada vez, até 100 passos. Ctrl+Z também funciona
+   fora das caixas de texto (dentro delas, o Ctrl+Z desfaz a digitação, como sempre). */
+const HIST = {stack: [], last: null, timer: null, restoring: false};
+const histSnap = () => JSON.stringify({rows:S.rows, opts:S.opts, date:S.date, val:S.val, texts:S.texts, bgActive:S.bgActive, bul:S.bul, cid:S.cid});
+function histUI(){ const b = $("#btnUndo"); if (b) b.disabled = !HIST.stack.length && HIST.last === histSnap(); }
+function histCommit(){ clearTimeout(HIST.timer); HIST.timer = null; const cur = histSnap();
+  if (HIST.last !== null && cur !== HIST.last){ HIST.stack.push(HIST.last); if (HIST.stack.length > 100) HIST.stack.shift(); }
+  HIST.last = cur; histUI(); }
+function histTouch(){ if (HIST.restoring) return; clearTimeout(HIST.timer); HIST.timer = setTimeout(histCommit, 400); const b = $("#btnUndo"); if (b) b.disabled = false; }
+function histRebase(){ HIST.last = histSnap(); histUI(); }     // trocas automáticas (ex.: mapa de reserva) não viram passo
+function histUndo(){
+  histCommit();
+  if (!HIST.stack.length) return;
+  const prev = JSON.parse(HIST.stack.pop());
+  HIST.restoring = true;
+  const bgAntes = S.bgActive;
+  Object.assign(S, prev);
+  dateEl.value = S.date || ""; fillVal(); fillTexts(); fillOpts(); applyTempsUI(); renderRows(); renderBg();
+  if (S.bgActive !== bgAntes && liveById(S.bgActive) && OSM_OK) liveActivate(S.bgActive);
+  try { fillBulletin(); } catch(e){}
+  if (!$("#viewBul").hidden) drawBulletin();
+  if (!$("#viewCid").hidden){ try { fillCid(); renderCid(); drawCid(); } catch(e){} }
+  drawPreview(); persist();
+  HIST.last = histSnap(); HIST.restoring = false; histUI();
+  showMsg("info", "Ação desfeita.");
+}
+$("#btnUndo")?.addEventListener("click", histUndo);
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "z"){
+    const t = e.target, ed = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) && !/^(checkbox|radio|button|range)$/i.test(t.type || ""));
+    if (ed) return;
+    e.preventDefault(); histUndo();
+  }
+});
+$("#btnRedef")?.addEventListener("click", () => {
+  const tem = S.rows.some(r => r.tempo !== NONE || r.tmax !== "" || r.tmin !== "");
+  if (!tem){ showMsg("info", "Não há condição de tempo nem temperatura preenchida para remover."); return; }
+  histCommit();
+  S.rows.forEach(r => { r.tempo = NONE; r.tmax = ""; r.tmin = ""; });
+  renderRows(); drawPreview(); persist(); histCommit();
+  showMsg("info", `Preenchimento removido de todos os municípios (condição do tempo e temperaturas). <button class="btn small ghost" type="button" data-desfazer>Desfazer</button>`);
+});
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-desfazer],[data-abrirbg],[data-tentarbg]"); if (!t) return;
+  if (t.hasAttribute("data-desfazer")){ histUndo(); return; }
+  if (t.hasAttribute("data-abrirbg")){ const d = $("#secBg"); if (d){ d.open = true; d.scrollIntoView({behavior:"smooth", block:"start"}); } return; }
+  if (t.hasAttribute("data-tentarbg")){ hideMsg(); LIVE.forEach(L => { L.failed = false; L.promise = null; });
+    S.bgActive = liveById(S.livePref) ? S.livePref : "osm"; renderBg(); drawPreview(); liveActivate(S.bgActive); }
+});
+HIST.last = histSnap(); histUI();
