@@ -1,4 +1,7 @@
-/* Alertas e passagem de plantão — código da página (v3.6, 14/10/2026).
+/* Alertas e passagem de plantão — código da página (v3.7, 20/10/2026).
+   v3.7: intervalo/revezamento no turno (início, fim e observações) e horários de publicação das duas
+   previsões diárias (cada linha: Manhã/Tarde + horário). Vão para o relatório em PDF, o rascunho e a
+   planilha (colunas novas no fim da aba Plantoes, criadas pelo Codigo.gs 2026.10.20.1).
    v3.6: "Ferramentas utilizadas" com caixas de seleção (obrigatório nos dois turnos; "Outros" pede descrição);
    Mapa de Previsões continua separado; "Outras imagens" aceita várias ("+ Imagens" ou Ctrl+V de print), reduzidas no navegador para o PDF não passar do limite;
    intercorrências estruturadas ("+ Intercorrência", obrigatório nos dois turnos), gravadas uma por linha na
@@ -642,13 +645,35 @@ document.addEventListener('paste',e=>{
 listarOutras();
 
 /* ---------------- plantão ---------------- */
-const CAMPOS_PLANTAO={responsavel:'pResp',data:'pData',inicio:'pInicio',fim:'pFim',intercorrencias:'pInter',alertas:'pAlertas',ferramentas:'pFerr',passagem:'pPassagem'};
+const CAMPOS_PLANTAO={responsavel:'pResp',data:'pData',inicio:'pInicio',fim:'pFim',intercorrencias:'pInter',alertas:'pAlertas',ferramentas:'pFerr',passagem:'pPassagem',
+  intervaloInicio:'pIntIni',intervaloFim:'pIntFim',intervaloObs:'pIntObs',   // v3.7
+  pub1Periodo:'pPub1Per',pub1Hora:'pPub1Hora',pub2Periodo:'pPub2Per',pub2Hora:'pPub2Hora'};
+/* v3.7: publicações da previsão diária [{periodo,hora}] e textos para o relatório */
+function publicacoesForm(c){
+  c=c||{};
+  return [[c.pub1Periodo,c.pub1Hora],[c.pub2Periodo,c.pub2Hora]]
+    .map(([periodo,hora])=>({periodo:periodo||'',hora:hora||''})).filter(p=>p.periodo&&p.hora);
+}
+function textoPublicacoes(c){
+  const ps=publicacoesForm(c);
+  return ['Manhã','Tarde'].map(per=>{const h=ps.filter(p=>p.periodo===per).map(p=>p.hora);return h.length?per+': '+h.join(', '):'';})
+    .filter(Boolean).join('\n');
+}
+function textoIntervalo(c){
+  c=c||{};
+  const h=c.intervaloInicio||c.intervaloFim?'Das '+(c.intervaloInicio||'?')+' às '+(c.intervaloFim||'?'):'';
+  return [h,(c.intervaloObs||'').trim()?'Obs.: '+c.intervaloObs.trim():''].filter(Boolean).join('\n');
+}
+function padraoPublicacoes(){
+  if($('pPub1Per')&&!$('pPub1Per').value)$('pPub1Per').value='Manhã';
+  if($('pPub2Per')&&!$('pPub2Per').value)$('pPub2Per').value='Tarde';
+}
 
 function salvarRascunho(){
   try{
     const active=state.active.map(a=>{const c={...a};delete c.cardEl;return c;});
     const r={campos:{},active,dailyRows:state.dailyRows,plantaoId:state.plantaoId,turno:state.turno,salvoEm:new Date().toISOString()};
-    Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>r.campos[k]=$(id).value);
+    Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>r.campos[k]=$(id)?$(id).value:'');
     localStorage.setItem(CHAVE_RASCUNHO,JSON.stringify(r));
     $('rascunhoInfo').textContent='Rascunho guardado neste navegador às '+now()+'.';
   }catch(e){}
@@ -656,7 +681,8 @@ function salvarRascunho(){
 function carregarRascunho(){
   try{
     const r=JSON.parse(localStorage.getItem(CHAVE_RASCUNHO)||'null');if(!r)return false;
-    Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>{if(r.campos&&r.campos[k]!=null)$(id).value=r.campos[k];});
+    Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>{if($(id)&&r.campos&&r.campos[k]!=null)$(id).value=r.campos[k];});
+    padraoPublicacoes();
     if(Array.isArray(r.active))state.active=r.active.filter(a=>a&&Array.isArray(a.cities));
     if(Array.isArray(r.dailyRows))state.dailyRows=r.dailyRows;
     if(r.plantaoId)state.plantaoId=r.plantaoId;
@@ -666,7 +692,7 @@ function carregarRascunho(){
   }catch(e){return false;}
 }
 function apagarRascunho(){try{localStorage.removeItem(CHAVE_RASCUNHO);}catch(e){}$('rascunhoInfo').textContent='';}
-Object.values(CAMPOS_PLANTAO).forEach(id=>$(id).addEventListener('input',()=>{clearTimeout(window._tRasc);window._tRasc=setTimeout(salvarRascunho,600);agendarRelatorio();}));
+Object.values(CAMPOS_PLANTAO).forEach(id=>{const el=$(id);if(!el)return;['input','change'].forEach(ev=>el.addEventListener(ev,()=>{clearTimeout(window._tRasc);window._tRasc=setTimeout(salvarRascunho,600);agendarRelatorio();}));});
 $('pResp').addEventListener('change',()=>{$('quem').textContent=$('pResp').value.trim()||$('quem').dataset.email||'';});
 
 function mostrarAnterior(u){
@@ -677,7 +703,9 @@ function mostrarAnterior(u){
   box.innerHTML=`<p class="meta2">${esc(meta)}</p><div class="passagem"><strong>Áreas suscetíveis e pendências</strong>${esc(u.passagem||'Nada registrado.')}</div>`;
   const det=document.createElement('details');
   det.innerHTML='<summary>Ver o resto do plantão anterior</summary>'+
-    [['Intercorrências',u.intercorrencias],['Alertas gerados',u.alertas],['Ferramentas utilizadas',u.ferramentas]]
+    [['Intervalo / revezamento',textoIntervalo(u)],
+     ['Publicação da previsão diária',[u.pubManha?'Manhã: '+u.pubManha:'',u.pubTarde?'Tarde: '+u.pubTarde:''].filter(Boolean).join(' · ')],
+     ['Intercorrências',u.intercorrencias],['Alertas gerados',u.alertas],['Ferramentas utilizadas',u.ferramentas]]
       .filter(x=>x[1]).map(x=>`<b>${x[0]}</b><p>${esc(x[1])}</p>`).join('');
   if(det.querySelector('b'))box.appendChild(det);
 }
@@ -742,7 +770,7 @@ function carimbo(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+
 
 /* dados do relatório a partir do formulário e dos alertas na tela */
 function dadosRelatorio(){
-  const c={};Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>c[k]=$(id).value);
+  const c={};Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>c[k]=$(id)?$(id).value:'');
   const ids=new Set(state.active.map(a=>a.id).filter(Boolean));
   return {id:state.plantaoId||'',geradoEm:new Date(),campos:c,nAlertas:ids.size,turno:{...state.turno},
     nArquivos:1,pastaUrl:state.pastaUrl||'',mapa:'',prev:mapaPrev.url?{...mapaPrev}:null,outras:imagensOutras.map(i=>({...i}))};
@@ -752,6 +780,7 @@ function linhasDaTabela(d){
   return [
     ['ID do plantão',d.id||'(criado ao salvar)'],
     ['Responsável',c.responsavel],['Data do plantão',dataBR(c.data)],['Turno',d.turno&&d.turno.turno||''],['Início',c.inicio],['Fim',c.fim],
+    ['Intervalo / revezamento',textoIntervalo(c)],['Publicação da previsão diária',textoPublicacoes(c)],
     ['Intercorrências',c.intercorrencias],['Ferramentas utilizadas',c.ferramentas],['Alertas gerados',c.alertas],
     ['Passagem de plantão (áreas suscetíveis e pendências)',c.passagem],
     ['Nº de alertas',String(d.nAlertas)],['Nº de arquivos',String(d.nArquivos)],
@@ -1046,7 +1075,8 @@ function lembrarEmailPlantao(id){
 }
 
 function salvarPassagemAgora(){
-  const d={};Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>d[k]=$(id).value);
+  const d={};Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>d[k]=$(id)?$(id).value:'');
+  d.publicacoes=publicacoesForm(d);   // v3.7
   d.turno=state.turno.turno;d.dataTurno=state.turno.data;
   if(!d.responsavel.trim()){status('Preencha o campo "Responsável".','erro');$('pResp').focus();return;}
   if(!d.data){status('Preencha a data do plantão.','erro');$('pData').focus();return;}
@@ -1063,7 +1093,7 @@ function salvarPassagemAgora(){
       snap.id=(r&&r.id)||snap.id;snap.geradoEm=new Date();
       if(r&&r.alertas!=null)snap.nAlertas=r.alertas;
       if(r&&r.arquivos!=null)snap.nArquivos=r.arquivos+1;   // + relatório (o Mapa de Previsões vai dentro do PDF)
-      Object.values(CAMPOS_PLANTAO).forEach(id=>$(id).value='');
+      Object.values(CAMPOS_PLANTAO).forEach(id=>{if($(id))$(id).value='';});padraoPublicacoes();
       turnoServidor=null;state.turno=turnoPeloRelogio();mostrarTurno();preencherHorariosTurno();
       state.active=[];state.dailyRows=[];state.plantaoId='';state.selected.clear();desenharAlertas();updateSelection();apagarRascunho();
       limparExtrasPlantao();
@@ -1083,6 +1113,12 @@ function salvarPassagemAgora(){
 $('salvarPlantao').onclick=()=>{
   if(!$('pResp').value.trim()){status('Preencha o campo "Responsável".','erro');$('pResp').focus();return;}
   if(!conferirObrigatorios())return;   // v3.6: ferramentas e intercorrências (os dois turnos)
+  if($('pIntIni')&&(!$('pIntIni').value)!==(!$('pIntFim').value)){   // v3.7: intervalo pela metade
+    status('Preencha o início e o fim do intervalo (ou deixe os dois em branco).','erro');
+    ($('pIntIni').value?$('pIntFim'):$('pIntIni')).focus();return;
+  }
+  if($('pPub1Per')&&$('pPub1Hora').value&&$('pPub2Hora').value&&$('pPub1Per').value===$('pPub2Per').value&&
+    !confirm('As duas publicações estão marcadas como "'+$('pPub1Per').value+'". Salvar assim mesmo?'))return;
   if(!mapaPrev.url&&state.turno.turno==='Diurno'){   // no plantão noturno o PNG é opcional
     status('Anexe o Mapa de Previsões (PNG) antes de encerrar o plantão diurno.','erro');
     aviso('Para encerrar o plantão <b>diurno</b>, anexe a imagem do <b>Mapa de Previsões (PNG)</b> no formulário.',true);
