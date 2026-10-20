@@ -581,7 +581,8 @@ const finalXY = r => { const [x, y] = iconXY(r), a = AUTO.get(r.id) || [0,0]; re
 const BASE = (typeof window !== "undefined" && window.BASE_CARTO) || null;
 // Se o OpenStreetMap estiver escolhido mas não tiver carregado, a base vetorial aparece no lugar dele.
 const useBase = k => !!S.opts[k] || (typeof liveById === "function" && !!liveById(S.bgActive) && !liveById(S.bgActive).src);
-const baseOn = () => !!(BASE && ((useBase("baseHidro") && (BASE.rios || BASE.represas)) || (useBase("baseRod") && BASE.rodovias) || (useBase("baseUrb") && BASE.urbano)));
+// A base de rios, rodovias e áreas urbanas foi retirada da ferramenta (1.14): o fundo vem dos mapas base.
+const baseOn = () => false;
 function baseCartoSVG(){
   if (!baseOn()) return "";
   const o = [`<g clip-path="url(#mapclipMG)">`];
@@ -993,8 +994,7 @@ for (const k in tx) tx[k].addEventListener("input", () => { S.texts[k] = tx[k].v
 $("#btnTxReset").addEventListener("click", () => { S.texts = {...DEFAULT_TEXTS}; fillTexts(); persist(); drawPreview(); });
 const op = {mun:$("#opMun"), meso:$("#opMeso"), mesoNames:$("#opMesoNames"), states:$("#opStates"), names:$("#opNames"), autoSpread:$("#opAuto"), ptSede:$("#opPtSede")};
 op.mgFill = $("#opMgFill"); op.bgClipMG = $("#opBgClip");
-if (BASE){ op.baseHidro = $("#opBaseHidro"); op.baseRod = $("#opBaseRod"); op.baseUrb = $("#opBaseUrb");
-  const bx = $("#baseBox"); if (bx){ bx.hidden = false; $("#baseFonte").textContent = `Fontes: ${BASE.credito}. Atualizada em ${fmtDateBR(BASE.versao)}.`; } }
+
 const rng = {iconScale:[$("#opIconScale"), $("#outIconScale"), v => Math.round(v*100)+"%"], nameSize:[$("#opNameSize"), $("#outNameSize"), v => (v/PT).toFixed(0)+" pt"]};
 function fillOpts(){ for (const k in op) op[k].checked = !!S.opts[k]; for (const k in rng){ rng[k][0].value = S.opts[k]; rng[k][1].textContent = rng[k][2](S.opts[k]); }
   $("#szOut").textContent = Math.round((S.opts.iconScale||1)*100) + "%"; }
@@ -1031,8 +1031,9 @@ const TEAM_BG = MF ? {id:"equipe", team:true, name:`Fundo da equipe — ${MF.nom
    O navegador usa o próprio cache HTTP, como em qualquer mapa na web. */
 const OSM_Z = 8, OSM_W = 3400;
 const sub = (x, y) => "abc"[(x + y) % 3];
-// Chave gratuita do CARTO (carto.com/basemaps/apikey). Sem ela, o CARTO Voyager pode não carregar.
-const CARTO_KEY = "";
+// OpenFreeMap: gratuito, sem chave e sem limite (openfreemap.org). Vetorial: o navegador desenha o mapa
+// com a biblioteca MapLibre (previsao/lib/maplibre-gl.js), e todas as camadas de texto são retiradas.
+const OFM_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 // Créditos no mesmo formato para todos os mapas: "Mapa base: © <dados> — estilo <mapa>" (cabe numa linha,
 // com o mesmo tamanho de letra em qualquer mapa).
 const LIVE = [
@@ -1045,9 +1046,8 @@ const LIVE = [
   {id:"osmde", nome:"OpenStreetMap Alemanha (reserva 2)", curto:"OpenStreetMap Alemanha",
    url:(z, x, y) => `https://tile.openstreetmap.de/${z}/${x}/${y}.png`,
    credito:"© OpenStreetMap — estilo OSM Alemanha"},
-  {id:"carto", nome:"CARTO Voyager — sem nomes" + (CARTO_KEY ? "" : " (precisa de chave)"), curto:"CARTO Voyager (sem nomes)", reserva:false,
-   url:(z, x, y) => `https://${"abcd"[(x + y) % 4]}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/${z}/${x}/${y}.png${CARTO_KEY ? "?key=" + encodeURIComponent(CARTO_KEY) : ""}`,
-   credito:"© OpenStreetMap © CARTO — estilo Voyager"}
+  {id:"ofm", nome:"OpenFreeMap — sem nomes", curto:"OpenFreeMap (sem nomes)", reserva:false, vector:true, style:OFM_STYLE,
+   credito:"© OpenStreetMap © OpenMapTiles — estilo OpenFreeMap"}
 ];
 LIVE.forEach(L => Object.assign(L, {live:true, name:L.nome + " — da internet", src:null, bounds:null, promise:null, failed:false,
   opacity:(S.opts["op_" + L.id] ?? (L.id === "osm" ? S.opts.osmOp : undefined) ?? 1)}));
@@ -1058,6 +1058,7 @@ const liveById = id => LIVE.find(L => L.id === id) || null;
 function liveLoad(L){
   if (L.src) return Promise.resolve(true);
   if (L.promise) return L.promise;
+  if (L.vector){ L.promise = vectorLoad(L).catch(err => { L.promise = null; L.failed = true; throw err; }); return L.promise; }
   L.promise = (async () => {
     const n = 2 ** OSM_Z, T = 256;
     const lx = lon => (lon + 180) / 360 * n * T;
@@ -1112,29 +1113,74 @@ function liveActivate(id, anterior, tentados){
   tentados = tentados || new Set(); tentados.add(L.id);
   L.failed = false;
   if (osmSemEndereco()){ L.failed = true;
-    showMsg("info", "Os mapas base da internet só carregam com a ferramenta aberta por um endereço da web (o painel). Aberto direto do computador, o mapa usa a base de rios e rodovias."); return; }
+    showMsg("info", "Os mapas base da internet só carregam com a ferramenta aberta por um endereço da web (o painel). Aberto direto do computador, o mapa fica só com os limites do IBGE."); return; }
   if (osmNoClaude()){ L.failed = true;
-    showMsg("info", "Nesta pré-visualização do Claude a página não pode buscar mapas na internet; o mapa usa a base de rios e rodovias. No painel, o mapa base carrega."); return; }
+    showMsg("info", "Nesta pré-visualização do Claude a página não pode buscar mapas na internet; o mapa fica só com os limites do IBGE. No painel, o mapa base carrega."); return; }
   liveLoad(L).then(() => {
       if (S.bgActive !== L.id) return;
       renderBg(); drawPreview();
       if (anterior){
-        showMsg("err", `<b>O mapa de fundo “${esc(anterior)}” não carregou.</b>${anterior === liveById("carto").curto && !CARTO_KEY ? " O CARTO pede uma chave gratuita, que ainda não foi configurada." : ""} Para o mapa não ficar sem fundo, ele foi trocado sozinho para o <b>${esc(L.curto)}</b> (os créditos já citam o novo fundo). Se preferir outro, troque em <b>Mapa de fundo</b>, abaixo da tabela de municípios. <button class="btn small ghost" type="button" data-abrirbg>Abrir Mapa de fundo</button>`);
+        showMsg("err", `<b>O mapa de fundo “${esc(anterior)}” não carregou.</b> Para o mapa não ficar sem fundo, ele foi trocado sozinho para o <b>${esc(L.curto)}</b> (os créditos já citam o novo fundo). Se preferir outro, troque em <b>Mapa de fundo</b>, abaixo da tabela de municípios. <button class="btn small ghost" type="button" data-abrirbg>Abrir Mapa de fundo</button>`);
         histRebase(); }
     })
     .catch(() => {
       if (S.bgActive !== L.id) return;
       const prox = LIVE.find(o => o.reserva !== false && !tentados.has(o.id));   // o CARTO não entra como reserva automática
       if (prox){ S.bgActive = prox.id; renderBg(); drawPreview(); liveActivate(prox.id, anterior || L.curto, tentados); return; }
-      showMsg("err", `<b>O mapa de fundo não carregou.</b> Nenhum dos mapas da internet respondeu agora (OpenStreetMap padrão, França e Alemanha) — pode ser a internet ou a rede bloqueando esses endereços. Por enquanto o mapa usa a base de rios e rodovias.<br><b>O que fazer:</b> abra <b>Mapa de fundo</b>, abaixo da tabela de municípios, e troque o mapa (ou escolha “Nenhum”); depois de alguns minutos, tente de novo. <button class="btn small ghost" type="button" data-abrirbg>Abrir Mapa de fundo</button> <button class="btn small ghost" type="button" data-tentarbg>Tentar de novo</button>`);
+      showMsg("err", `<b>O mapa de fundo não carregou.</b> Nenhum dos mapas da internet respondeu agora (OpenStreetMap padrão, França e Alemanha) — pode ser a internet ou a rede bloqueando esses endereços. Por enquanto o mapa fica só com os limites do IBGE.<br><b>O que fazer:</b> abra <b>Mapa de fundo</b>, abaixo da tabela de municípios, e troque o mapa (ou escolha “Nenhum”); depois de alguns minutos, tente de novo. <button class="btn small ghost" type="button" data-abrirbg>Abrir Mapa de fundo</button> <button class="btn small ghost" type="button" data-tentarbg>Tentar de novo</button>`);
     });
 }
-// Sem a chave, o CARTO não recusa: devolve imagens marcadas "API KEY REQUIRED". Por isso nem tenta carregar.
-function cartoSemChave(){
-  S.bgActive = liveById(S.livePref) && S.livePref !== "carto" ? S.livePref : "osm";
-  renderBg(); drawPreview(); persist();
-  if (OSM_OK) liveActivate(S.bgActive);
-  showMsg("err", `<b>O CARTO Voyager ainda não pode ser usado:</b> ele precisa de uma chave gratuita do CARTO, que ainda não foi configurada (sem ela, as imagens vêm marcadas “API KEY REQUIRED”). O fundo voltou para o <b>${esc(liveById(S.bgActive).curto)}</b>. Para liberar, peça a chave em carto.com/basemaps/apikey e envie para quem mantém a ferramenta. <button class="btn small ghost" type="button" data-abrirbg>Abrir Mapa de fundo</button>`);
+// MapLibre é carregada só quando o OpenFreeMap é escolhido (da mesma pasta do jsPDF, no GitHub)
+let mlPromise = null;
+function loadMapLibre(){
+  if (window.maplibregl) return Promise.resolve(window.maplibregl);
+  if (mlPromise) return mlPromise;
+  const s = document.querySelector('script[src*="jspdf.umd.min.js"]');
+  if (!s) return Promise.reject(new Error("sem-lib"));
+  const src = s.src.replace(/jspdf\.umd\.min\.js.*$/, "maplibre-gl.js") + (s.src.includes("?") ? s.src.slice(s.src.indexOf("?")) : "");
+  mlPromise = new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = src;
+    sc.onload = () => window.maplibregl ? res(window.maplibregl) : rej(new Error("lib"));
+    sc.onerror = () => { mlPromise = null; rej(new Error("lib")); }; document.head.appendChild(sc); });
+  return mlPromise;
+}
+// Desenha o estilo vetorial (sem textos) fora da tela, em Web Mercator, e reprojeta para latitude/longitude
+async function vectorLoad(L){
+  const ml = await loadMapLibre();
+  const ac = typeof AbortController === "function" ? new AbortController() : null, tm = ac && setTimeout(() => ac.abort(), 15000);
+  const resp = await fetch(L.style, {mode:"cors", credentials:"omit", signal: ac ? ac.signal : undefined}); clearTimeout(tm);
+  if (!resp.ok) throw new Error(resp.status);
+  const style = await resp.json();
+  style.layers = (style.layers || []).filter(l => l.type !== "symbol");      // nenhum nome, número de estrada ou ícone
+  const ex = fullExtent(), W = OSM_W;
+  const world = W * 360 / (ex.e - ex.w);                                      // largura do mundo em px nesta escala
+  const my = lat => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * world; };
+  const Hm = Math.round(my(ex.s) - my(ex.n));
+  const div = document.createElement("div");
+  div.style.cssText = `position:fixed;left:-${W + 50}px;top:0;width:${W}px;height:${Hm}px;pointer-events:none`;
+  document.body.appendChild(div);
+  let map = null;
+  try {
+    let erros = 0;
+    map = new ml.Map({container: div, style, interactive: false, attributionControl: false, preserveDrawingBuffer: true,
+      pixelRatio: 1, fadeDuration: 0, bounds: [[ex.w, ex.s], [ex.e, ex.n]], fitBoundsOptions: {padding: 0}});
+    await new Promise((res, rej) => {
+      const t = setTimeout(() => rej(new Error("tempo")), 45000);
+      map.on("error", () => { if (++erros > 40){ clearTimeout(t); rej(new Error("tiles")); } });
+      map.once("idle", () => { clearTimeout(t); res(); });
+    });
+    if (erros > 20) throw new Error("tiles");
+    const cv = map.getCanvas();
+    const H = Math.round(W * (ex.n - ex.s) / (ex.e - ex.w));
+    const out = document.createElement("canvas"); out.width = W; out.height = H;
+    const o = out.getContext("2d"); o.imageSmoothingQuality = "high";
+    const sy = cv.height / Hm, y0 = my(ex.n);
+    for (let r = 0; r < H; r++){                                              // linha a linha: Mercator -> lat/lon
+      const lat = ex.n - (r + 0.5) / H * (ex.n - ex.s);
+      o.drawImage(cv, 0, (my(lat) - y0) * sy - 0.5, cv.width, 1, 0, r, W, 1);
+    }
+    L.src = out.toDataURL("image/jpeg", 0.92); L.bounds = ex;
+    return true;
+  } finally { try { map && map.remove(); } catch(e){} div.remove(); }
 }
 const osmActivate = () => liveActivate(S.bgActive && liveById(S.bgActive) ? S.bgActive : "osm");
 BG = [...LIVE];
@@ -1179,7 +1225,6 @@ function renderBg(){
 $("#bgList").addEventListener("change", e => {
   if (e.target.name !== "bgsel") return;
   const had = !!activeBg(); S.bgActive = e.target.value || null;
-  if (S.bgActive === "carto" && !CARTO_KEY){ cartoSemChave(); return; }
   if (liveById(S.bgActive)){ S.livePref = S.bgActive; liveActivate(S.bgActive); }
   if (S.bgActive && !had){ S.opts.mgFill = false; }   // ao ligar um fundo, deixa-o visível dentro de MG
   if (!S.bgActive){ S.opts.mgFill = true; }
@@ -1863,8 +1908,8 @@ C$("#btnCidPdf").addEventListener("click", e => busy(e.currentTarget, async () =
 fillTexts(); fillOpts(); applyTempsUI(); renderRows(); updateNotice(); updateStatus(); renderBg(); drawPreview();
 try { const v = sessionStorage.getItem("prevmg:view"); if (v === "bul" || v === "cid") setView(v); } catch(e){}
 // No painel: começa pelo mapa preferido (o OSM padrão, se ninguém escolheu outro). Fora dele: base de rios e rodovias, sem aviso.
-if (S.livePref === "carto" && !CARTO_KEY) S.livePref = "osm";
-if (S.bgActive === "carto" && !CARTO_KEY) S.bgActive = "osm";
+if (S.livePref === "carto") S.livePref = "osm";      // o CARTO (precisava de chave) foi trocado pelo OpenFreeMap
+if (S.bgActive === "carto") S.bgActive = "osm";
 if (liveById(S.bgActive) && OSM_OK){ S.bgActive = liveById(S.livePref) ? S.livePref : "osm"; liveActivate(S.bgActive); }
 idb.all().then(list => { BG = [...(TEAM_BG ? [TEAM_BG] : []), ...LIVE, ...(list || []).sort((a,b) => a.id.localeCompare(b.id))]; renderBg(); drawPreview(); }).catch(() => {});
 
