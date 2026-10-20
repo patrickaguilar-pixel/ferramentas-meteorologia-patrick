@@ -1,4 +1,4 @@
-/* Código da Previsão diária v1.13 (v1.12 + OpenStreetMap padrão ao vivo como fundo e ponto na sede de cada município).
+/* Código da Previsão diária v1.14 (v1.13 + dois mapas base de reserva: OpenStreetMap França e OpenTopoMap, com troca automática).
    Extraído de "Previsão diária — Minas Gerais v1.1.html" para a versão Apps Script
    (carregado de fora para o Apps Script não interferir no código). */
 
@@ -339,7 +339,7 @@ const finalXY = r => { const [x, y] = iconXY(r), a = AUTO.get(r.id) || [0,0]; re
    Tudo é recortado pelo contorno de Minas Gerais. */
 const BASE = (typeof window !== "undefined" && window.BASE_CARTO) || null;
 // Se o OpenStreetMap estiver escolhido mas não tiver carregado, a base vetorial aparece no lugar dele.
-const useBase = k => !!S.opts[k] || (S.bgActive === "osm" && !(typeof OSM_BG !== "undefined" && OSM_BG.src));
+const useBase = k => !!S.opts[k] || (["osm","osmfr","otm"].includes(S.bgActive) && !(typeof liveById === "function" && (liveById(S.bgActive) || {}).src));
 const baseOn = () => !!(BASE && ((useBase("baseHidro") && (BASE.rios || BASE.represas)) || (useBase("baseRod") && BASE.rodovias) || (useBase("baseUrb") && BASE.urbano)));
 function baseCartoSVG(){
   if (!baseOn()) return "";
@@ -771,18 +771,33 @@ const activeBg = () => { const b = BG.find(b => b.id === S.bgActive) || null; re
    Vale para todos; não fica no IndexedDB. Só a opacidade escolhida fica salva no navegador. */
 const MF = (typeof window !== "undefined" && window.MAPA_FUNDO && window.MAPA_FUNDO.src && window.MAPA_FUNDO.bounds) ? window.MAPA_FUNDO : null;
 const TEAM_BG = MF ? {id:"equipe", team:true, name:`Fundo da equipe — ${MF.nome || "mapa base"}`, src:MF.src, bounds:{...MF.bounds}, opacity:(S.opts.teamOp ?? MF.opacidade ?? 1), credito:MF.credito || ""} : null;
-/* OpenStreetMap (estilo padrão) carregado ao vivo de tile.openstreetmap.org a cada sessão.
+/* Mapas base carregados ao vivo a cada sessão (imagens do servidor de cada projeto).
+   Ordem: OSM padrão (principal) -> OSM França (reserva 1) -> OpenTopoMap (reserva 2).
+   Se o principal não responder, a ferramenta passa sozinha para a reserva seguinte e avisa.
    A imagem é montada no navegador e reprojetada de Web Mercator para latitude/longitude.
-   Não é guardada no IndexedDB nem vira fundo.js: a política do servidor do OSM não permite uso offline.
+   Não é guardada no IndexedDB nem vira fundo.js: os servidores não permitem uso offline.
    O navegador usa o próprio cache HTTP, como em qualquer mapa na web. */
 const OSM_Z = 8, OSM_W = 3400;
-const OSM_BG = {id:"osm", live:true, name:"OpenStreetMap — padrão (carregado da internet pela plataforma)", src:null, bounds:null,
-  opacity:(S.opts.osmOp ?? 1), credito:"© colaboradores do OpenStreetMap"};
-let osmPromise = null, osmFailed = false;   // após uma falha, só tenta de novo quando a pessoa escolhe o OSM outra vez
-function osmLoad(){
-  if (OSM_BG.src) return Promise.resolve(true);
-  if (osmPromise) return osmPromise;
-  osmPromise = (async () => {
+const sub = (x, y) => "abc"[(x + y) % 3];
+const LIVE = [
+  {id:"osm", nome:"OpenStreetMap — padrão", curto:"OpenStreetMap padrão", amarelo:true,
+   url:(z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
+   credito:"© colaboradores do OpenStreetMap"},
+  {id:"osmfr", nome:"OpenStreetMap França (reserva 1)", curto:"OpenStreetMap França",
+   url:(z, x, y) => `https://${sub(x, y)}.tile.openstreetmap.fr/osmfr/${z}/${x}/${y}.png`,
+   credito:"© colaboradores do OpenStreetMap; estilo © OpenStreetMap França"},
+  {id:"otm", nome:"OpenTopoMap — topográfico (reserva 2)", curto:"OpenTopoMap",
+   url:(z, x, y) => `https://${sub(x, y)}.tile.opentopomap.org/${z}/${x}/${y}.png`,
+   credito:"© colaboradores do OpenStreetMap, SRTM; estilo © OpenTopoMap (CC BY-SA)"}
+];
+LIVE.forEach(L => Object.assign(L, {live:true, name:L.nome + " — da internet", src:null, bounds:null, promise:null, failed:false,
+  opacity:(S.opts["op_" + L.id] ?? (L.id === "osm" ? S.opts.osmOp : undefined) ?? 1)}));
+const OSM_BG = LIVE[0];
+const liveById = id => LIVE.find(L => L.id === id) || null;
+function liveLoad(L){
+  if (L.src) return Promise.resolve(true);
+  if (L.promise) return L.promise;
+  L.promise = (async () => {
     const n = 2 ** OSM_Z, T = 256;
     const lx = lon => (lon + 180) / 360 * n * T;
     const my = lat => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n * T; };
@@ -798,11 +813,11 @@ function osmLoad(){
     const ehBloqueio = bm => { tg.clearRect(0, 0, 64, 64); tg.drawImage(bm, 0, 0, 64, 64); const d = tg.getImageData(0, 0, 64, 64).data; let am = 0;
       for (let k = 0; k < d.length; k += 4) if (d[k] > 220 && d[k+1] > 190 && d[k+2] < 70) am++; return am > 64*64*0.02; };
     const work = async () => { while (i < jobs.length && !bloqueado){ const [x, y] = jobs[i++];
-      try { const r = await fetch(`https://tile.openstreetmap.org/${OSM_Z}/${x}/${y}.png`, {mode:"cors", credentials:"omit"});
+      try { const r = await fetch(L.url(OSM_Z, x, y), {mode:"cors", credentials:"omit"});
         if (r.status === 403 || r.status === 429){ bloqueado = true; break; }
         if (!r.ok) throw new Error(r.status);
         const bm = await createImageBitmap(await r.blob());
-        if (ehBloqueio(bm)){ bloqueado = true; break; }
+        if (L.amarelo && ehBloqueio(bm)){ bloqueado = true; break; }
         g.drawImage(bm, (x - x0) * T, (y - y0) * T); }
       catch(e){ falhas++; } } };
     await Promise.all(Array.from({length:4}, work));          // poucas requisições ao mesmo tempo, como um mapa comum
@@ -816,26 +831,37 @@ function osmLoad(){
       const lat = ex.n - (r + 0.5) / H * (ex.n - ex.s);
       o.drawImage(st, sx, my(lat) - y0 * T - 0.5, sw, 1, 0, r, W, 1);
     }
-    OSM_BG.src = out.toDataURL("image/jpeg", 0.92); OSM_BG.bounds = ex; OSM_BG.opacity = S.opts.osmOp ?? 1;
+    L.src = out.toDataURL("image/jpeg", 0.92); L.bounds = ex;
     return true;
-  })().catch(err => { osmPromise = null; osmFailed = true; throw err; });
-  return osmPromise;
+  })().catch(err => { L.promise = null; L.failed = true; throw err; });
+  return L.promise;
 }
-// Arquivo aberto do computador (file://) não envia o endereço da página (Referer), e o servidor do OSM recusa.
+const osmLoad = () => liveLoad(OSM_BG);
+// Arquivo aberto do computador (file://) não envia o endereço da página (Referer), e os servidores recusam.
 const osmSemEndereco = () => location.protocol === "file:" && !window.__OSM_TESTE;
 const osmNoClaude = () => !!(window.claude && typeof window.claude.use === "function") && !window.__OSM_TESTE;
-function osmActivate(){
-  osmFailed = false;
-  if (osmSemEndereco()){ osmFailed = true;
-    showMsg("info", "O OpenStreetMap só carrega quando a ferramenta é aberta pela plataforma (Apps Script). Aberto direto do computador, o servidor do OSM recusa o acesso; por enquanto o mapa usa a base de rios e rodovias."); return; }
-  if (osmNoClaude()){ osmFailed = true;
-    showMsg("info", "Nesta pré-visualização do Claude a página não pode buscar mapas na internet, então o OpenStreetMap não aparece aqui; o mapa usa a base de rios e rodovias. Na plataforma (Apps Script) ele deve carregar."); return; }
-  osmLoad().then(() => { renderBg(); drawPreview(); })
-    .catch(err => showMsg("err", err && err.message === "bloqueado"
-      ? "O servidor do OpenStreetMap recusou o acesso a partir desta página. Por enquanto o mapa usa a base de rios e rodovias."
-      : "Não foi possível acessar o servidor do OpenStreetMap agora (sem internet ou servidor fora do ar). Por enquanto o mapa usa a base de rios e rodovias; tente de novo mais tarde."));
+// Carrega o mapa escolhido; se não responder, passa para a reserva seguinte (só na sessão, sem mudar a preferência).
+function liveActivate(id, anterior){
+  const L = liveById(id); if (!L) return;
+  L.failed = false;
+  if (osmSemEndereco()){ L.failed = true;
+    showMsg("info", "Os mapas base da internet só carregam com a ferramenta aberta por um endereço da web (o painel). Aberto direto do computador, o mapa usa a base de rios e rodovias."); return; }
+  if (osmNoClaude()){ L.failed = true;
+    showMsg("info", "Nesta pré-visualização do Claude a página não pode buscar mapas na internet; o mapa usa a base de rios e rodovias. No painel, o mapa base carrega."); return; }
+  liveLoad(L).then(() => {
+      if (S.bgActive !== L.id) return;
+      renderBg(); drawPreview();
+      if (anterior) showMsg("info", `O ${esc(anterior)} não respondeu agora; o fundo foi trocado automaticamente para o ${esc(L.curto)}. Os créditos do mapa já citam o novo fundo.`);
+    })
+    .catch(() => {
+      if (S.bgActive !== L.id) return;
+      const prox = LIVE[LIVE.indexOf(L) + 1];
+      if (prox){ S.bgActive = prox.id; renderBg(); drawPreview(); liveActivate(prox.id, anterior || L.curto); return; }
+      showMsg("err", "Nenhum dos três mapas base da internet respondeu agora (OpenStreetMap padrão, OpenStreetMap França e OpenTopoMap). Por enquanto o mapa usa a base de rios e rodovias; tente de novo mais tarde.");
+    });
 }
-BG = [OSM_BG];
+const osmActivate = () => liveActivate(S.bgActive && liveById(S.bgActive) ? S.bgActive : "osm");
+BG = [...LIVE];
 // OSM padrão ao vivo: fundo padrão quando a ferramenta é aberta pela plataforma (endereço https).
 // Aberta direto do computador ou na pré-visualização do Claude, o servidor do OSM recusa: fica a base de rios e rodovias.
 const OSM_OK = !osmSemEndereco() && !osmNoClaude();
@@ -845,7 +871,7 @@ if (S.osmSeen !== 3){
   S.osmSeen = 3;
 }
 if (TEAM_BG){
-  BG = [TEAM_BG, OSM_BG];
+  BG = [TEAM_BG, ...LIVE];
   if (S.teamSeen !== (MF.versao || "1")){        // primeira vez que este fundo aparece neste navegador: já vem ligado
     S.teamSeen = MF.versao || "1"; S.bgActive = "equipe"; S.opts.mgFill = false;
     S.opts.baseHidro = S.opts.baseRod = S.opts.baseUrb = false;   // rios e rodovias já estão no mapa base
@@ -865,8 +891,9 @@ function renderBg(){
   $("#bgCount").textContent = S.bgActive && activeBg() ? "ativo" : "";
   const row = (id, name, thumb) => `<label class="b"><input type="radio" name="bgsel" value="${id}" ${(S.bgActive||"") === id ? "checked" : ""}>${thumb ? `<img alt="" src="${thumb}">` : ""}<span>${esc(name)}</span>${id ? `<button class="icobtn" type="button" data-bgdel="${id}" aria-label="Excluir ${esc(name)}" title="Excluir">${ICON_X}</button>` : ""}</label>`;
   list.innerHTML = row("", "Nenhum (somente limites do IBGE)") + BG.map(b => row(b.id, b.name, b.src)).join("");
-  list.querySelectorAll('[data-bgdel="equipe"],[data-bgdel="osm"]').forEach(x => x.remove());   // fundos embutidos não são excluídos aqui
-  list.querySelectorAll('input[value="osm"]').forEach(x => { const im = x.parentNode.querySelector("img"); if (im && !OSM_BG.src) im.remove(); });
+  list.querySelectorAll('[data-bgdel="equipe"]').forEach(x => x.remove());   // fundos embutidos não são excluídos aqui
+  for (const L of LIVE){ list.querySelectorAll(`[data-bgdel="${L.id}"]`).forEach(x => x.remove());
+    list.querySelectorAll(`input[value="${L.id}"]`).forEach(x => { const im = x.parentNode.querySelector("img"); if (im && !L.src) im.remove(); }); }
   const b = activeBg(); $("#bgCfg").hidden = !b;
   if ($("#bgTeam")) $("#bgTeam").hidden = !b || !!b.team || !!b.live;   // o OSM não pode virar fundo.js (política do servidor)
   $("#bgCfg").querySelector(".bounds").hidden = !!(b && b.live); $("#bgFit").parentNode.hidden = !!(b && b.live);
@@ -876,7 +903,7 @@ function renderBg(){
 $("#bgList").addEventListener("change", e => {
   if (e.target.name !== "bgsel") return;
   const had = !!activeBg(); S.bgActive = e.target.value || null;
-  if (S.bgActive === "osm") osmActivate();
+  if (liveById(S.bgActive)){ S.livePref = S.bgActive; liveActivate(S.bgActive); }
   if (S.bgActive && !had){ S.opts.mgFill = false; }   // ao ligar um fundo, deixa-o visível dentro de MG
   if (!S.bgActive){ S.opts.mgFill = true; }
   fillOpts(); persist(); renderBg(); drawPreview();
@@ -890,7 +917,7 @@ $("#bgList").addEventListener("click", e => {
 let bgSaveT = null;
 function bgChanged(){ drawPreview(); clearTimeout(bgSaveT); const b = activeBg();
   if (b && b.team){ S.opts.teamOp = b.opacity; persist(); return; }
-  if (b && b.live){ S.opts.osmOp = b.opacity; persist(); return; }
+  if (b && b.live){ S.opts["op_" + b.id] = b.opacity; persist(); return; }
   bgSaveT = setTimeout(() => b && idb.put(b).catch(() => {}), 400); }
 ["bgW","bgE","bgS","bgN"].forEach(id => $("#"+id).addEventListener("input", () => {
   const b = activeBg(); if (!b) return;
@@ -1030,7 +1057,7 @@ async function preflight(){
   return !!go;
 }
 async function svgToCanvas(dpi){
-  if (S.bgActive === "osm" && !OSM_BG.src && !osmFailed){ try { await osmLoad(); } catch(e){} }
+  { const L = liveById(S.bgActive); if (L && !L.src && !L.failed){ try { await liveLoad(L); } catch(e){} } }
   return new Promise((res, rej) => {
     const svg = renderSVG({forExport:true});
     const W = Math.round(PAGE.w/25.4*dpi), H = Math.round(PAGE.h/25.4*dpi);
@@ -1549,7 +1576,7 @@ C$("#btnCidPdf").addEventListener("click", e => busy(e.currentTarget, async () =
         else { pdf.setFont("helvetica", o.b ? "bold" : "normal"); pdf.setFontSize(o.pt); pdf.setTextColor(...cHex(o.c)); pdf.text(o.t, o.x, o.y, o.r ? {align:"right"} : undefined); }
       }
     }
-    pdf.setProperties({title:`Previsão por cidade - ${cidDate()}`, author:"SIMGE/IGAM", creator:"Previsão diária MG 1.13"});
+    pdf.setProperties({title:`Previsão por cidade - ${cidDate()}`, author:"SIMGE/IGAM", creator:"Previsão diária MG 1.14"});
     baixarLocal(`previsao_cidades_${S.date}.pdf`, pdf.output("blob"));
     showCMsg("ok", `PDF de ${fmtDateBR(S.date)} baixado no seu computador (${pages.length} página${pages.length>1?"s":""}).`);
   } catch(err){ showCMsg("err", "Não foi possível gerar o PDF. Tente novamente."); }
@@ -1558,5 +1585,6 @@ C$("#btnCidPdf").addEventListener("click", e => busy(e.currentTarget, async () =
 /* ================= início ================= */
 fillTexts(); fillOpts(); applyTempsUI(); renderRows(); updateNotice(); updateStatus(); renderBg(); drawPreview();
 try { const v = sessionStorage.getItem("prevmg:view"); if (v === "bul" || v === "cid") setView(v); } catch(e){}
-if (S.bgActive === "osm" && OSM_OK) osmActivate();       // fora da plataforma: base de rios e rodovias, sem aviso
-idb.all().then(list => { BG = [...(TEAM_BG ? [TEAM_BG] : []), OSM_BG, ...(list || []).sort((a,b) => a.id.localeCompare(b.id))]; renderBg(); drawPreview(); }).catch(() => {});
+// No painel: começa pelo mapa preferido (o OSM padrão, se ninguém escolheu outro). Fora dele: base de rios e rodovias, sem aviso.
+if (liveById(S.bgActive) && OSM_OK){ S.bgActive = liveById(S.livePref) ? S.livePref : "osm"; liveActivate(S.bgActive); }
+idb.all().then(list => { BG = [...(TEAM_BG ? [TEAM_BG] : []), ...LIVE, ...(list || []).sort((a,b) => a.id.localeCompare(b.id))]; renderBg(); drawPreview(); }).catch(() => {});
