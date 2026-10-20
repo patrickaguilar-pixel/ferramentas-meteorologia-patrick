@@ -234,7 +234,7 @@ const isPinned = r => { const d0 = DEFAULT_OFFSET[r.name] || [0,0]; return (r.dx
    empurrados um pouco, pelo eixo de menor sobreposição, até se separarem. Ícones posicionados à mão
    ficam fixos e os outros se afastam deles. O deslocamento máximo é limitado para manter cada ícone
    perto do seu município. */
-let AUTO = new Map(), NAME_UP = new Set(), NAME_POS = new Map(), TEMP_LEFT = new Set();
+let AUTO = new Map(), NAME_UP = new Set(), NAME_POS = new Map(), TEMP_LEFT = new Set(), STACKED = new Set();
 const AUTO_MAX = 4;           // mm — deslocamento pequeno
 // polígono de Minas Gerais (mm da página) para manter os ícones dentro do estado
 const MG_RINGS = (() => { const rings = []; let cur = null, x = 0, y = 0;
@@ -347,6 +347,15 @@ function layoutSede(){
       const up = sy - SQ - 0.25 - I[3], dn = sy + SQ + 0.25 - I[1];
       for (const [yy, base] of [[up, 0], [dn, 2.2]]) for (const dx of [0, -1.5, 1.5, -3, 3, -5, 5])
         for (const ey of [0, 1, 2.2, 4, 6.5]) add(sx + dx, yy + (yy < sy ? -ey : ey), base + 0.3*Math.abs(dx) + (dx||ey ? 0.3 : 0), left);
+      // ao lado do ponto, um pouco elevado para não encostar no próprio nome (bom perto da divisa, onde
+      // não cabe acima): à direita com as temperaturas à direita, à esquerda com as temperaturas à esquerda
+      { const topo = nameQ ? nameQ[1] - M - 0.05 : sy + I[3];
+        const yl = Math.min(sy, topo - I[3]);
+        const xs = left ? sx - SQ - 0.25 - I[2] : sx + SQ + 0.25 - I[0], dir = left ? -1 : 1;
+        for (const ox of [0, 0.8, 1.8, 3]) for (const oy of [0, 1, 2.2, 3.5]) add(xs + dir*ox, yl - oy, 0.8 + 0.6*ox + 0.5*oy, left); }
+      // empilhado: ponto, nome e, logo abaixo do nome, o ícone centralizado (quando a faixa do estado é estreita)
+      if (nameQ){ const yb = nameQ[3] + M + 0.05 - I[1];
+        for (const dx of [0, -1.5, 1.5, -3, 3, -5, 5, -7, 7]) for (const oy of [0, 1]){ const n0 = ic.length; add(sx + dx, yb + oy, 1.6 + 0.4*Math.abs(dx) + 0.5*oy, left); if (ic.length > n0) ic[ic.length-1].stack = true; } }
       for (let k = 0; k < 24; k++){
         const th = -Math.PI/2 + k*Math.PI/12, dx = Math.cos(th), dy = Math.sin(th);
         const tx = dx > 1e-9 ? (SQ - I[0])/dx : dx < -1e-9 ? (-SQ - I[2])/dx : Infinity;
@@ -365,7 +374,8 @@ function layoutSede(){
       if (!q.fix && ALLFIX.some(f => f.ri !== ri && q.R.some(s => hitM(s, f.q)))) continue;
       const J = q.R[0], gx = Math.max(J[0] - sx, 0, sx - J[2]), gy = Math.max(J[1] - sy, 0, sy - J[3]);
       q.ex = Math.max(0, Math.hypot(gx, gy) - PT_R - 0.35);
-      q.cost = q.fix ? 0 : q.c + 1.8*q.ex + (q.ex > 3 ? 2.5*(q.ex - 3) : 0) + 0.12*Math.hypot(q.x - def[0], q.y - def[1]);
+      if (q.stack) q.ex = 0;                                                  // empilhado sob o nome: fica junto, sem linha
+      q.cost = q.fix ? 0 : q.c + 1.8*q.ex + (q.ex > 3 ? 2.5*(q.ex - 3) : 0) + (q.stack ? 0 : 0.12*Math.hypot(q.x - def[0], q.y - def[1]));
       let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9; for (const s of q.R){ x1 = Math.min(x1, s[0]); y1 = Math.min(y1, s[1]); x2 = Math.max(x2, s[2]); y2 = Math.max(y2, s[3]); }
       q.bb = [x1, y1, x2, y2];
       out.push(q);
@@ -426,6 +436,18 @@ function layoutSede(){
     alvo.step++; build(alvo);
     alvo.sel = alvo.cands.find(c => free(alvo, c)) || alvo.cands[0] || alvo.sel;
   }
+  // 3b) melhora em dupla: um município numa posição ruim pode precisar que o vizinho também mude (ex.: Buritis/Paracatu)
+  for (let round = 0; round < 2; round++) for (const A of items){
+    if (!A.sel || A.cands.length < 2 || A.sel.cost <= A.cands[0].cost + 1.5) continue;
+    for (const B of nb[A.ri]){ if (!B.sel || !B.cands.length) continue;
+      const qa = A.cands.slice(0, 60).filter(c => c.cost < A.sel.cost && freeEx(A, c, B));
+      if (!qa.length) continue;
+      const qb = B.cands.slice(0, 60).filter(c => freeEx(B, c, A));
+      let best = null, bc = A.sel.cost + B.sel.cost - 0.5;
+      for (const x of qa){ if (x.cost >= bc) break; for (const y of qb){ const c = x.cost + y.cost; if (c >= bc) break; if (!clash(x, y)){ bc = c; best = [x, y]; } } }
+      if (best){ A.sel = best[0]; B.sel = best[1]; break; }
+    }
+  }
   // 4) quem ficou menor tenta voltar a um tamanho maior, se couber perto
   for (const it of items){
     while (it.step > 0){ const keep = {step: it.step, cands: it.cands, sel: it.sel};
@@ -450,6 +472,7 @@ function layoutSede(){
     AUTO.set(it.r.id, [q.x - x0, q.y - y0]);
     if (FIXED[it.ri][1]) NAME_POS.set(it.r.id, FIXED[it.ri][1]);
     if (q.left) TEMP_LEFT.add(it.r.id);
+    if (q.stack) STACKED.add(it.r.id);
   }
   return {ok: pen === 0 && out === 0 && excSum <= 6 && menores <= 3, valid: pen === 0 && out === 0, excSum: excSum + 2*menores, pen, out, maxEx, far};
 }
@@ -457,11 +480,11 @@ let AUTO_KEY = "", AUTO_INFO = null, LAST_K = null;
 function computeAuto(){
   const key = JSON.stringify([S.opts.ptSede, S.opts.temps, S.opts.autoSpread, S.opts.names, S.opts.iconScale, S.opts.nameSize, S.rows.map(r => [r.id, r.name, r.tempo, String(r.tmax ?? "").length, String(r.tmin ?? "").length, r.dx, r.dy])]);
   if (key === AUTO_KEY) return;            // nada mudou desde o último cálculo
-  AUTO_KEY = key; AUTO = new Map(); NAME_UP = new Set(); NAME_POS = new Map(); TEMP_LEFT = new Set(); EFF_K = null; AUTO_INFO = null; ROW_K = new Map();
+  AUTO_KEY = key; AUTO = new Map(); NAME_UP = new Set(); NAME_POS = new Map(); TEMP_LEFT = new Set(); EFF_K = null; AUTO_INFO = null; ROW_K = new Map(); STACKED = new Set();
   if (S.opts.ptSede){
     // Tamanhos testados (absolutos): o escolhido e, se o mapa não comportar bem, alguns menores — sempre os
     // mesmos, para que aumentar o tamanho escolhido nunca deixe os ícones do mapa menores.
-    const run = k => { EFF_K = k; AUTO = new Map(); NAME_POS = new Map(); TEMP_LEFT = new Set(); ROW_K = new Map(); const res = layoutSede(); return {k, res, A:AUTO, N:NAME_POS, T:TEMP_LEFT, RK:ROW_K}; };
+    const run = k => { EFF_K = k; AUTO = new Map(); NAME_POS = new Map(); TEMP_LEFT = new Set(); ROW_K = new Map(); STACKED = new Set(); const res = layoutSede(); return {k, res, A:AUTO, N:NAME_POS, T:TEMP_LEFT, RK:ROW_K, ST:STACKED}; };
     const s0 = S.opts.iconScale || 1;
     const grid = [s0, ...[1.2, 1.1, 1, 0.92, 0.85, 0.78, 0.72].filter(k => k < s0 - 1e-6)];
     const runs = []; let r1 = null;
@@ -479,7 +502,7 @@ function computeAuto(){
       r1 = val.length ? val.reduce((b, x) => (x.res.excSum + 60*(1 - x.k) < b.res.excSum + 60*(1 - b.k) - 1e-9 ? x : b))
                       : runs.reduce((b, x) => x.res.pen < b.res.pen || (x.res.pen === b.res.pen && x.k > b.k) ? x : b);
     }
-    EFF_K = r1.k === s0 ? null : r1.k; AUTO = r1.A; NAME_POS = r1.N; TEMP_LEFT = r1.T; ROW_K = r1.RK;
+    EFF_K = r1.k === s0 ? null : r1.k; AUTO = r1.A; NAME_POS = r1.N; TEMP_LEFT = r1.T; ROW_K = r1.RK; STACKED = r1.ST;
     AUTO_INFO = r1; LAST_K = {s0, k: r1.k};
     return; }
   // cada retângulo: [x1, y1, x2, y2, tipo] relativo ao ponto do ícone; tipo 0 = ícone/temperatura, 1 = nome
@@ -642,7 +665,7 @@ function renderSVG({forExport=false} = {}){
       const [sx, sy] = sedeXY(r), qx = sx - MAP.x, qy = sy - MAP.y;
       // linha fina do ponto até o ícone quando ele precisou ficar mais afastado
       const lx = Math.max(x - w/2*0.94, Math.min(qx, x + w/2*0.94)), ly = Math.max(y - h/2*0.94, Math.min(qy, y + h/2*0.94));
-      if (Math.hypot(lx - qx, ly - qy) > PT_R + 1.2){
+      if (!STACKED.has(r.id) && Math.hypot(lx - qx, ly - qy) > PT_R + 1.2){
         const L = Math.hypot(lx - qx, ly - qy), ux = (lx - qx)/L, uy = (ly - qy)/L;
         L_LINE.push(`<line x1="${f2(qx + ux*PT_R)}" y1="${f2(qy + uy*PT_R)}" x2="${f2(lx - ux*0.3)}" y2="${f2(ly - uy*0.3)}" stroke="#1f2328" stroke-width="0.3" stroke-linecap="round"/>`); }
       L_PT.push(`<circle cx="${f2(qx)}" cy="${f2(qy)}" r="${PT_R}" fill="#ffffff" stroke="#1f2328" stroke-width="0.32"/>`);
