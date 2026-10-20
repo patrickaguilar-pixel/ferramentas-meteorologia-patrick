@@ -1,4 +1,4 @@
-/* Código da Previsão diária v1.14 (v1.13 + dois mapas base de reserva: OpenStreetMap França e OpenTopoMap, com troca automática).
+/* Código da Previsão diária v1.14 (v1.13 + dois mapas base de reserva: OpenStreetMap França e OpenStreetMap Alemanha, com troca automática).
    Extraído de "Previsão diária — Minas Gerais v1.1.html" para a versão Apps Script
    (carregado de fora para o Apps Script não interferir no código). */
 
@@ -339,7 +339,7 @@ const finalXY = r => { const [x, y] = iconXY(r), a = AUTO.get(r.id) || [0,0]; re
    Tudo é recortado pelo contorno de Minas Gerais. */
 const BASE = (typeof window !== "undefined" && window.BASE_CARTO) || null;
 // Se o OpenStreetMap estiver escolhido mas não tiver carregado, a base vetorial aparece no lugar dele.
-const useBase = k => !!S.opts[k] || (["osm","osmfr","otm"].includes(S.bgActive) && !(typeof liveById === "function" && (liveById(S.bgActive) || {}).src));
+const useBase = k => !!S.opts[k] || (["osm","osmfr","osmde"].includes(S.bgActive) && !(typeof liveById === "function" && (liveById(S.bgActive) || {}).src));
 const baseOn = () => !!(BASE && ((useBase("baseHidro") && (BASE.rios || BASE.represas)) || (useBase("baseRod") && BASE.rodovias) || (useBase("baseUrb") && BASE.urbano)));
 function baseCartoSVG(){
   if (!baseOn()) return "";
@@ -772,7 +772,7 @@ const activeBg = () => { const b = BG.find(b => b.id === S.bgActive) || null; re
 const MF = (typeof window !== "undefined" && window.MAPA_FUNDO && window.MAPA_FUNDO.src && window.MAPA_FUNDO.bounds) ? window.MAPA_FUNDO : null;
 const TEAM_BG = MF ? {id:"equipe", team:true, name:`Fundo da equipe — ${MF.nome || "mapa base"}`, src:MF.src, bounds:{...MF.bounds}, opacity:(S.opts.teamOp ?? MF.opacidade ?? 1), credito:MF.credito || ""} : null;
 /* Mapas base carregados ao vivo a cada sessão (imagens do servidor de cada projeto).
-   Ordem: OSM padrão (principal) -> OSM França (reserva 1) -> OpenTopoMap (reserva 2).
+   Ordem: OSM padrão (principal) -> OSM França (reserva 1) -> OSM Alemanha (reserva 2), todos no estilo do OSM padrão.
    Se o principal não responder, a ferramenta passa sozinha para a reserva seguinte e avisa.
    A imagem é montada no navegador e reprojetada de Web Mercator para latitude/longitude.
    Não é guardada no IndexedDB nem vira fundo.js: os servidores não permitem uso offline.
@@ -786,13 +786,15 @@ const LIVE = [
   {id:"osmfr", nome:"OpenStreetMap França (reserva 1)", curto:"OpenStreetMap França",
    url:(z, x, y) => `https://${sub(x, y)}.tile.openstreetmap.fr/osmfr/${z}/${x}/${y}.png`,
    credito:"© colaboradores do OpenStreetMap; estilo © OpenStreetMap França"},
-  {id:"otm", nome:"OpenTopoMap — topográfico (reserva 2)", curto:"OpenTopoMap",
-   url:(z, x, y) => `https://${sub(x, y)}.tile.opentopomap.org/${z}/${x}/${y}.png`,
-   credito:"© colaboradores do OpenStreetMap, SRTM; estilo © OpenTopoMap (CC BY-SA)"}
+  {id:"osmde", nome:"OpenStreetMap Alemanha (reserva 2)", curto:"OpenStreetMap Alemanha",
+   url:(z, x, y) => `https://tile.openstreetmap.de/${z}/${x}/${y}.png`,
+   credito:"© colaboradores do OpenStreetMap; estilo © OpenStreetMap Alemanha (FOSSGIS)"}
 ];
 LIVE.forEach(L => Object.assign(L, {live:true, name:L.nome + " — da internet", src:null, bounds:null, promise:null, failed:false,
   opacity:(S.opts["op_" + L.id] ?? (L.id === "osm" ? S.opts.osmOp : undefined) ?? 1)}));
 const OSM_BG = LIVE[0];
+if (S.bgActive === "otm") S.bgActive = "osmde";             // 1.14 inicial usava o OpenTopoMap como reserva 2
+if (S.livePref === "otm") S.livePref = "osmde";
 const liveById = id => LIVE.find(L => L.id === id) || null;
 function liveLoad(L){
   if (L.src) return Promise.resolve(true);
@@ -857,7 +859,7 @@ function liveActivate(id, anterior){
       if (S.bgActive !== L.id) return;
       const prox = LIVE[LIVE.indexOf(L) + 1];
       if (prox){ S.bgActive = prox.id; renderBg(); drawPreview(); liveActivate(prox.id, anterior || L.curto); return; }
-      showMsg("err", "Nenhum dos três mapas base da internet respondeu agora (OpenStreetMap padrão, OpenStreetMap França e OpenTopoMap). Por enquanto o mapa usa a base de rios e rodovias; tente de novo mais tarde.");
+      showMsg("err", "Nenhum dos três mapas base da internet respondeu agora (OpenStreetMap padrão, OpenStreetMap França e OpenStreetMap Alemanha). Por enquanto o mapa usa a base de rios e rodovias; tente de novo mais tarde.");
     });
 }
 const osmActivate = () => liveActivate(S.bgActive && liveById(S.bgActive) ? S.bgActive : "osm");
