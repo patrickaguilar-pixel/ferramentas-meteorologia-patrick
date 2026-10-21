@@ -47,7 +47,7 @@
   var CREDITOS_FIXOS = ['Limites municipais e mesorregiões - IBGE', 'Base cartográfica: IBGE', 'Projeção: Latitude/Longitude - Datum SIRGAS 2000'];
   var LOGO_SLOTS = ['igam', 'simge', 'appa', 'riodoce'];
   var LOGO_Y = 196.35, LOGO_H = 10, LOGO_X0 = 10.5, LOGO_X1 = 196.4;
-  var PT_R = 0.45, NOME_TAM = 3.5;                  // ponto da sede com metade do tamanho anterior (igual à Previsão)
+  var PT_R = 0.65, NOME_TAM = 3.5;                  // ponto da sede com metade do tamanho anterior (igual à Previsão)
   var COL = 258.49, LIN_W = 51.28;                   // eixo e largura das linhas da coluna da legenda (iguais à Previsão 1.15)
   var MG_FILL = '#ecf4f5';                           // Minas sem mapa base: o mesmo tom claro da Previsão                    // marcação das cidades: a mesma da Previsão
   var STATE_LABELS = [['MT', -51.18, -14.494], ['GO', -49.744, -16.279], ['DF', -47.797, -15.7755], ['BA', -40.865, -14.794], ['MS', -51.0, -20.45],
@@ -354,7 +354,7 @@
     cidades.forEach(function (c) {
       if (!isFinite(c.lon) || !isFinite(c.lat)) return;
       var p = proj(c.lon, c.lat), x = p[0] - MAP.x, y = p[1] - MAP.y;
-      pts.push('<circle cx="' + f2(x) + '" cy="' + f2(y) + '" r="' + PT_R + '" fill="#ffffff" stroke="#1f2328" stroke-width="0.2"/>');
+      pts.push('<circle cx="' + f2(x) + '" cy="' + f2(y) + '" r="' + PT_R + '" fill="#ffffff" stroke="#1f2328" stroke-width="0.25"/>');
       nomes.push('<text x="' + f2(x) + '" y="' + f2(y + PT_R + 0.35 + ASC * ns) + '" font-family="' + FONT + '" font-size="' + f2(ns) + '" font-weight="700" fill="' + navy + '" text-anchor="middle" stroke="#fff" stroke-width="' + f2(ns * 0.3) + '" stroke-linejoin="round" paint-order="stroke">' + esc(c.nome) + '</text>');
     });
     o.push(pts.join(''), nomes.join(''));
