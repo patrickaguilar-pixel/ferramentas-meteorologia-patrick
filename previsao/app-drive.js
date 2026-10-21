@@ -133,7 +133,7 @@ function makeRow(name){
 function todayISO(){ const d = new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
 function defaultState(){
   return {date: todayISO(), val:{time:"10:00", date:addDays(todayISO(),1), auto:true}, rows: START_MUN.map(makeRow), texts: {...DEFAULT_TEXTS},
-    opts:{mun:true, meso:true, mesoNames:false, states:true, names:true, ptSede:true, autoSpread:true, temps:"both", iconScale:1, nameSize:3.5, mgFill:true, baseFill:true, baseHidro:true, baseRod:true, baseUrb:true, bgClipMG:true}, bgActive:null, baseVersion:BASE_VERSION, namesDefaultV:2, noticeDismissed:true, savedSig:null};
+    opts:{mun:true, meso:true, mesoNames:false, states:true, names:true, ptSede:true, autoSpread:true, temps:"both", iconScale:0.5, nameSize:3.5, mgFill:true, baseFill:true, baseHidro:true, baseRod:true, baseUrb:true, bgClipMG:true}, bgActive:null, baseVersion:BASE_VERSION, namesDefaultV:2, noticeDismissed:true, savedSig:null};
 }
 function addDays(iso, n){ if (!iso) return ""; const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate()+n);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
@@ -354,7 +354,7 @@ function blockInMG(r, cx, cy){ return groupRects(r).solid.every(q => rectOut(cx+
    Regras: ícone, temperaturas e nome inteiros dentro de Minas; nada se sobrepõe a nada (ícones, nomes,
    temperaturas e pontos de outros municípios). Preferência: ícone logo acima do ponto e nome logo abaixo;
    quanto mais longe disso, maior o custo. Ícones arrastados à mão ficam onde foram deixados. */
-const EX_MAX = 5;
+const EX_PERTO = 5; let EX_MAX = EX_PERTO;
 function layoutSede(){
   const ns = S.opts.nameSize || 3.5, nh = (ASC+DESC)*ns, SQ = PT_R + 0.35, M = 0.4;
   const auto = !!S.opts.autoSpread;
@@ -563,26 +563,12 @@ function computeAuto(){
   if (key === AUTO_KEY) return;            // nada mudou desde o último cálculo
   AUTO_KEY = key; AUTO = new Map(); NAME_UP = new Set(); NAME_POS = new Map(); TEMP_LEFT = new Set(); EFF_K = null; AUTO_INFO = null; ROW_K = new Map(); STACKED = new Set();
   if (S.opts.ptSede){
-    // Tamanhos testados (absolutos): o escolhido e, se o mapa não comportar bem, alguns menores — sempre os
-    // mesmos, para que aumentar o tamanho escolhido nunca deixe os ícones do mapa menores.
-    const run = k => { EFF_K = k; AUTO = new Map(); NAME_POS = new Map(); TEMP_LEFT = new Set(); ROW_K = new Map(); STACKED = new Set(); const res = layoutSede(); return {k, res, A:AUTO, N:NAME_POS, T:TEMP_LEFT, RK:ROW_K, ST:STACKED}; };
+    // O tamanho é sempre o escolhido pela pessoa (nada de redução automática). Primeiro tenta com os ícones
+    // bem perto das sedes; se não couber sem sobrepor, aceita afastar um pouco mais (com linha curta).
+    const run = (k, ex) => { EX_MAX = ex; EFF_K = k; AUTO = new Map(); NAME_POS = new Map(); TEMP_LEFT = new Set(); ROW_K = new Map(); STACKED = new Set(); const res = layoutSede(); EX_MAX = EX_PERTO; return {k, res, A:AUTO, N:NAME_POS, T:TEMP_LEFT, RK:ROW_K, ST:STACKED}; };
     const s0 = S.opts.iconScale || 1;
-    const grid = [s0, ...[1.2, 1.1, 1, 0.92, 0.85, 0.78, 0.72, 0.66, 0.6].filter(k => k < s0 - 1e-6)];
-    const runs = []; let r1 = null;
-    // começa pelo tamanho que serviu da última vez (as edições costumam mudar pouco) e confere o tamanho acima
-    const prevK = LAST_K && LAST_K.s0 === s0 ? LAST_K.k : null, gi = prevK != null ? grid.indexOf(prevK) : -1;
-    if (S.opts.autoSpread && gi > 0){
-      const x = run(grid[gi]); runs.push(x);
-      if (x.res.ok){ r1 = x; for (let t = gi - 1; t >= 0; t--){ const y = run(grid[t]); runs.push(y); if (y.res.ok) r1 = y; else break; } }
-      else for (let t = gi + 1; t < grid.length && !r1; t++){ const y = run(grid[t]); runs.push(y); if (y.res.ok) r1 = y; }
-    } else
-    for (const k of (S.opts.autoSpread ? grid : [s0])){ const x = run(k); runs.push(x); if (x.res.ok){ r1 = x; break; } }
-    if (!r1){   // nenhum ficou perfeito: melhor equilíbrio entre tamanho e ícones afastados — nunca sobreposição
-      if (S.opts.autoSpread && !runs.some(x => x.res.valid && !x.res.longe)) for (const k of [...grid, 0.55, 0.5, 0.45, 0.4]){ if (k > s0 + 1e-6 || runs.some(y => Math.abs(y.k - k) < 1e-6)) continue; const x = run(k); runs.push(x); if (x.res.valid && !x.res.longe) break; }
-      const val = runs.filter(x => x.res.valid);
-      r1 = val.length ? val.reduce((b, x) => (x.res.excSum + 60*(1 - x.k) < b.res.excSum + 60*(1 - b.k) - 1e-9 ? x : b))
-                      : runs.reduce((b, x) => x.res.pen < b.res.pen || (x.res.pen === b.res.pen && x.k > b.k) ? x : b);
-    }
+    let r1 = run(s0, EX_PERTO);
+    if (S.opts.autoSpread && !(r1.res.valid && !r1.res.longe)) for (const ex of [9, 16]){ const x = run(s0, ex); if (x.res.valid && (!r1.res.valid || x.res.pen < r1.res.pen)) r1 = x; if (r1.res.valid) break; }
     EFF_K = r1.k === s0 ? null : r1.k; AUTO = r1.A; NAME_POS = r1.N; TEMP_LEFT = r1.T; ROW_K = r1.RK; STACKED = r1.ST;
     AUTO_INFO = r1; LAST_K = {s0, k: r1.k};
     return; }
@@ -867,8 +853,9 @@ function drawPreview(){
     paper.innerHTML = renderSVG();
     const so = $("#szOut");
     if (so){ const u = Math.round((S.opts.iconScale||1)*100), e = Math.round(iconK()*100);
-      so.textContent = e !== u ? `${u}% → ${e}%` : `${u}%`;
-      so.title = e !== u ? `Tamanho escolhido: ${u}%. No mapa os ícones foram reduzidos para ${e}% para não se sobreporem e ficarem dentro de Minas, perto das sedes.` : ""; }
+      so.textContent = `${u}%`; void e;
+      const cheio = AUTO_INFO && AUTO_INFO.res && !AUTO_INFO.res.valid;
+      so.title = cheio ? "Neste tamanho alguns ícones não cabem sem encostar em outros. Diminua o tamanho com o botão −." : ""; so.classList.toggle("sz-cheio", !!cheio); }
     if (focusId){
       const g = paper.querySelector(`.mk[data-id="${focusId}"] .hit`);
       if (g){ g.setAttribute("stroke", "#078fd2"); g.setAttribute("stroke-width", ".45"); g.setAttribute("stroke-dasharray", "1.2 .7"); }
@@ -1081,9 +1068,10 @@ const op = {mun:$("#opMun"), meso:$("#opMeso"), mesoNames:$("#opMesoNames"), sta
 op.mgFill = $("#opMgFill"); op.bgClipMG = $("#opBgClip");
 
 const rng = {iconScale:[$("#opIconScale"), $("#outIconScale"), v => Math.round(v*100)+"%"], nameSize:[$("#opNameSize"), $("#outNameSize"), v => (v/PT).toFixed(0)+" pt"]};
-function fillOpts(){ for (const k in op) op[k].checked = !!S.opts[k]; for (const k in rng){ rng[k][0].value = S.opts[k]; rng[k][1].textContent = rng[k][2](S.opts[k]); }
+{ const st = document.createElement("style"); st.textContent = "#szOut.sz-cheio{color:#f0a020}"; document.head.appendChild(st); }
+function fillOpts(){ S.opts.iconScale = Math.min(1, Math.max(0.2, +S.opts.iconScale || 0.5)); for (const k in op) op[k].checked = !!S.opts[k]; for (const k in rng){ rng[k][0].value = S.opts[k]; rng[k][1].textContent = rng[k][2](S.opts[k]); }
   $("#szOut").textContent = Math.round((S.opts.iconScale||1)*100) + "%"; }
-function stepIcons(d){ S.opts.iconScale = Math.round(Math.min(1.6, Math.max(0.6, (S.opts.iconScale||1) + d))*100)/100; fillOpts(); persist(); drawPreview(); }
+function stepIcons(d){ S.opts.iconScale = Math.round(Math.min(1, Math.max(0.2, (S.opts.iconScale||1) + d))*100)/100; fillOpts(); persist(); drawPreview(); }
 $("#szMinus").addEventListener("click", () => stepIcons(-0.05));
 $("#szPlus").addEventListener("click", () => stepIcons(0.05));
 for (const k in op) op[k].addEventListener("change", () => { S.opts[k] = op[k].checked; persist(); drawPreview(); });
