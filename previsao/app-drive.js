@@ -233,10 +233,11 @@ function usedCats(){
 }
 // todos os ícones com a mesma área visual, independentemente da proporção do desenho
 const ICON_AREA = 215; // mm² no tamanho 100%
-// Correção visual por ícone: desenhos altos (termômetros) pareciam maiores e
-// desenhos espalhados (chuva a qualquer momento) pareciam menores com a mesma área.
-const ICON_FIX = {"calor intenso":0.8, "frio intenso":0.82, "chuva a qualquer momento":1.2, "ventos fortes":0.9,
-  "sem informação":0.9, "geada":0.95, "névoa seca":1.05, "nevoeiro":0.95, "tornado":0.97};
+// Correção visual por ícone, medida pela "tinta" de cada desenho (quanto da caixa é desenho de fato):
+// desenhos vazados (sol com raios, nuvens pequenas, névoa) ganham um pouco e os maciços (nublado, ?) perdem;
+// os altos (termômetros) perdem um pouco e os largos e baixos ganham,
+// para todos parecerem do mesmo tamanho no mapa.
+const ICON_FIX = {"névoa seca": 1.35, "ventos fortes": 1.23, "chuva a qualquer momento": 1.2, "céu claro": 1.08, "chuvas isoladas pela manhã": 1.07, "tempestades à tarde": 1.05, "tempestades pela manhã": 1.05, "chuvas isoladas à tarde": 1.03, "predomínio de sol": 1.03, "nublado com tempestades": 1.07, "calor intenso": 0.91, "tempestades": 0.98, "nublado com chuva": 0.98, "tornado": 0.96, "granizo": 0.97, "frio intenso": 0.91, "chuvisco": 1.01, "nublado com chuva forte": 0.96, "geada": 0.94, "aviso de tempo severo": 0.96, "tempestade severa": 0.96, "tempestade com chuva forte": 0.95, "nevoeiro": 1.01, "nublado": 0.96, "sem informação": 0.85};
 function iconDims(c, scale){
   const k = ICON_FIX[c.value] || 1;
   const A = ICON_AREA*scale*scale; let w = Math.sqrt(A/c.ar)*k, h = w*c.ar; const m = 19.5*scale;
