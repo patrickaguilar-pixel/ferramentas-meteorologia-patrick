@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<base target="_top">
+<title>Alertas — Minas Gerais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* ===== base visual comum (copiado da Previsão diária) ===== */
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --ink:#092b6a; --ink-2:#3d5a8a; --muted:#6b7f9e;
+  --azure:#006cbf; --azure-d:#00559a; --sky:#a9e0f4; --cyan:#078fd2;
+  --paper:#f4f9fd; --card:#ffffff; --line:#d3e4f2; --line-2:#e7f0f8;
+  --max:#cc2029; --min:#1764bf; --warn:#a1580b; --warn-bg:#fff6e6; --err:#b3261e; --err-bg:#fdeeee; --ok:#1d7a46;
+  --focus:#078fd2;
+  --font:"Barlow", Arial, "Liberation Sans", Helvetica, sans-serif;
+  --font-c:"Barlow Semi Condensed", "Barlow", Arial, sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e3ecf8; --ink-2:#b8c8de; --muted:#8ea2bf;
+    --azure:#3b9be0; --azure-d:#5aafea; --sky:#1f4a68; --cyan:#4fb3ea;
+    --paper:#0e1726; --card:#152236; --line:#263a55; --line-2:#1c2c43;
+    --max:#ff6b6b; --min:#6fa8ff; --warn:#f2b45c; --warn-bg:#2d2412; --err:#ff8a80; --err-bg:#3a1a1a; --ok:#6fd69a;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e3ecf8; --ink-2:#b8c8de; --muted:#8ea2bf;
+  --azure:#3b9be0; --azure-d:#5aafea; --sky:#1f4a68; --cyan:#4fb3ea;
+  --paper:#0e1726; --card:#152236; --line:#263a55; --line-2:#1c2c43;
+  --max:#ff6b6b; --min:#6fa8ff; --warn:#f2b45c; --warn-bg:#2d2412; --err:#ff8a80; --err-bg:#3a1a1a; --ok:#6fd69a;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 15px/1.45 var(--font);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- barra superior: ecoa as faixas azuis do cabeçalho do mapa ---------- */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;display:flex;align-items:center;gap:16px;
+  padding:10px 20px;background:var(--card);border-bottom:1px solid var(--line);overflow:hidden}
+.bar .stripes{position:absolute;right:0;top:0;height:100%;width:200px;pointer-events:none}
+.bar h1{margin:0;font:700 20px/1.1 var(--font);letter-spacing:-.01em}
+.bar h1 small{display:block;white-space:nowrap;font:500 13px/1.2 var(--font);color:var(--muted);letter-spacing:0}
+.bar .spacer{flex:1}
+.bar .actions{position:relative;z-index:1;display:flex;gap:8px;flex-wrap:wrap;margin-right:200px}
+@media (max-width:820px){.bar .stripes{width:70px}.bar .actions{margin-right:52px}.bar h1 small{display:none}}
+
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--card);
+  border-radius:8px;padding:7px 13px;font-weight:600;cursor:pointer;white-space:nowrap;min-height:36px}
+.btn:hover{border-color:var(--azure)}
+.btn.primary{background:var(--azure);border-color:var(--azure);color:#fff}
+.btn.primary:hover{background:var(--azure-d)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--azure)}
+.btn.ghost:hover{background:var(--line-2)}
+.btn.small{min-height:30px;padding:4px 10px;font-size:14px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn svg{width:16px;height:16px;flex:none}
+
+/* ---------- layout geral ---------- */
+main{display:grid;grid-template-columns:minmax(560px,1fr) minmax(480px,1.15fr);gap:20px;padding:20px;align-items:start;max-width:1800px;margin:0 auto}
+main[hidden]{display:none!important}
+@media (max-width:1180px){main{grid-template-columns:1fr}}
+/* abas */
+.tabs{position:relative;z-index:1;display:flex;gap:4px;background:var(--line-2);border-radius:10px;padding:3px;margin-left:18px}
+.tabs button{white-space:nowrap;border:0;background:transparent;border-radius:8px;padding:6px 14px;font-weight:600;cursor:pointer;color:var(--ink-2);min-height:32px}
+.tabs button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(9,43,106,.15)}
+.actions [data-view][hidden]{display:none}
+@media (max-width:820px){.tabs{margin-left:0}.bar{flex-wrap:wrap}}
+.pages{display:grid;gap:16px;padding:0 14px 14px}
+.a4{background:#fff;border-radius:3px;box-shadow:0 1px 2px rgba(9,43,106,.12),0 10px 30px rgba(9,43,106,.10);aspect-ratio:210/297;overflow:hidden}
+.a4 > svg{display:block;width:100%;height:100%}
+.pgnum{font-size:12.5px;color:var(--muted);text-align:center;margin-top:-8px}
+@media (max-width:640px){main{padding:10px;gap:12px}.meta{grid-template-columns:1fr;gap:6px}.bar{padding:10px 12px}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px}
+.panel > header{padding:16px 18px 6px}
+.panel h2{margin:0;font:700 17px/1.25 var(--font)}
+.panel .lede{margin:4px 0 0;color:var(--muted);font-size:14px}
+
+.meta{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center;padding:12px 18px 14px;border-bottom:1px solid var(--line-2)}
+.meta label,.meta .lbl{font-weight:600;font-size:14px}
+.valtext span{color:var(--ink-2)}
+input[type=time].field{width:118px}
+.meta .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.field{border:1px solid var(--line);background:var(--card);border-radius:7px;padding:6px 9px;min-height:36px}
+.field:hover{border-color:#9cc3e3}
+.field[aria-invalid="true"]{border-color:var(--err);background:var(--err-bg)}
+.icobtn{width:30px;height:30px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center}
+.icobtn:hover{border-color:var(--line);color:var(--ink);background:var(--card)}
+.icobtn svg{width:16px;height:16px}
+.icobtn[hidden]{display:none}
+input[type=checkbox]{width:17px;height:17px;accent-color:var(--azure)}
+.hint{color:var(--muted);font-size:13.5px;padding:0 18px 14px;margin:0}
+
+details.sec{border-top:1px solid var(--line)}
+details.sec > summary{cursor:pointer;list-style:none;padding:14px 18px;font-weight:700;display:flex;align-items:center;gap:10px}
+details.sec > summary::-webkit-details-marker{display:none}
+details.sec > summary::before{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s}
+details.sec[open] > summary::before{transform:rotate(45deg)}
+details.sec > summary small{font-weight:500;color:var(--muted);margin-left:auto;font-size:13px}
+.secbody{padding:0 18px 18px;display:grid;gap:12px}
+.secbody label{font-weight:600;font-size:14px;display:grid;gap:5px}
+.secbody textarea{resize:vertical;min-height:84px;line-height:1.35}
+.logos{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.logo{border:1px dashed var(--line);border-radius:9px;padding:10px;display:grid;gap:8px;align-content:start}
+.logo.has{border-style:solid}
+.logo b{font-size:14px}
+.logo .thumb{height:52px;display:grid;place-items:center;background:repeating-conic-gradient(var(--line-2) 0 25%,transparent 0 50%) 0 0/12px 12px;border-radius:6px;color:var(--muted);font-size:12.5px;text-align:center}
+.logo .thumb img{max-width:100%;max-height:48px}
+.logo .r{display:flex;gap:6px;flex-wrap:wrap}
+.checks{display:grid;gap:8px}
+.checks label{display:flex;gap:9px;align-items:center;font-weight:500}
+.rng{display:grid!important;grid-template-columns:auto 1fr 52px;align-items:center;gap:10px!important;font-weight:500!important}
+.rng output{font-variant-numeric:tabular-nums;color:var(--muted);text-align:right}
+input[type=range]{accent-color:var(--azure)}
+.empty{color:var(--muted);font-size:14px}
+.preview{position:sticky;top:76px}
+@media (max-width:1180px){.preview{position:static}}
+.preview > header{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:16px 18px 10px}
+.preview > header .t{flex:1;min-width:200px}
+.stage{padding:0 14px 14px}
+.paper{background:#f7fcff;border-radius:4px;box-shadow:0 1px 2px rgba(9,43,106,.12),0 10px 30px rgba(9,43,106,.10);overflow:hidden;aspect-ratio:297/222.75;touch-action:none}
+.paper > svg{display:block;width:100%;height:100%}
+.paper .mk{cursor:grab}
+.paper .mk.drag{cursor:grabbing}
+.status{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 18px 16px;font-size:14px;color:var(--muted);border-top:1px solid var(--line-2)}
+.sizer{display:flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:8px;padding:2px 4px 2px 10px;min-height:36px}
+.sizer span{font-weight:600;font-size:14px;margin-right:4px}
+.sizer output{min-width:44px;text-align:center;font-variant-numeric:tabular-nums;font-weight:600;font-size:14px}
+.sizer .icobtn{color:var(--azure)}
+.status .ver{margin-left:auto;font-size:13px;color:var(--muted)}
+.vbar{display:flex;justify-content:flex-end;padding:10px 18px 16px;border-top:1px solid var(--line-2);font-size:13px;color:var(--muted)}
+.status .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.status.saved .dot{background:var(--ok)}
+.status.dirty .dot{background:var(--warn)}
+.msg{margin:0 18px 14px;padding:10px 12px;border-radius:8px;font-size:14px}
+.msg[hidden]{display:none}
+.msg.err{background:var(--err-bg);color:var(--err)}
+.msg.ok{background:color-mix(in srgb,var(--ok) 12%,transparent);color:var(--ok)}
+.msg.info{background:var(--line-2);color:var(--ink-2)}
+.msg ul{margin:6px 0 0;padding-left:18px}
+.msg .r{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);max-width:480px;padding:20px}
+dialog::backdrop{background:rgba(9,43,106,.35)}
+dialog h3{margin:0 0 8px}
+dialog .r{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.busy{opacity:.6;pointer-events:none}
+
+/* ===================== Alertas ===================== */
+:root{--select:#65b7df;--active:#f1c34d;--expiring:#f29f54;--expired:#d9534f;--ambar:#8f560a;--ambar-fundo:#fbf1df}
+main.alt{grid-template-columns:minmax(340px,410px) 1fr}
+main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
+@media (max-width:1180px){main.alt,main.plt{grid-template-columns:1fr}}
+.who{position:relative;z-index:1;font-size:13.5px;color:var(--muted);white-space:nowrap}
+.who b{color:var(--ink)}
+@media (max-width:1500px){.who{display:none}}
+.bar h1{white-space:nowrap}
+.sublbl{font:600 13px/1.2 var(--font-c);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0;display:flex;align-items:center;gap:8px}
+.sublbl .n{background:var(--line-2);color:var(--ink);border-radius:999px;padding:1px 8px;font-size:12px}
+.tools{display:grid;gap:6px}
+.tool{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:1px solid var(--line);background:var(--card);color:var(--ink);
+  border-radius:8px;padding:7px 11px;font-weight:600;cursor:pointer;min-height:36px}
+.tool:hover{border-color:var(--azure)}
+.tool.active{border-color:var(--azure);background:var(--line-2);color:var(--azure);box-shadow:inset 3px 0 0 var(--azure)}
+.tool.danger{color:var(--err)}
+.tools.two{grid-template-columns:1fr 1fr}
+.secbody .hint{padding:0;font-size:13px}
+.search{display:flex;gap:6px}.search input{flex:1;min-width:0}
+/* mapa */
+.mapwrap{position:relative;overflow:hidden;background:#dce7ed;height:calc(100vh - 220px);min-height:470px;border-radius:6px;border:1px solid var(--line-2)}
+#mapSvg{width:100%;height:100%;display:block;cursor:grab;user-select:none}
+#mapSvg.panning{cursor:grabbing}
+.municipio{fill:#ffffff;fill-opacity:0;stroke:#aebcc5;stroke-width:.55;cursor:pointer;vector-effect:non-scaling-stroke;pointer-events:all}
+.municipio:hover{fill:#d9eef8;fill-opacity:.20;stroke:#6f8794;stroke-width:.75}
+.municipio.selected{fill:var(--select);fill-opacity:.42;stroke:#166b9d;stroke-width:1.15}
+.municipio.alerted{fill:var(--active);fill-opacity:.48;stroke:#9b6800;stroke-width:1.15}
+.municipio.expiring{fill:var(--expiring);fill-opacity:.52;stroke:#a85d11;stroke-width:1.15}
+.municipio.expired{fill:var(--expired);fill-opacity:.55;stroke:#8b1f1f;stroke-width:1.15}
+.label{font-size:1.8px;font-weight:400;fill:#20313d;text-anchor:middle;pointer-events:none;
+        paint-order:stroke;stroke:#fff;stroke-width:.9px;stroke-linejoin:round;display:none}
+.labels-visible .label{display:block}
+.mesoregiao{fill:none;stroke:#586a75;stroke-width:.85;vector-effect:non-scaling-stroke;pointer-events:none;opacity:.95}
+#wxBaseLayer image{pointer-events:none}
+#irLayer,#visLayer{opacity:.78}
+#glmLayer{opacity:.68;mix-blend-mode:multiply}
+.drawline{fill:rgba(0,108,191,.12);stroke:#006cbf;stroke-width:1.5;stroke-dasharray:6 4;vector-effect:non-scaling-stroke;pointer-events:none}
+.float{position:absolute;background:#fff;color:#092b6a;border:1px solid #d3e4f2;border-radius:10px;box-shadow:0 3px 14px rgba(9,43,106,.14)}
+.topinfo{top:12px;left:12px;padding:7px 11px;font-size:13px}
+.zoomctl{right:12px;top:12px;display:flex;flex-direction:column;overflow:hidden}
+.zoomctl button{width:36px;height:36px;border:0;border-bottom:1px solid #d3e4f2;background:#fff;color:#006cbf;font:600 19px/1 var(--font);cursor:pointer;padding:0}
+.zoomctl button:last-child{border-bottom:0;font-size:13px}
+.zoomctl button:hover{background:#e7f0f8}
+.selection{left:12px;bottom:12px;width:min(400px,60%);padding:10px 12px}
+.selection b{font-size:14px}
+.citylist{font-size:13px;color:#6b7f9e;max-height:76px;overflow:auto;margin:4px 0 0;line-height:1.45}
+.legendrow{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.legendrow i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.legendrow .ln{width:14px;height:0;border-top:2px solid #586a75;border-radius:0;vertical-align:3px}
+/* cards dos alertas */
+.alist{display:grid;gap:8px}
+.alert-card{border:1px solid var(--line);border-left:5px solid var(--active);border-radius:9px;padding:9px 11px;background:var(--card)}
+.alert-card.expiring{border-left-color:var(--expiring)}
+.alert-card.expired{border-left-color:var(--expired);background:var(--err-bg)}
+.alert-card b{font-size:14px}
+.alert-card div{font-size:13px;color:var(--muted);margin-top:2px}
+.alert-card .alert-status{font-weight:600;color:var(--ink-2)}
+.alert-card a{color:var(--azure);font-weight:600}
+.alert-card .r{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+.tooltip{position:fixed;display:none;pointer-events:none;background:#092b6a;color:#fff;border-radius:8px;padding:8px 10px;font-size:13px;z-index:50;box-shadow:0 3px 10px rgba(0,0,0,.22)}
+.layer-control{display:grid;gap:4px}
+/* janela do novo alerta */
+.modalback{position:fixed;inset:0;background:rgba(9,43,106,.35);display:none;align-items:center;justify-content:center;z-index:100}
+.modal{width:min(780px,94vw);max-height:90vh;overflow:auto;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:20px;box-shadow:0 20px 60px rgba(9,43,106,.28)}
+.modal h2{margin:0 0 14px;font:700 19px/1.2 var(--font)}
+.modal .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal label.l{display:block;font-weight:600;font-size:14px;margin-bottom:5px}
+.modal .field{width:100%}
+.modal textarea.field{min-height:110px;resize:vertical}
+.modal .row{margin-top:14px}
+.modal .phens{display:flex;gap:14px;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:10px}
+.modal .phens label{display:flex;gap:7px;align-items:center;font-weight:500}
+.chips{display:flex;gap:6px;flex-wrap:wrap;max-height:92px;overflow:auto}
+.chip{font-size:13px;background:var(--line-2);border:1px solid var(--line);border-radius:16px;padding:3px 9px}
+.mactions{display:flex;gap:9px;justify-content:flex-end;align-items:center;margin-top:18px;flex-wrap:wrap}
+.mactions .st{flex:1;min-width:200px}
+.st{font-size:13.5px;color:var(--muted)}
+.st.erro{color:var(--err)} .st.ok{color:var(--ok)}
+.st .btn{margin-top:6px}
+@media (max-width:640px){.modal .grid{grid-template-columns:1fr}}
+/* plantão */
+.anterior{border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:14px}
+.anterior .meta2{color:var(--muted);font-size:13px;margin:0 0 8px}
+.anterior .passagem{background:var(--ambar-fundo);color:#4a3206;border-left:4px solid var(--ambar);padding:8px 10px;white-space:pre-wrap;border-radius:0 6px 6px 0}
+.anterior .passagem strong{display:block;color:var(--ambar);font-size:13px;margin-bottom:3px}
+.anterior details{margin-top:8px;font-size:13px}
+.anterior details p{white-space:pre-wrap;margin:4px 0 8px}
+.idplantao{font-size:13.5px;background:var(--line-2);border-radius:8px;padding:8px 10px;color:var(--ink-2)}
+.idplantao b{font-family:Consolas,monospace;font-size:14px;color:var(--ink)}
+.par{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pub-linha{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
+.secbody textarea.field.obs-curta{min-height:56px}
+.secbody textarea.field{min-height:84px}
+.campo-passagem textarea.field{border-color:var(--ambar);background:var(--ambar-fundo);color:#4a3206;min-height:110px}
+.campo-passagem{color:var(--ambar)}
+.rascunho{font-size:13px;color:var(--muted)}
+/* v3.6: ferramentas utilizadas, intercorrências e outras imagens */
+.grp{border:1px solid var(--line);border-radius:9px;padding:10px 12px 12px;margin:0;display:grid;gap:9px;min-width:0}
+.grp legend{font-weight:600;font-size:14px;padding:0 4px}
+.grp .obr{color:#e5484d}
+.grp.erro{border-color:#e5484d}
+.ferr-opcoes{display:flex;flex-wrap:wrap;gap:8px}
+.secbody .ferr-opcoes label{display:flex;gap:7px;align-items:center;font-weight:500;border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer;background:var(--card);color:var(--ink)}
+.secbody .ferr-opcoes label:hover{border-color:var(--azure)}
+.secbody .ferr-opcoes label:has(input:checked){border-color:var(--azure);background:var(--line-2);color:var(--ink)}
+.ferr-opcoes input{accent-color:var(--azure);width:16px;height:16px;margin:0}
+.inter-item{border:1px dashed var(--line);border-radius:8px;padding:9px 10px;display:grid;gap:8px}
+.inter-item .topo{display:flex;gap:8px;align-items:center}
+.inter-item .topo select{flex:1;min-width:0}
+.secbody .inter-item label{font-weight:500;font-size:13px}
+.secbody .inter-item textarea{min-height:52px}
+.inter-item .evid{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}
+.img-lista{display:grid;gap:6px}
+.img-lista .it{display:flex;gap:8px;align-items:center;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:5px 8px}
+.img-lista .it img{width:44px;height:34px;object-fit:contain;background:var(--line-2);border-radius:4px}
+.img-lista .it span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.plfoot{display:grid;gap:8px;padding:14px 18px 18px;border-top:1px solid var(--line)}
+.plfoot .btn{justify-content:center}
+/* opção de baixar no PC (mesma das outras ferramentas) */
+#ponteSelo{position:fixed;right:10px;top:6px;z-index:99998;display:grid;gap:2px;background:#fff;color:#1d5c37;border:1px solid #b9dcc6;
+  border-radius:9px;padding:3px 9px;font:500 12px/1.25 "Barlow",Arial,sans-serif;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+#ponteSelo label{display:flex;gap:6px;align-items:center;color:#092b6a;cursor:pointer;font-weight:600}
+#ponteSelo input{width:14px;height:14px;margin:0;accent-color:#006cbf}
+/* aviso flutuante */
+#aviso{position:fixed;right:16px;bottom:16px;z-index:99999;max-width:420px;background:#092b6a;color:#fff;padding:12px 14px;border-radius:10px;
+  font:14px/1.45 var(--font);box-shadow:0 10px 30px rgba(9,43,106,.3);display:none}
+#aviso a{color:#a9e0f4;font-weight:700}#aviso.erro{background:#8a2025}
+#aviso .x{float:right;margin-left:8px;background:none;border:0;color:#fff;cursor:pointer;font-size:18px;line-height:1}
+#aviso .pc{display:inline-block;margin-top:8px;background:#fff;color:#092b6a;border:0;border-radius:7px;padding:5px 11px;font:600 13px var(--font);cursor:pointer}
+</style>
+</head>
+<body>
+<div class="bar">
+  <svg class="stripes" viewBox="0 0 218 64" preserveAspectRatio="none" aria-hidden="true"><path d="M42 0H218V64H0Z" fill="#006cbf"/><path d="M42 0H83L40 64H0Z" fill="#a9e0f4"/><path d="M83 0H121L78 64H40Z" fill="#078fd2"/></svg>
+  <h1>Alertas <small>Minas Gerais · alertas e plantão</small></h1>
+  <nav class="tabs" role="tablist" aria-label="Espaços de trabalho">
+    <button role="tab" id="abaMapa" aria-selected="true" aria-controls="viewMapa" type="button">Mapa de alertas</button>
+    <button role="tab" id="abaPlantao" aria-selected="false" aria-controls="viewPlantao" type="button">Plantão e relatório</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="who"><span id="clock"></span> · <b id="quem">Carregando…</b></div>
+  <div class="actions">
+    <button class="btn" id="novo" type="button" data-view="mapa">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Novo alerta</button>
+    <button class="btn primary" id="create" type="button" data-view="mapa" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/></svg>
+      Criar alerta</button>
+    <button class="btn" id="baixarRel" type="button" data-view="plantao" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+      Baixar PDF no PC</button>
+    <button class="btn primary" id="salvarPlantao" type="button" data-view="plantao" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></svg>
+      Salvar passagem e gerar relatório</button>
+  </div>
+</div>
+
+<!-- ========== MAPA DE ALERTAS ========== -->
+<main id="viewMapa" class="alt" role="tabpanel" aria-labelledby="abaMapa">
+  <section class="panel" aria-labelledby="hFerr">
+    <header>
+      <h2 id="hFerr">Selecione os municípios</h2>
+      <p class="lede">Clique nos municípios ou desenhe uma área no mapa. Depois, “Criar alerta”.</p>
+    </header>
+    <div class="secbody" style="padding-top:12px">
+      <div class="tools two">
+        <button class="tool active" id="toolClick" type="button">◉ Selecionar</button>
+        <button class="tool" id="toolDraw" type="button">✎ Desenho livre</button>
+      </div>
+      <button class="tool danger" id="clear" type="button">⌫ Limpar seleção</button>
+      <p class="hint">Roda do mouse dá zoom; clique e arraste move o mapa. Os nomes aparecem só com zoom bem próximo. Em “Desenho livre”, clique, segure e contorne a área; solte para selecionar.</p>
+      <label for="searchCity" class="sublbl">Localizar município</label>
+      <div class="search"><input class="field" id="searchCity" placeholder="Ex.: Iturama" autocomplete="off"><button class="btn" id="findCity" type="button">Ir</button></div>
+    </div>
+    <div class="secbody" style="border-top:1px solid var(--line);padding-top:14px">
+      <p class="sublbl">Alertas ativos <span class="n" id="activeCount">0</span></p>
+      <div id="activeList" class="alist"></div>
+      <div class="tools two">
+        <button class="tool" id="undoLastAlert" type="button">↶ Desfazer último</button>
+        <button class="tool" id="downloadTxt" type="button">⬇ Alertas do dia (.txt)</button>
+      </div>
+    </div>
+    <details class="sec">
+      <summary>Camadas meteorológicas</summary>
+      <div class="secbody">
+        <div class="tools two">
+          <button class="tool" id="toggleIR" type="button">🛰 IR</button>
+          <button class="tool" id="toggleVIS" type="button">🛰 Visível</button>
+          <button class="tool" id="toggleGLM" type="button">⚡ GLM Density</button>
+          <button class="tool" id="refreshWx" type="button">↻ Atualizar</button>
+        </div>
+        <label class="rng">Transparência satélite <input id="satOpacity" type="range" min="20" max="100" value="78"><output id="satOpacityVal">78%</output></label>
+        <label class="rng">Transparência GLM <input id="glmOpacity" type="range" min="20" max="100" value="68"><output id="glmOpacityVal">68%</output></label>
+        <label class="rng">Limites municipais <input id="boundaryOpacity" type="range" min="20" max="100" value="82"><output id="boundaryOpacityVal">82%</output></label>
+      </div>
+    </details>
+    <details class="sec">
+      <summary>Visualização</summary>
+      <div class="secbody"><button class="tool" id="showAll" type="button">⌂ Enquadrar Minas</button></div>
+    </details>
+  </section>
+
+  <section class="panel preview" aria-labelledby="hMapa">
+    <header>
+      <div class="t">
+        <h2 id="hMapa">Mapa de alertas</h2>
+        <p class="lede">Cores mudam sozinhas conforme o prazo de cada alerta.</p>
+      </div>
+    </header>
+    <div class="stage">
+      <div class="mapwrap">
+        <svg id="mapSvg" viewBox="0 0 1000 760" preserveAspectRatio="xMidYMid meet">
+          <rect width="1000" height="760" fill="#dce7ed"/>
+          <defs id="clipDefs"></defs>
+          <g id="wxBaseLayer">
+            <image id="irLayer" preserveAspectRatio="none" style="display:none"></image>
+            <image id="visLayer" preserveAspectRatio="none" style="display:none"></image>
+            <image id="glmLayer" preserveAspectRatio="none" style="display:none"></image>
+          </g>
+          <g id="munLayer"></g>
+          <g id="mesoLayer"></g>
+          <g id="labelLayer"></g>
+          <polyline id="drawLine" class="drawline" points="" style="display:none"></polyline>
+        </svg>
+        <div class="float topinfo" id="topinfo"><b>Minas Gerais</b> • carregando municípios…</div>
+        <div class="float zoomctl">
+          <button id="zoomIn" title="Aproximar" type="button">+</button>
+          <button id="zoomOut" title="Afastar" type="button">−</button>
+          <button id="zoomReset" title="Enquadrar Minas" type="button">MG</button>
+        </div>
+        <div class="float selection">
+          <b><span id="selCount">0</span> municípios selecionados</b>
+          <div class="citylist" id="selectedNames">Nenhum município selecionado.</div>
+        </div>
+      </div>
+    </div>
+    <div class="status legendrow">
+      <span><i style="background:#65b7df"></i>seleção atual</span>
+      <span><i style="background:#f1c34d"></i>alerta vigente</span>
+      <span><i style="background:#f29f54"></i>perto de vencer</span>
+      <span><i style="background:#d9534f"></i>prazo vencido</span>
+      <span><i class="ln"></i>limite de mesorregião</span>
+      <span class="ver">Versão 1.15-20261021</span>
+    </div>
+  </section>
+</main>
+
+<!-- ========== PLANTÃO E RELATÓRIO ========== -->
+<main id="viewPlantao" class="plt" role="tabpanel" aria-labelledby="abaPlantao" hidden>
+  <section class="panel" aria-labelledby="hPlantao">
+    <header>
+      <h2 id="hPlantao">Passagem de plantão</h2>
+      <p class="lede">Os campos são guardados como rascunho neste navegador enquanto você digita. O relatório ao lado acompanha o preenchimento.</p>
+      <p class="lede">Conectado como <b id="quem2">…</b></p>
+    </header>
+    <div class="secbody" style="padding-top:12px">
+      <p class="sublbl">Plantão anterior</p>
+      <div class="anterior" id="anterior"><p class="meta2">Carregando…</p></div>
+      <div class="idplantao" id="idPlantao" role="status" aria-live="polite">Carregando…</div>
+    </div>
+    <div class="secbody" style="border-top:1px solid var(--line);padding-top:14px">
+      <label>Responsável<input class="field" id="pResp" autocomplete="name"></label>
+      <div class="par">
+        <label>Data<input class="field" id="pData" type="date"></label>
+        <div class="par">
+          <label>Início<input class="field" id="pInicio" type="time"></label>
+          <label>Fim<input class="field" id="pFim" type="time"></label>
+        </div>
+      </div>
+      <fieldset class="grp" id="grpIntervalo"><legend>Intervalo / revezamento no turno</legend>
+        <div class="par">
+          <label>Início do intervalo<input class="field" id="pIntIni" type="time"></label>
+          <label>Fim do intervalo<input class="field" id="pIntFim" type="time"></label>
+        </div>
+        <label>Observações<textarea class="field obs-curta" id="pIntObs" placeholder="Ex.: revezamento com outro plantonista, quem cobriu o intervalo…"></textarea></label>
+      </fieldset>
+      <fieldset class="grp" id="grpPublicacao"><legend>Publicação da previsão diária</legend>
+        <div class="pub-linha">
+          <label>Período<select class="field" id="pPub1Per"><option value="Manhã" selected>Manhã</option><option value="Tarde">Tarde</option></select></label>
+          <label>Horário de publicação<input class="field" id="pPub1Hora" type="time"></label>
+        </div>
+        <div class="pub-linha">
+          <label>Período<select class="field" id="pPub2Per"><option value="Manhã">Manhã</option><option value="Tarde" selected>Tarde</option></select></label>
+          <label>Horário de publicação<input class="field" id="pPub2Hora" type="time"></label>
+        </div>
+        <div class="rascunho">Informe o horário em que cada previsão (manhã e tarde) foi publicada.</div>
+      </fieldset>
+      <fieldset class="grp" id="grpInter"><legend>Intercorrências <span class="obr" title="Obrigatório">*</span></legend>
+        <div id="interLista"></div>
+        <div><button class="btn small" id="interAdd" type="button">+ Intercorrência</button></div>
+        <div class="rascunho">Cada intercorrência vira uma linha na planilha de intercorrências, ligada ao ID do plantão. Se não houve nenhuma, escolha “Sem intercorrências”.</div>
+        <textarea class="field" id="pInter" hidden aria-hidden="true" tabindex="-1"></textarea>
+      </fieldset>
+      <label>Alertas gerados<textarea class="field" id="pAlertas" placeholder="Preenchido sozinho a cada alerta emitido. Pode editar."></textarea></label>
+      <fieldset class="grp" id="grpFerr"><legend>Ferramentas utilizadas <span class="obr" title="Obrigatório">*</span></legend>
+        <div class="ferr-opcoes" id="ferrOpcoes">
+          <label><input type="checkbox" class="ferr" value="Weathernerds"> Weathernerds</label>
+          <label><input type="checkbox" class="ferr" value="Atmos Albany"> Atmos Albany</label>
+          <label><input type="checkbox" class="ferr" value="Atmosfera Livre"> Atmosfera Livre</label>
+          <label><input type="checkbox" class="ferr" value="Tropical Tidbits"> Tropical Tidbits</label>
+          <label><input type="checkbox" class="ferr" value="CPTEC"> CPTEC</label>
+          <label><input type="checkbox" class="ferr" value="INMET"> INMET</label>
+          <label><input type="checkbox" class="ferr" value="Outros" id="ferrOutrosChk"> Outros</label>
+        </div>
+        <label id="ferrOutrosLbl" hidden>Descreva as outras ferramentas<input class="field" id="ferrOutros"></label>
+        <textarea class="field" id="pFerr" hidden aria-hidden="true" tabindex="-1"></textarea>
+      </fieldset>
+      <label class="campo-passagem">Passagem de plantão — áreas suscetíveis e pendências<textarea class="field" id="pPassagem" placeholder="O que o próximo plantonista precisa acompanhar"></textarea></label>
+      <label>Mapa de Previsões (PNG, opcional)<input class="field" id="pMapaPrev" type="file" accept="image/png,.png"></label>
+      <div class="rascunho" id="pMapaPrevInfo">Sai no relatório em PDF, embaixo do mapa de alertas.</div>
+      <div style="display:grid;gap:6px">
+        <span style="font-weight:600;font-size:14px">Outras imagens (PNG ou JPG, opcional)</span>
+        <div class="img-lista" id="pOutrasLista"></div>
+        <div><label class="btn small" style="display:inline-flex;font-weight:600">+ Imagens<input class="sr" id="pOutras" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" multiple></label></div>
+      </div>
+      <div class="rascunho" id="pOutrasInfo"></div>
+    </div>
+    <div class="plfoot">
+      <span class="st" id="statusPlantao" role="status" aria-live="polite"></span>
+      <div class="rascunho" id="rascunhoInfo"></div>
+    </div>
+  </section>
+
+  <section class="panel preview" aria-labelledby="hRel">
+    <header>
+      <div class="t">
+        <h2 id="hRel">Relatório do plantão — A4 retrato</h2>
+        <p class="lede" id="relInfo">210 × 297 mm. Prévia do PDF que é salvo no Drive ao salvar a passagem.</p>
+      </div>
+    </header>
+    <div class="msg" id="relMsg" hidden role="status" aria-live="polite"></div>
+    <div class="pages" id="relPages"></div>
+    <div class="vbar">Versão 1.15-20261021</div>
+  </section>
+</main>
+
+<div class="tooltip" id="tooltip"></div>
+
+<div class="modalback" id="modalback">
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="tituloModal">
+  <h2 id="tituloModal">Novo alerta</h2>
+  <div class="grid">
+    <div><label class="l" for="type">Tipo</label><select class="field" id="type"><option>Tempestade Severa</option><option>Tempestade</option><option>Chuva Intensa</option><option>Vendaval</option></select></div>
+    <div><label class="l" for="duration">Duração</label><select class="field" id="duration"><option value="02:00">02:00 h</option><option value="01:00">01:00 h</option><option value="03:00">03:00 h</option></select></div>
+    <div><label class="l" for="time">Horário</label><input class="field" id="time" placeholder="HH:MM"></div>
+    <div><label class="l" for="owner">Responsável</label><input class="field" id="owner"></div>
+  </div>
+  <div class="row"><span class="l" style="font-weight:600;font-size:14px;display:block;margin-bottom:5px">Fenômenos</span>
+    <div class="phens">
+      <label><input type="checkbox" class="phen" value="granizo" checked> granizo</label>
+      <label><input type="checkbox" class="phen" value="vendaval" checked> vendaval</label>
+      <label><input type="checkbox" class="phen" value="chuva forte" checked> chuva forte</label>
+      <label><input type="checkbox" class="phen" value="rajadas de vento"> rajadas de vento</label>
+      <label><input type="checkbox" class="phen" value="chuva moderada a forte"> chuva moderada a forte</label>
+    </div>
+  </div>
+  <div class="row"><span style="font-weight:600;font-size:14px;display:block;margin-bottom:5px">Municípios</span><div class="chips" id="chips"></div></div>
+  <div class="row"><label class="l" for="message">Mensagem</label><textarea class="field" id="message"></textarea><div style="margin-top:7px"><button class="btn small" id="copy" type="button">Copiar mensagem</button></div></div>
+  <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <button class="btn small" id="downloadKml" type="button">Baixar KML no PC</button>
+    <span class="st" id="kmlStatus">Sem preenchimento e com contorno vermelho fino, como o QGIS.</span>
+  </div>
+  <div class="mactions">
+    <span class="st" id="emitStatus" role="status" aria-live="polite">Ao emitir, o KML é salvo no Drive e o alerta entra na planilha.</span>
+    <button class="btn" id="cancel" type="button">Cancelar</button><button class="btn primary" id="emit" type="button">Emitir alerta</button>
+  </div>
+</div>
+</div>
+
+<div id="ponteSelo"><span>KML e relatório vão para o Drive</span><label><input type="checkbox" id="baixarPc"> Baixar também no PC</label></div>
+<div id="aviso" role="status" aria-live="polite"></div>
+
+<script>
+/* ---------- carregamento: mostra na tela qualquer erro, e os dados não travam a página ---------- */
+(function(){
+  var BASE='../';
+  function faixa(txt){
+    var d=document.getElementById('diagErro');
+    if(!d){d=document.createElement('div');d.id='diagErro';
+      d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:999999;background:#8a2025;color:#fff;font:13px/1.4 Arial,sans-serif;padding:8px 12px;white-space:pre-wrap;max-height:40vh;overflow:auto';
+      document.body.appendChild(d);}
+    d.textContent+=(d.textContent?'\n':'')+txt;
+  }
+  window.diagFaixa=faixa;
+  window.addEventListener('error',function(e){
+    var t=e.target;
+    if(t&&t!==window&&(t.src||t.href)){if(/fonts\.(googleapis|gstatic)\.com/.test(t.src||t.href))return;faixa('Falhou ao carregar: '+(t.src||t.href));return;}
+    faixa('Erro: '+e.message+(e.lineno?' (linha '+e.lineno+')':''));
+  },true);
+  function carregar(url){
+    return new Promise(function(ok,falha){
+      var sc=document.createElement('script');sc.src=url;sc.async=false;
+      sc.onload=function(){ok(url);};
+      sc.onerror=function(){falha(new Error('Falhou ao carregar '+url));};
+      document.head.appendChild(sc);
+    });
+  }
+  window.carregarScript=carregar;
+  var info=document.getElementById('topinfo');
+  var pendentes={municipios:true,mesorregioes:true};
+  var t0=Date.now();
+  var aviso=setInterval(function(){
+    var falta=Object.keys(pendentes).filter(function(k){return pendentes[k];});
+    if(!falta.length){clearInterval(aviso);return;}
+    var s=Math.round((Date.now()-t0)/1000);
+    var nomes={municipios:'municípios',mesorregioes:'mesorregiões'};
+    info.innerHTML='<b>Minas Gerais</b> • carregando '+falta.map(function(k){return nomes[k];}).join(' e ')+'… ('+s+' s)'+
+      (s>=20?'<br><span style="color:#b3261e">Está demorando. Confira a internet e recarregue com Ctrl+F5. Arquivo: '+BASE+'alertas/data/'+falta[0]+'.js</span>':'');
+  },1000);
+  window.BASE_DADOS=BASE;window.VERSAO_APP='1.15-20261021';
+  window.alertasDados=Promise.all([
+    carregar(BASE+'alertas/data/municipios.js').then(function(){pendentes.municipios=false;}),
+    carregar(BASE+'alertas/data/mesorregioes.js').then(function(){pendentes.mesorregioes=false;},function(){pendentes.mesorregioes=false;}),  // opcional
+    carregar(BASE+'alertas/app-drive.js?v=1.15-20261021')     // código da página (GitHub Pages)
+  ]);
+  // jsPDF só é usado no relatório: carrega depois, sem atrasar o mapa
+  window.alertasJsPdf=window.alertasDados.catch(function(){}).then(function(){return carregar(BASE+'previsao/lib/jspdf.umd.min.js?v=1.15-20261021');});
+})();
+</script>
+</body>
+</html>

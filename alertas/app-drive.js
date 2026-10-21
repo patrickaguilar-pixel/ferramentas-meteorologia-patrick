@@ -1,4 +1,6 @@
-/* Alertas e passagem de plantão — código da página (v3.7, 20/10/2026).
+/* Alertas e passagem de plantão — código da página (v3.8, 21/10/2026).
+   v3.8: o mapa do relatório passa a ser desenhado no layout da Previsão diária (assets/layout-mapa.js):
+   297 × 210 mm, cabeçalho, legenda, rodapé com logos, as 25 cidades de referência e os mesmos mapas base.
    v3.7: intervalo/revezamento no turno (início, fim e observações) e horários de publicação das duas
    previsões diárias (cada linha: Manhã/Tarde + horário). Vão para o relatório em PDF, o rascunho e a
    planilha (colunas novas no fim da aba Plantoes, criadas pelo Codigo.gs 2026.10.20.1).
@@ -826,8 +828,9 @@ function layoutRelatorio(d){
     }
   });
   // mapa dos alertas
-  const mh=Wt*760/1000;
-  if(d.mapa){y+=3;if(y+mh>fundo)nova();pg.push({k:'img',src:d.mapa,fmt:'PNG',x:A4.m,y,w:Wt,h:mh});y+=mh;}
+  // v3.8: mapa no layout da Previsão diária (297 × 210 mm); se o layout não carregar, vale a foto antiga da tela (1000 × 760)
+  const mh=Wt*(d.mapaProp||760/1000);
+  if(d.mapa){y+=3;if(y+mh>fundo)nova();pg.push({k:'img',src:d.mapa,fmt:d.mapaFmt||'PNG',x:A4.m,y,w:Wt,h:mh});y+=mh;}
   else texto(d.mapaPendente?'Gerando a imagem do mapa…':'Mapa não disponível (não foi possível capturar a imagem do mapa).',10,false,3);
   // Mapa de Previsões
   if(d.prev&&d.prev.url&&d.prev.w&&d.prev.h){
@@ -926,16 +929,69 @@ function fotografarMapa(nomes){
   });
 }
 function municipiosAlertados(){const s=new Set();state.active.forEach(a=>(a.cities||[]).forEach(n=>s.add(n)));return s;}
-let mapaCache={chave:null,url:''};
+/* ---- v3.8: mapa dos alertas no MESMO layout da Previsão diária (assets/layout-mapa.js) ----
+   Cabeçalho, legenda, rodapé com logos, 297 × 210 mm, pontos e nomes das 25 cidades de referência e
+   os mesmos mapas base (seletor "Fundo" ao lado de "Baixar PDF no PC"). */
+const CIDADES_REF=['Almenara','Barbacena','Belo Horizonte','Buritis','Campos Altos','Carneirinho','Curvelo','Diamantina','Divinópolis',
+  'Extrema','Governador Valadares','Ipatinga','Itamonte','Januária','Juiz de Fora','Manhuaçu','Montes Claros','Paracatu','Patos de Minas',
+  'Pirapora','Poços de Caldas','Teófilo Otoni','Uberaba','Uberlândia','Viçosa'];
+let layoutPromessa=null;
+function garantirLayout(){
+  if(window.LayoutMapa)return Promise.resolve();
+  if(layoutPromessa)return layoutPromessa;
+  const base=window.BASE_DADOS||'../',v=window.VERSAO_APP?'?v='+encodeURIComponent(window.VERSAO_APP):'';
+  const carregar=window.carregarScript||(src=>new Promise((ok,erro)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>erro(new Error('Falhou ao carregar '+src));document.head.appendChild(s);}));
+  const temGeo=!!document.querySelector('script[src*="previsao/data/geo.js"]');
+  layoutPromessa=(temGeo?Promise.resolve():carregar(base+'previsao/data/geo.js'+v))
+    .then(()=>carregar(base+'assets/layout-mapa.js'+v))
+    .then(()=>{if(!window.LayoutMapa)throw new Error('layout do mapa indisponível');})
+    .catch(e=>{layoutPromessa=null;throw e;});
+  return layoutPromessa;
+}
+function opcoesMapaAlertas(nomes){
+  const c=dadosRelatorio().campos,data=c.data||'',turno=(state.turno&&state.turno.turno)||'';
+  const dataTxt=data?dataBR(data):'data pendente';
+  return {
+    titulo:'Alertas - '+dataTxt+(turno?' ('+turno+')':''),
+    textoValidade:'Alertas emitidos no plantão'+(turno?' '+turno.toLowerCase():'')+(data?' de '+dataTxt:''),
+    credito:'Alertas - SIMGE/IGAM, '+((data||new Date().toISOString()).slice(0,4)),
+    areas:[...nomes].map(n=>featureByName.get(n)).filter(Boolean).map(f=>({geometry:f.geometry,fill:'#f1c34d',opacity:0.75,stroke:'#9b6800',strokeWidth:0.12})),
+    legenda:[{fill:'#f5d47f',label:'Município com alerta no plantão'},{fill:'#ffffff',label:'Sem alerta'}],
+    cidadesNomes:CIDADES_REF
+  };
+}
+async function mapaLayout(nomes){
+  await garantirLayout();
+  const c=await window.LayoutMapa.canvas(opcoesMapaAlertas(nomes),200);   // 2339 × 1654 px, JPEG para o PDF não pesar
+  return c.toDataURL('image/jpeg',0.9);
+}
+let mapaCache={chave:null,url:'',fmt:'PNG',prop:760/1000};
 async function mapaDoRelatorio(nomes,forcar){
-  const chave=[...nomes].sort().join('|');
+  const c=dadosRelatorio().campos,fundo=window.LayoutMapa?window.LayoutMapa.fundoEscolhido():'';
+  const chave=[...nomes].sort().join('|')+'#'+(c.data||'')+'#'+((state.turno&&state.turno.turno)||'')+'#'+fundo;
   if(mapaCache.chave===chave&&(mapaCache.url||!forcar))return mapaCache.url;
-  let url='';
-  try{url=await Promise.race([fotografarMapa(nomes),new Promise(ok=>setTimeout(()=>ok(''),20000))]);}catch(e){url='';}
-  mapaCache={chave,url};           // guarda também a falha, para a prévia não tentar sem parar
+  let url='',fmt='JPEG',prop=210/297;
+  try{url=await Promise.race([mapaLayout(nomes),new Promise(ok=>setTimeout(()=>ok(''),60000))]);}catch(e){url='';}
+  if(!url){   // sem o layout: a foto da tela, como antes
+    fmt='PNG';prop=760/1000;
+    try{url=await Promise.race([fotografarMapa(nomes),new Promise(ok=>setTimeout(()=>ok(''),20000))]);}catch(e){url='';}
+  }
+  mapaCache={chave,url,fmt,prop};           // guarda também a falha, para a prévia não tentar sem parar
   return url;
 }
+// carrega o layout logo e põe o seletor "Fundo" ao lado de "Baixar PDF no PC"
+garantirLayout().then(()=>{
+  if(window.LayoutMapa.montarSeletor)window.LayoutMapa.montarSeletor($('baixarRel'));
+  const lab=$('layoutFundo')&&$('layoutFundo').closest('label');
+  if(lab){lab.setAttribute('data-view','plantao');lab.hidden=$('baixarRel').hidden;}   // só na aba do relatório, como o botão do PDF
+  document.addEventListener('layoutfundo',()=>{mapaCache.chave=null;agendarRelatorio(true);});
+  mapaCache.chave=null;agendarRelatorio(true);
+}).catch(()=>{});
 
+function chaveMapaAtual(nomes){
+  const c=dadosRelatorio().campos,fundo=window.LayoutMapa?window.LayoutMapa.fundoEscolhido():'';
+  return [...nomes].sort().join('|')+'#'+(c.data||'')+'#'+((state.turno&&state.turno.turno)||'')+'#'+fundo;
+}
 /* ---- prévia ao vivo ---- */
 let relT=0;
 function agendarRelatorio(comMapa){
@@ -946,7 +1002,7 @@ function agendarRelatorio(comMapa){
 async function desenharRelatorio(){
   const d=dadosRelatorio();
   const nomes=municipiosAlertados(),chave=[...nomes].sort().join('|');
-  if(mapaCache.chave===chave)d.mapa=mapaCache.url;
+  if(mapaCache.chave&&mapaCache.chave.split('#')[0]===chave&&mapaCache.chave===chaveMapaAtual(nomes)){d.mapa=mapaCache.url;d.mapaFmt=mapaCache.fmt;d.mapaProp=mapaCache.prop;}
   else{d.mapaPendente=true;mapaDoRelatorio(nomes).then(()=>agendarRelatorio());}
   const pages=layoutRelatorio(d);
   $('relPages').innerHTML=pages.map((p,i)=>`<div class="a4" aria-label="Página ${i+1}">${paginaSvg(p)}</div>${pages.length>1?`<div class="pgnum">Página ${i+1} de ${pages.length}</div>`:''}`).join('');
@@ -958,7 +1014,7 @@ function relMsg(tipo,html){const m=$('relMsg');m.className='msg '+tipo;m.innerHT
 $('baixarRel').onclick=async()=>{
   const btn=$('baixarRel');btn.classList.add('busy');
   try{
-    const d=dadosRelatorio();d.mapa=await mapaDoRelatorio(municipiosAlertados(),true);
+    const d=dadosRelatorio();d.mapa=await mapaDoRelatorio(municipiosAlertados(),true);d.mapaFmt=mapaCache.fmt;d.mapaProp=mapaCache.prop;
     await Promise.race([window.alertasJsPdf,new Promise(ok=>setTimeout(ok,15000))]).catch(()=>{});
     const r=gerarPdf(d);
     baixarLocal(carimbo(d.geradoEm)+'_relatorio_plantao_'+(d.id||'previa')+'.pdf',r.blob);
@@ -979,7 +1035,7 @@ async function relatorioFinal(snap,nomesLocais){
     await new Promise(ok=>google.script.run.withSuccessHandler(p=>{if(p&&/^https:\/\//.test(p.url))snap.pastaUrl=p.url;ok();})
       .withFailureHandler(()=>ok()).prepararPastaTurno(snap.turno.data,snap.turno.turno));
   }
-  snap.mapa=await mapaDoRelatorio(nomes,true);
+  snap.mapa=await mapaDoRelatorio(nomes,true);snap.mapaFmt=mapaCache.fmt;snap.mapaProp=mapaCache.prop;
   await Promise.race([window.alertasJsPdf,new Promise(ok=>setTimeout(ok,15000))]).catch(()=>{});
   let r;
   try{r=gerarPdf(snap);}catch(e){aviso('A passagem foi salva, mas o PDF não pôde ser gerado: '+esc(e&&e.message||e),true);lembrarEmailPlantao(snap.id);return;}
@@ -1138,6 +1194,8 @@ $('salvarPlantao').onclick=()=>{
 };
 
 function carregarContexto(){
+  // fora do Apps Script (página de teste no GitHub): sem conta, sem Drive e sem planilha — o resto funciona
+  if(!temServidor){$('quem').textContent='Modo de teste (sem Drive)';return;}
   google.script.run
     .withSuccessHandler(ctx=>{
       $('quem').dataset.email=ctx.email||'';

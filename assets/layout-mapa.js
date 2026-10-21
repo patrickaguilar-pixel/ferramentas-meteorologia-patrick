@@ -270,8 +270,8 @@
     if (!el) { if (txt) console.warn(txt); return; }
     el.textContent = txt || ''; el.hidden = !txt; el.style.color = erro ? '#b42318' : '';
   }
-  function montarSeletor() {
-    var ref = document.getElementById('previewBtn');
+  function montarSeletor(ancora) {
+    var ref = (ancora && ancora.nodeType === 1) ? ancora : document.getElementById('previewBtn');
     if (!ref || document.getElementById('layoutFundo')) return;
     var lab = document.createElement('label');
     lab.className = 'btn'; lab.style.cssText = 'gap:6px;cursor:default';
@@ -283,7 +283,8 @@
     ref.parentNode.insertBefore(lab, ref);
     var sel = lab.querySelector('select');
     try { var v = localStorage.getItem(LS_FUNDO); if (v != null && (v === '' || fundoPorId(v))) sel.value = v; } catch (e) {}
-    sel.addEventListener('change', function () { try { localStorage.setItem(LS_FUNDO, sel.value); } catch (e) {} avisar(''); });
+    sel.addEventListener('change', function () { try { localStorage.setItem(LS_FUNDO, sel.value); } catch (e) {} avisar('');
+      try { document.dispatchEvent(new CustomEvent('layoutfundo', { detail: sel.value })); } catch (e) {} });
     var av = document.createElement('div');
     av.id = 'layoutFundoAviso'; av.hidden = true; av.setAttribute('role', 'status');
     av.style.cssText = 'flex-basis:100%;font-size:13px;margin-top:4px';
@@ -325,7 +326,7 @@
     o.push('<g clip-path="url(#mgclip)">');
     (op.areas || []).forEach(function (a) {
       var d = caminho(a.geometry); if (!d) return;
-      o.push('<path d="' + d + '" fill="' + a.fill + '" fill-rule="evenodd" stroke="' + (a.stroke || a.fill) + '" stroke-width="0.2" stroke-linejoin="round"/>');
+      o.push('<path d="' + d + '" fill="' + a.fill + '"' + (a.opacity != null ? ' fill-opacity="' + a.opacity + '"' : '') + ' fill-rule="evenodd" stroke="' + (a.stroke || a.fill) + '" stroke-width="' + (a.strokeWidth || 0.2) + '" stroke-linejoin="round"/>');
     });
     o.push('</g>');
     if (op.municipios) o.push('<path d="' + GEO.munLines + '" fill="none" stroke="#c9d6dc" stroke-width="0.09" stroke-linejoin="round"/>');
@@ -336,8 +337,11 @@
       o.push('<text x="' + f2(p[0] - MAP.x) + '" y="' + f2(p[1] - MAP.y + (ASC - DESC) / 2 * fz) + '" font-family="' + FONT + '" font-size="' + fz + '" font-weight="700" fill="#2f3640" text-anchor="middle" stroke="#fff" stroke-width=".5" stroke-linejoin="round" paint-order="stroke">' + esc(s[0]) + '</text>');
     });
     // cidades de referência: a MESMA marcação da Previsão (ponto branco r 0,9 mm e nome de 3,5 mm logo abaixo)
-    var ns = NOME_TAM, pts = [], nomes = [];
-    (op.cidades || []).forEach(function (c) {
+    var ns = NOME_TAM, pts = [], nomes = [], cidades = (op.cidades || []).slice();
+    (op.cidadesNomes || []).forEach(function (n) {   // cidades pelo nome: posição da sede no geo.js
+      for (var i = 0; i < GEO.mun.length; i++) if (GEO.mun[i][0] === n) { cidades.push({ nome: n, lat: GEO.mun[i][1], lon: GEO.mun[i][2] }); break; }
+    });
+    cidades.forEach(function (c) {
       if (!isFinite(c.lon) || !isFinite(c.lat)) return;
       var p = proj(c.lon, c.lat), x = p[0] - MAP.x, y = p[1] - MAP.y;
       pts.push('<circle cx="' + f2(x) + '" cy="' + f2(y) + '" r="' + PT_R + '" fill="#ffffff" stroke="#1f2328" stroke-width="0.32"/>');
@@ -384,12 +388,12 @@
       itens.forEach(function (it) {
         var cy = y + rh / 2;
         o.push('<rect x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" fill="' + it.fill + '" stroke="#555" stroke-width="0.2"/>');
-        o.push('<text x="' + f2(tx0) + '" y="' + f2(cy + (ASC - DESC) / 2 * fs) + '" font-family="' + FONT + '" font-size="' + f2(fs) + '" fill="#000">' + esc(it.label) + '</text>');
+        o.push('<text x="' + f2(tx0) + '" y="' + f2(cy + (ASC - DESC) / 2 * fs) + '" font-family="' + FONT + '" font-size="' + f2(fs) + '" fill="#000" stroke="#fff" stroke-width="' + f2(fs * 0.25) + '" stroke-linejoin="round" paint-order="stroke">' + esc(it.label) + '</text>');
         y += rh;
       });
     })();
     o.push('<rect x="232.338" y="159.499" width="51.2776" height="0.256388" fill="rgb(138,187,228)"/>');
-    var vt = validadeTexto(op.validade), val = vt || 'Validade não informada';
+    var vt = op.textoValidade || validadeTexto(op.validade), val = vt || 'Validade não informada';
     o.push(textBlock({ lines: [val], x: 223.857 + 67.7588 / 2, yTop: 160.906, h: 8.28892, size: fitSize([val], 10 * PT, 67.7, 400), fill: vt ? navy : '#8a97a8', anchor: 'middle' }));
     o.push('<rect x="232.338" y="170.345" width="51.2776" height="0.256388" fill="rgb(138,187,228)"/>');
     var cred = [op.credito || 'SIMGE/IGAM'].concat(CREDITOS_FIXOS);
@@ -491,5 +495,6 @@
   }
 
   window.LayoutMapa = { svg: svg, png: png, previa: previa, canvas: canvas, validadeTexto: validadeTexto, fmtDateBR: fmtDateBR,
-    fundos: FUNDOS.map(function (F) { return { id: F.id, nome: F.nome }; }), carregarFundo: carregarFundo, PAGE: PAGE };
+    fundos: FUNDOS.map(function (F) { return { id: F.id, nome: F.nome }; }), carregarFundo: carregarFundo, PAGE: PAGE,
+    montarSeletor: montarSeletor, fundoEscolhido: fundoEscolhido };
 })();
