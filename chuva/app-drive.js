@@ -17,14 +17,16 @@ let selected=LEVELS[0], product='chuva';
 const MG_MASK=((window.BRASIL_ESTADOS&&BRASIL_ESTADOS.features)||[]).find(f=>f.properties.UF==='MG')||turf.union(turf.featureCollection(MESO.features));
 const map=L.map('map',{zoomControl:true,attributionControl:false,minZoom:5,maxZoom:12});
 const drawnItems=new L.FeatureGroup().addTo(map);
-const estadosEditor=L.geoJSON(BRASIL_ESTADOS,{style:f=>({color:f.properties.UF==='MG'?'#777':'#c8c8c8',weight:f.properties.UF==='MG'?0.5:1,fillColor:'#fff',fillOpacity:1})}).addTo(map);
+// estados como na Previsão: linha preta fina, fora de Minas em branco; Minas sem preenchimento (o fundo vem por baixo)
+const estadosEditor=L.geoJSON(BRASIL_ESTADOS,{interactive:false,style:f=>({color:'#000',weight:f.properties.UF==='MG'?1.2:0.8,fillColor:'#fff',fillOpacity:f.properties.UF==='MG'?0:1})}).addTo(map);
 const mesoDisplay=L.geoJSON(MESO,{style:{color:'#454545',weight:1.15,fillOpacity:0}}).addTo(map); map.fitBounds(mesoDisplay.getBounds(),{padding:[25,25]});
 // v1.15: marcação das cidades igual à da Previsão (ponto branco pequeno e nome logo abaixo, em azul-marinho)
 (function(){const s=document.createElement('style');s.textContent='.leaflet-tooltip.lm-cidade{background:transparent;border:0;box-shadow:none;padding:0;color:#092b6a;font:700 12px Arial,"Liberation Sans",Helvetica,sans-serif;text-shadow:1px 1px 0 #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,0 1px 0 #fff,0 -1px 0 #fff}.leaflet-tooltip.lm-cidade:before{display:none}';document.head.appendChild(s);})();
-L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:2.6,color:'#1f2328',weight:1,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP||f.properties.nome||'';l.bindTooltip(n,{permanent:true,direction:'bottom',offset:[0,1],className:'lm-cidade'});}}).addTo(map);
+map.createPane('lmCidades').style.zIndex=450;   // cidades sempre por cima das áreas desenhadas
+L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'lmCidades',interactive:false,radius:2.6,color:'#1f2328',weight:1,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP||f.properties.nome||'';l.bindTooltip(n,{permanent:true,direction:'bottom',offset:[0,1],className:'lm-cidade'});}}).addTo(map);
 function levelById(id){return LEVELS.find(x=>x.id===id)||LEVELS[0]} function styleFor(l){return {color:l.stroke,weight:1.5,fillColor:l.fill,fillOpacity:1}}
 function renderLevels(){const el=document.getElementById('levels');el.innerHTML='';LEVELS.forEach(l=>{const b=document.createElement('button');b.className='level'+(l.id===selected.id?' active':'');b.innerHTML=`<span class="swatch" style="background:${l.fill}"></span>${l.label}`;b.onclick=()=>{selected=l;document.getElementById('currentLabel').textContent=l.label;renderLevels()};el.appendChild(b)});renderLegend();}
-function renderLegend(){document.getElementById('legend').innerHTML=LEVELS.slice().reverse().map(l=>`<div><span class="swatch" style="background:${l.fill}"></span>${l.label}</div>`).join('')+'<div><span class="swatch" style="background:#fff"></span>Sem Previsão de Chuvas</div>'}
+function renderLegend(){document.getElementById('legend').innerHTML=LEVELS.slice().reverse().map(l=>`<div><span class="swatch" style="background:${l.fill}"></span>${l.label}</div>`).join('')+'<div><span class="swatch lm-sem" style="background:#ecf4f5"></span>Sem Previsão de Chuvas</div>';try{atualizarAmostraSem();}catch(e){}}
 function renderLabelEditor(){const el=document.getElementById('labelEditor');el.innerHTML='';LEVELS.forEach(l=>{const r=document.createElement('div');r.className='labelrow';r.innerHTML=`<span class="swatch" style="background:${l.fill}"></span><input value="${l.label}" data-id="${l.id}">`;r.querySelector('input').oninput=e=>{l.label=e.target.value; if(selected.id===l.id)document.getElementById('currentLabel').textContent=l.label;renderLevels()};el.appendChild(r)})}
 renderLabelEditor();renderLevels();
 function setStatus(s){document.getElementById('status').textContent=s}
@@ -337,6 +339,15 @@ pngBtn.onclick=generatePNG;
 /* v1.15: mapa base no editor (mesmo seletor "Fundo" do mapa final) e painel "Mapa final" na tela,
    no layout da Previsão diária (297 × 210 mm), atualizado sozinho. */
 garantirLayoutMapa().then(()=>{
-  if(LayoutMapa.fundoNoEditor)LayoutMapa.fundoNoEditor(map,{mg:MG_MASK,aoMudar:ativo=>estadosEditor.eachLayer(l=>{if(l.feature&&l.feature.properties.UF==='MG')l.setStyle({fillOpacity:ativo?0:1});})});
+  if(LayoutMapa.fundoNoEditor)LayoutMapa.fundoNoEditor(map,{mg:MG_MASK,aoMudar:()=>atualizarAmostraSem()});
+  if(LayoutMapa.editorExtras)LayoutMapa.editorExtras(map,{mg:MG_MASK,estados:BRASIL_ESTADOS,desenharEstados:false});
   if(LayoutMapa.painelAoVivo)LayoutMapa.painelAoVivo(document.querySelector('section.panel.preview'),opcoesMapa,'Mapa final — Chuva e Tendência');
 }).catch(()=>{});
+// legenda da tela: "Sem Previsão de Chuvas" mostra como Minas aparece (recorte do mapa base ou o tom claro de Minas)
+let amostraPedido=0;
+function atualizarAmostraSem(){
+  const n=++amostraPedido,id=window.LayoutMapa?LayoutMapa.fundoEscolhido():'';
+  const pintar=bg=>document.querySelectorAll('#legend .lm-sem').forEach(s=>{s.style.background=bg;s.style.backgroundSize='cover';});
+  if(!id||!window.LayoutMapa||!LayoutMapa.amostraFundo){pintar('#ecf4f5');return;}
+  LayoutMapa.amostraFundo(id).then(u=>{if(n===amostraPedido)pintar(u?'url('+u+') center/cover':'#ecf4f5');}).catch(()=>{});
+}

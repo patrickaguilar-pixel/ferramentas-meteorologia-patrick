@@ -20,6 +20,7 @@ if (typeof GEO !== "undefined" && GEO.__dy == null){
   GEO.__dy = GEO_DY;
 }
 const PT = 25.4/72; // mm por ponto tipográfico
+const COL = 258.49, LIN_W = 51.28;   // eixo e largura das linhas da coluna da legenda (tudo alinhado no mesmo centro)
 const NAVY = "#092b6a";
 const FONT = "Arial, 'Liberation Sans', Helvetica, sans-serif";
 const CAT = Object.fromEntries(ICONS.map(c => [c.value, c]));
@@ -741,11 +742,11 @@ function renderSVG({forExport=false} = {}){
     o.push(`<text x="${f2(bx+2*seg+textW("100",ss)/2+1)}" y="${f2(ly)}" font-family="${FONT}" font-size="${f2(ss)}" fill="#000">km</text>`); }
 
   /* ---- legenda ---- */
-  o.push(textBlock({lines:["Legenda"], x:230.723+55.5338/2, yTop:22.7706, h:6.78946, size:16*PT, weight:700, fill:navy, anchor:"middle"}));
-  o.push(`<rect x="231.954" y="34.1727" width="55.9197" height="0.266644" fill="rgb(138,187,228)"/>`);
+  o.push(textBlock({lines:["Legenda"], x:COL, yTop:22.7706, h:6.78946, size:16*PT, weight:700, fill:navy, anchor:"middle"}));
+  o.push(`<rect x="${f2(COL-LIN_W/2)}" y="34.1727" width="${LIN_W}" height="0.266644" fill="rgb(138,187,228)"/>`);
   { const cats = usedCats();
     // área da legenda: entre a linha abaixo do título e a linha da validade, centrada sob "Legenda"
-    const top = 36.6, bottom = 157.8, cx = 230.723 + 55.5338/2, maxW = 61.5;
+    const top = 36.6, bottom = 157.8, cx = COL, maxW = 61.5;
     const KEYF = 0.62, KEYGAP = 1.6;                 // linhas da chave de temperatura são mais baixas
     const KEYS = [];   // a legenda mostra só as condições do tempo (sem a chave de máxima/mínima)
     const units = Math.max(1, cats.length + KEYS.length*KEYF);
@@ -774,10 +775,10 @@ function renderSVG({forExport=false} = {}){
       y += h;
     });
   }
-  o.push(`<rect x="232.338" y="159.499" width="51.2776" height="0.256388" fill="rgb(138,187,228)"/>`);
+  o.push(`<rect x="${f2(COL-LIN_W/2)}" y="159.499" width="${LIN_W}" height="0.256388" fill="rgb(138,187,228)"/>`);
   const vt = validityText(), val = vt || "Validade não informada";
-  o.push(textBlock({lines:[val], x:223.857+67.7588/2, yTop:160.906, h:8.28892, size:fitSize([val],10*PT,67.7,400), fill: vt ? navy : "#8a97a8", anchor:"middle"}));
-  o.push(`<rect x="232.338" y="170.345" width="51.2776" height="0.256388" fill="rgb(138,187,228)"/>`);
+  o.push(textBlock({lines:[val], x:COL, yTop:160.906, h:8.28892, size:fitSize([val],10*PT,67.7,400), fill: vt ? navy : "#8a97a8", anchor:"middle"}));
+  o.push(`<rect x="${f2(COL-LIN_W/2)}" y="170.345" width="${LIN_W}" height="0.256388" fill="rgb(138,187,228)"/>`);
   const year = (S.date || todayISO()).slice(0,4);
   let cred = (S.texts.credits || "").replace(/\{ano\}/g, year).split("\n")
     .map(l => baseOn() && /^\s*Base cartográfica\s*:/i.test(l) ? `Base cartográfica: ${BASE.credito}` : l);
@@ -787,7 +788,7 @@ function renderSVG({forExport=false} = {}){
       if (i >= 0) cred[i] = `Mapa base: ${ab.credito}`;
       else { const j = cred.findIndex(l => /^\s*Base cartográfica\s*:/i.test(l)); cred.splice(j >= 0 ? j + 1 : cred.length, 0, `Mapa base: ${ab.credito}`); }
     } }
-  o.push(textBlock({lines:cred, x:228.723+59.3284/2, yTop:172.909, h:13.3322, size:fitSize(cred,6.68628*PT,62,400), fill:navy, anchor:"middle"}));
+  o.push(textBlock({lines:cred, x:COL, yTop:172.909, h:13.3322, size:fitSize(cred,6.68628*PT,62,400), fill:navy, anchor:"middle"}));
 
   /* ---- rodapé ---- */
   [[4.30732,194.2,289.001,14.3,3.28177],[4.51243,194.4,288.59,13.9,3.07666],[4.71754,194.6,288.18,13.5,2.87155]]

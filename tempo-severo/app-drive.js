@@ -44,7 +44,8 @@ const mesoDisplay=L.geoJSON(MESO,{interactive:false,style:{color:'#4b5563',weigh
 map.fitBounds(mesoDisplay.getBounds(),{padding:[25,25]});
 // v1.15: marcação das cidades igual à da Previsão (ponto branco pequeno e nome logo abaixo, em azul-marinho)
 (function(){const s=document.createElement('style');s.textContent='.leaflet-tooltip.lm-cidade{background:transparent;border:0;box-shadow:none;padding:0;color:#092b6a;font:700 12px Arial,"Liberation Sans",Helvetica,sans-serif;text-shadow:1px 1px 0 #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,0 1px 0 #fff,0 -1px 0 #fff}.leaflet-tooltip.lm-cidade:before{display:none}';document.head.appendChild(s);})();
-L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:2.6,color:'#1f2328',weight:1,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP;l.bindTooltip(n,{permanent:true,direction:'bottom',offset:[0,1],className:'lm-cidade'});}}).addTo(map);
+map.createPane('lmCidades').style.zIndex=450;   // cidades sempre por cima das áreas desenhadas
+L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'lmCidades',interactive:false,radius:2.6,color:'#1f2328',weight:1,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP;l.bindTooltip(n,{permanent:true,direction:'bottom',offset:[0,1],className:'lm-cidade'});}}).addTo(map);
 const microPriorityLayer={clearLayers(){},addData(){}}; // microrregiões ficam somente para cálculo textual
 function styleFor(lv){return {color:lv.stroke,weight:2,fillColor:lv.fill,fillOpacity:lv.opacity};}
 function levelById(id){return LEVELS.find(x=>x.id===id)||LEVELS[0];}
@@ -505,5 +506,6 @@ document.getElementById('modelBtn').onclick=()=>document.getElementById('modelMo
    no layout da Previsão diária (297 × 210 mm), atualizado sozinho. */
 garantirLayoutMapa().then(()=>{
   if(LayoutMapa.fundoNoEditor)LayoutMapa.fundoNoEditor(map,{mg:MG_MASK,aoMudar:null});
+  if(LayoutMapa.editorExtras)LayoutMapa.editorExtras(map,{mg:MG_MASK,estados:window.BRASIL_ESTADOS});
   if(LayoutMapa.painelAoVivo)LayoutMapa.painelAoVivo(document.querySelector('section.panel.preview'),opcoesMapa,'Mapa final — Tempo Severo');
 }).catch(()=>{});

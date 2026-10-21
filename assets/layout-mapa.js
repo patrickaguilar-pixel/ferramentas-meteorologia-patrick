@@ -47,7 +47,9 @@
   var CREDITOS_FIXOS = ['Limites municipais e mesorregiões - IBGE', 'Base cartográfica: IBGE', 'Projeção: Latitude/Longitude - Datum SIRGAS 2000'];
   var LOGO_SLOTS = ['igam', 'simge', 'appa', 'riodoce'];
   var LOGO_Y = 196.35, LOGO_H = 10, LOGO_X0 = 10.5, LOGO_X1 = 196.4;
-  var PT_R = 0.9, NOME_TAM = 3.5;                    // marcação das cidades: a mesma da Previsão
+  var PT_R = 0.9, NOME_TAM = 3.5;
+  var COL = 258.49, LIN_W = 51.28;                   // eixo e largura das linhas da coluna da legenda (iguais à Previsão 1.15)
+  var MG_FILL = '#ecf4f5';                           // Minas sem mapa base: o mesmo tom claro da Previsão                    // marcação das cidades: a mesma da Previsão
   var STATE_LABELS = [['MT', -51.18, -14.494], ['GO', -49.744, -16.279], ['DF', -47.797, -15.7755], ['BA', -40.865, -14.794], ['MS', -51.0, -20.45],
     ['SP', -48.785, -21.709], ['RJ', -42.536, -22.359], ['ES', -40.361, -19.342]];
   var NORTH_ARROW = '<g transform="translate(-1.438 30.744)"><path d="m32-9.453l28.938 73.826-29-29-29 29z" fill="#000" stroke="#fff" stroke-width="3"/><path d="m32-9.453l29 73.45-29-29-29 29z" fill="none" stroke="#fff" stroke-linecap="square"/><text fill="#000" font-family="' + FONT + '" font-size="26" x="22.71" y="-10.854">N</text></g><g fill="none" stroke="#fff" stroke-width=".25" transform="translate(0 -3.829)"><path d="m4 92.82l6.74-3.891M4.603 90.7l10.397-6M3 95.17l4-2.309M5.442 88.45l13.856-8M12 72.26l18.686-10.812M14.593 65.45l16.09-9.291M15.343 63.24l15.343-8.858M16.877 60.58l13.809-7.972M17.511 58.45l13.174-7.606M18.412 56.15l12.274-7.087M19 54.04l11.427-6.597M20 51.757l10.822-6.311M20.826 49.45l9.86-5.693M21.48 47.3l9.206-5.315M23 44.647l7.686-4.437M23.744 42.45l6.928-4M24.549 40.21l6.137-3.543M25 38.18l5.686-3.283M26.663 35.446l4.02-2.323M27.617 33.12l3.069-1.772M28 31.13l2.686-1.551M29.15 28.694l1.534-.886M13 69.909l17.686-10.211M9.206 79.19l21.48-12.402M8.36 81.45l22.326-12.89M7.671 83.62l19.946-11.516M6.137 86.27l17.02-9.827M10 76.956l20.686-11.943M11.279 74.45l19.407-11.205M14 67.56l16.686-9.634"/><path d="m30.562 69.573v-43.566"/></g>';
@@ -272,8 +274,10 @@
     el.textContent = txt || ''; el.hidden = !txt; el.style.color = erro ? '#b42318' : '';
   }
   function montarSeletor(ancora) {
-    var ref = (ancora && ancora.nodeType === 1) ? ancora : document.getElementById('previewBtn');
-    if (!ref || document.getElementById('layoutFundo')) return;
+    var cab = null, ref = null;
+    if (ancora && ancora.nodeType === 1) { if (ancora.tagName === 'H2') cab = ancora.closest('header'); else ref = ancora; }
+    else { var h = document.getElementById('hMap'); cab = h ? h.closest('header') : null; if (!cab) ref = document.getElementById('previewBtn'); }
+    if ((!ref && !cab) || document.getElementById('layoutFundo')) return;
     var lab = document.createElement('label');
     lab.className = 'btn'; lab.style.cssText = 'gap:6px;cursor:default';
     lab.title = 'Mapa de fundo do mapa final (PNG e prévia). Os mapas da internet são carregados na hora.';
@@ -281,7 +285,8 @@
     var opts = [['', 'Nenhum']].concat(FUNDOS.map(function (F) { return [F.id, curtos[F.id] || F.nome]; }));
     lab.innerHTML = '<span aria-hidden="true">Fundo</span><select id="layoutFundo" aria-label="Mapa de fundo do mapa final" style="border:0;background:transparent;font:inherit;color:inherit;max-width:200px">' +
       opts.map(function (o) { return '<option value="' + o[0] + '">' + esc(o[1]) + '</option>'; }).join('') + '</select>';
-    ref.parentNode.insertBefore(lab, ref);
+    if (cab) { cab.style.display = 'flex'; cab.style.alignItems = 'flex-start'; cab.style.gap = '12px'; cab.style.flexWrap = 'wrap'; lab.style.marginLeft = 'auto'; cab.appendChild(lab); }
+    else ref.parentNode.insertBefore(lab, ref);
     var sel = lab.querySelector('select');
     try { var v = localStorage.getItem(LS_FUNDO); if (v != null && (v === '' || fundoPorId(v))) sel.value = v; } catch (e) {}
     sel.addEventListener('change', function () { try { localStorage.setItem(LS_FUNDO, sel.value); } catch (e) {} avisar('');
@@ -289,7 +294,7 @@
     var av = document.createElement('div');
     av.id = 'layoutFundoAviso'; av.hidden = true; av.setAttribute('role', 'status');
     av.style.cssText = 'flex-basis:100%;font-size:13px;margin-top:4px';
-    ref.parentNode.appendChild(av);
+    (cab || ref.parentNode).appendChild(av);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montarSeletor); else montarSeletor();
 
@@ -322,7 +327,7 @@
     o.push('<path d="' + GEO.states + '" fill="none" stroke="#000" stroke-width="0.22" stroke-linejoin="round"/>');
     if (F) {   // mapa base só dentro de Minas, como na Previsão
       o.push('<g clip-path="url(#mgclip)"><image href="' + F.src + '" xlink:href="' + F.src + '" x="0" y="0" width="' + f2(MAP.w) + '" height="' + f2(MAP.h) + '" preserveAspectRatio="none"/></g>');
-    } else o.push('<path d="' + GEO.mg + '" fill="#ffffff" stroke="none"/>');
+    } else o.push('<path d="' + GEO.mg + '" fill="' + MG_FILL + '" stroke="none"/>');
     // áreas desenhadas, recortadas exatamente no contorno de MG usado no mapa
     o.push('<g clip-path="url(#mgclip)">');
     (op.areas || []).forEach(function (a) {
@@ -374,12 +379,12 @@
     })();
 
     /* ---- legenda (mesma área e título da Previsão; chave de cor no lugar do ícone) ---- */
-    o.push(textBlock({ lines: ['Legenda'], x: 230.723 + 55.5338 / 2, yTop: 22.7706, h: 6.78946, size: 16 * PT, weight: 700, fill: navy, anchor: 'middle' }));
-    o.push('<rect x="231.954" y="34.1727" width="55.9197" height="0.266644" fill="rgb(138,187,228)"/>');
+    o.push(textBlock({ lines: ['Legenda'], x: COL, yTop: 22.7706, h: 6.78946, size: 16 * PT, weight: 700, fill: navy, anchor: 'middle' }));
+    o.push('<rect x="' + f2(COL - LIN_W / 2) + '" y="34.1727" width="' + LIN_W + '" height="0.266644" fill="rgb(138,187,228)"/>');
     (function () {
       var itens = op.legenda || [];
       if (!itens.length) return;
-      var top = 36.6, bottom = 157.8, cx = 230.723 + 55.5338 / 2, maxW = 61.5;
+      var top = 36.6, bottom = 157.8, cx = COL, maxW = 61.5;
       var rh = Math.min(10, (bottom - top) / itens.length);
       var sw = 9, sh = Math.min(6, rh - 1.6), gap = 2.6;
       var labels = itens.map(function (i) { return i.label; });
@@ -388,18 +393,28 @@
       var x0 = cx - blockW / 2, tx0 = x0 + sw + gap, y = top;
       itens.forEach(function (it) {
         var cy = y + rh / 2;
+        if (/^(#fff|#ffffff|white)$/i.test(it.fill || '')) {
+          // "sem cor" (Sem Tempestades, Sem Previsão, Sem alerta): mostra como Minas aparece no mapa —
+          // um recorte do mapa base escolhido ou o tom claro de Minas sem mapa base
+          if (F) {
+            var cx0 = (-44.2 - MAP.xmin) * K, cy0 = (MAP.ymax + 19.4) * K, vw = 30, vh = vw * sh / sw;
+            o.push('<svg x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" viewBox="' + f2(cx0 - vw / 2) + ' ' + f2(cy0 - vh / 2) + ' ' + vw + ' ' + f2(vh) + '" preserveAspectRatio="xMidYMid slice">' +
+              '<image href="' + F.src + '" xlink:href="' + F.src + '" x="0" y="0" width="' + f2(MAP.w) + '" height="' + f2(MAP.h) + '" preserveAspectRatio="none"/></svg>');
+            o.push('<rect x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" fill="none" stroke="#555" stroke-width="0.2"/>');
+          } else o.push('<rect x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" fill="' + MG_FILL + '" stroke="#555" stroke-width="0.2"/>');
+        } else
         o.push('<rect x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" fill="' + it.fill + '" stroke="#555" stroke-width="0.2"/>');
         o.push('<text x="' + f2(tx0) + '" y="' + f2(cy + (ASC - DESC) / 2 * fs) + '" font-family="' + FONT + '" font-size="' + f2(fs) + '" fill="#000" stroke="#fff" stroke-width="' + f2(fs * 0.25) + '" stroke-linejoin="round" paint-order="stroke">' + esc(it.label) + '</text>');
         y += rh;
       });
     })();
-    o.push('<rect x="232.338" y="159.499" width="51.2776" height="0.256388" fill="rgb(138,187,228)"/>');
+    o.push('<rect x="' + f2(COL - LIN_W / 2) + '" y="159.499" width="' + LIN_W + '" height="0.256388" fill="rgb(138,187,228)"/>');
     var vt = op.textoValidade || validadeTexto(op.validade), val = vt || 'Validade não informada';
-    o.push(textBlock({ lines: [val], x: 223.857 + 67.7588 / 2, yTop: 160.906, h: 8.28892, size: fitSize([val], 10 * PT, 67.7, 400), fill: vt ? navy : '#8a97a8', anchor: 'middle' }));
-    o.push('<rect x="232.338" y="170.345" width="51.2776" height="0.256388" fill="rgb(138,187,228)"/>');
+    o.push(textBlock({ lines: [val], x: COL, yTop: 160.906, h: 8.28892, size: fitSize([val], 10 * PT, 67.7, 400), fill: vt ? navy : '#8a97a8', anchor: 'middle' }));
+    o.push('<rect x="' + f2(COL - LIN_W / 2) + '" y="170.345" width="' + LIN_W + '" height="0.256388" fill="rgb(138,187,228)"/>');
     var cred = [op.credito || 'SIMGE/IGAM'].concat(CREDITOS_FIXOS);
     if (F) cred.push('Mapa base: ' + F.credito);   // mesmo formato de crédito da Previsão
-    o.push(textBlock({ lines: cred, x: 228.723 + 59.3284 / 2, yTop: 172.909, h: 13.3322, size: fitSize(cred, 6.68628 * PT, 62, 400), fill: navy, anchor: 'middle' }));
+    o.push(textBlock({ lines: cred, x: COL, yTop: 172.909, h: 13.3322, size: fitSize(cred, 6.68628 * PT, 62, 400), fill: navy, anchor: 'middle' }));
 
     /* ---- rodapé ---- */
     [[4.30732, 194.2, 289.001, 14.3, 3.28177], [4.51243, 194.4, 288.59, 13.9, 3.07666], [4.71754, 194.6, 288.18, 13.5, 2.87155]]
@@ -504,21 +519,22 @@
     var L = window.L; if (!L || !map) return;
     if (!map.getPane('lmFundo')) { map.createPane('lmFundo'); map.getPane('lmFundo').style.zIndex = 250; map.getPane('lmFundo').style.pointerEvents = 'none'; }
     if (!map.getPane('lmMascara')) { map.createPane('lmMascara'); map.getPane('lmMascara').style.zIndex = 260; map.getPane('lmMascara').style.pointerEvents = 'none'; }
-    var camada = null, mascara = null, pedido = 0;
+    var camada = null, mascara = null, mgFundo = null, pedido = 0;
     if (opts.mg && opts.mg.geometry) {
       var g = opts.mg.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
-      var aneis = [[[-89, -179], [-89, 179], [89, 179], [89, -179]]];
-      polys.forEach(function (poly) { aneis.push(poly[0].map(function (c) { return [c[1], c[0]]; })); });
-      mascara = L.polygon(aneis, { pane: 'lmMascara', stroke: false, fillColor: opts.corFora || '#eef3f6', fillOpacity: 1, interactive: false });
+      var aneis = [[[-89, -179], [-89, 179], [89, 179], [89, -179]]], mgAneis = [];
+      polys.forEach(function (poly) { var r = poly[0].map(function (c) { return [c[1], c[0]]; }); aneis.push(r); mgAneis.push(r); });
+      // fora de Minas: branco, como no mapa final; Minas sem mapa base: o tom claro da Previsão
+      mascara = L.polygon(aneis, { pane: 'lmMascara', stroke: false, fillColor: opts.corFora || '#ffffff', fillOpacity: 1, interactive: false }).addTo(map);
+      mgFundo = L.polygon(mgAneis, { pane: 'lmFundo', stroke: false, fillColor: MG_FILL, fillOpacity: 1, interactive: false });
     }
     function aplicar(id) {
       var n = ++pedido;
       if (camada) { map.removeLayer(camada); camada = null; }
-      if (mascara && map.hasLayer(mascara)) map.removeLayer(mascara);
+      if (mgFundo) { if (id && !semEndereco() && !noClaude()) map.removeLayer(mgFundo); else mgFundo.addTo(map); }
       if (opts.aoMudar) opts.aoMudar(!!id);
       if (!id) return;
       if (semEndereco() || noClaude()) return;
-      if (mascara) mascara.addTo(map);
       if (TILES[id]) {
         camada = L.tileLayer(TILES[id], { pane: 'lmFundo', subdomains: 'abc', maxZoom: 19, crossOrigin: true }).addTo(map);
         return;
@@ -532,6 +548,70 @@
     }
     document.addEventListener('layoutfundo', function (e) { aplicar(e.detail || ''); });
     aplicar(fundoEscolhido());
+  }
+
+  /* ===== extras do editor (Leaflet): primeiro ponto do desenho destacado, botão de centralizar Minas,
+     estados vizinhos com a sigla da UF (como na Previsão) e ajuste de tamanho automático ===== */
+  function editorExtras(map, opts) {
+    opts = opts || {};
+    var L = window.L; if (!L || !map) return;
+    var css = document.createElement('style');
+    css.textContent = '.leaflet-editing-icon.lm-primeiro{background:#e11d48!important;border:2px solid #7f1d1d!important;border-radius:50%}' +
+      '.lm-uf{color:#2f3640;font:700 13px Arial,"Liberation Sans",Helvetica,sans-serif;text-shadow:1px 1px 0 #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff;white-space:nowrap;text-align:center;line-height:16px;pointer-events:none}' +
+      '.lm-centro a{display:flex!important;align-items:center;justify-content:center;width:30px;height:30px;color:#092b6a}';
+    document.head.appendChild(css);
+    // primeiro ponto do polígono em vermelho: é nele que se clica para fechar o desenho
+    map.on('draw:drawvertex', function (e) {
+      var ms = e.layers && e.layers.getLayers ? e.layers.getLayers() : [];
+      ms.forEach(function (m, i) { if (m._icon) m._icon.classList.toggle('lm-primeiro', i === 0); });
+    });
+    // centralizar Minas
+    var limites = null;
+    if (opts.mg) try { limites = L.geoJSON(opts.mg).getBounds(); } catch (e) {}
+    function centralizar() { if (limites) map.fitBounds(limites, { padding: [18, 18] }); }
+    var Centro = L.Control.extend({ options: { position: 'topleft' }, onAdd: function () {
+      var d = L.DomUtil.create('div', 'leaflet-bar lm-centro'), a2 = L.DomUtil.create('a', '', d);
+      a2.href = '#'; a2.title = 'Centralizar Minas Gerais'; a2.setAttribute('role', 'button'); a2.setAttribute('aria-label', 'Centralizar Minas Gerais');
+      a2.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>';
+      L.DomEvent.on(a2, 'click', function (ev) { L.DomEvent.stop(ev); centralizar(); });
+      L.DomEvent.disableClickPropagation(d);
+      return d;
+    } });
+    new Centro().addTo(map);
+    // o mapa acompanha o tamanho do painel e volta a enquadrar Minas
+    var cont = map.getContainer(), ultimo = '';
+    if (window.ResizeObserver) new ResizeObserver(function () {
+      var k = cont.clientWidth + 'x' + cont.clientHeight; if (k === ultimo) return; ultimo = k;
+      map.invalidateSize(); centralizar();
+    }).observe(cont);
+    // estados vizinhos (linha preta fina) e siglas das UF, como na Previsão
+    if (!map.getPane('lmEstados')) { map.createPane('lmEstados'); map.getPane('lmEstados').style.zIndex = 270; map.getPane('lmEstados').style.pointerEvents = 'none'; }
+    if (opts.estados && opts.desenharEstados !== false) {
+      L.geoJSON(opts.estados, { pane: 'lmEstados', interactive: false,
+        filter: function (f) { return (f.properties || {}).UF !== 'MG'; },
+        style: { color: '#000', weight: 0.8, fill: false } }).addTo(map);
+    }
+    STATE_LABELS.forEach(function (s) {
+      L.marker([s[2], s[1]], { pane: 'lmEstados', interactive: false, keyboard: false,
+        icon: L.divIcon({ className: 'lm-uf', html: s[0], iconSize: [30, 16], iconAnchor: [15, 8] }) }).addTo(map);
+    });
+    setTimeout(centralizar, 50);
+  }
+  // amostra do mapa base (para a legenda da tela): recorte em volta de Belo Horizonte
+  function amostraFundo(id) {
+    if (!id) return Promise.resolve(null);
+    return carregarFundo(id).then(function (r) {
+      if (!r.fundo) return null;
+      return new Promise(function (res) {
+        var img = new Image();
+        img.onload = function () {
+          var ex = ext(), W = img.width, H = img.height, px = (-44.2 - ex.w) / (ex.e - ex.w) * W, py = (ex.n + 19.4) / (ex.n - ex.s) * H;
+          var c = document.createElement('canvas'); c.width = 54; c.height = 36; var g = c.getContext('2d');
+          g.drawImage(img, px - 81, py - 54, 162, 108, 0, 0, 54, 36); res(c.toDataURL('image/png'));
+        };
+        img.onerror = function () { res(null); }; img.src = r.fundo.src;
+      });
+    });
   }
 
   /* ===== painel "Mapa final" na tela (atualiza sozinho, como a folha da Previsão) ===== */
@@ -564,5 +644,6 @@
   window.LayoutMapa = { svg: svg, png: png, previa: previa, canvas: canvas, validadeTexto: validadeTexto, fmtDateBR: fmtDateBR,
     fundos: FUNDOS.map(function (F) { return { id: F.id, nome: F.nome }; }), carregarFundo: carregarFundo, PAGE: PAGE,
     montarSeletor: montarSeletor, fundoEscolhido: fundoEscolhido, extensao: ext, fundoNoEditor: fundoNoEditor, painelAoVivo: painelAoVivo,
+    editorExtras: editorExtras, amostraFundo: amostraFundo, MG_FILL: MG_FILL, STATE_LABELS: STATE_LABELS,
     PT_R: PT_R, NOME_TAM: NOME_TAM };
 })();
