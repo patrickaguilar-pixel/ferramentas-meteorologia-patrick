@@ -49,17 +49,22 @@ L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'lmCidades',inte
 const microPriorityLayer={clearLayers(){},addData(){}}; // microrregiões ficam somente para cálculo textual
 function styleFor(lv){return {color:lv.stroke,weight:2,fillColor:lv.fill,fillOpacity:lv.opacity};}
 function levelById(id){return LEVELS.find(x=>x.id===id)||LEVELS[0];}
-// v1.15: bordas suaves — o contorno desenhado é arredondado (Chaikin, 3 passadas) antes do recorte de MG.
-// O desenho original (com os vértices clicados) continua guardado para edição; só o que aparece e sai no mapa é suavizado.
+// v1.15: bordas suaves — curva que PASSA pelos pontos clicados (spline cardinal fechada, tensão baixa):
+// arredonda de leve, sem cortar a área nem estufar o desenho. O desenho original continua guardado para edição.
 function suavizarAnel(r,n){
-  let p=r.slice(0,-1);
-  for(let k=0;k<n;k++){const q=[];for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];
-    q.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25],[a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75]);}p=q;}
-  p.push(p[0].slice());return p;
+  const P=r.slice(0,-1),N=P.length;if(N<3)return r;
+  const seg=n||10,c=0.18,out=[];
+  for(let i=0;i<N;i++){
+    const p0=P[(i-1+N)%N],p1=P[i],p2=P[(i+1)%N],p3=P[(i+2)%N];
+    const m1=[c*(p2[0]-p0[0]),c*(p2[1]-p0[1])],m2=[c*(p3[0]-p1[0]),c*(p3[1]-p1[1])];
+    for(let s=0;s<seg;s++){const t=s/seg,t2=t*t,t3=t2*t,h00=2*t3-3*t2+1,h10=t3-2*t2+t,h01=-2*t3+3*t2,h11=t3-t2;
+      out.push([h00*p1[0]+h10*m1[0]+h01*p2[0]+h11*m2[0],h00*p1[1]+h10*m1[1]+h01*p2[1]+h11*m2[1]]);}
+  }
+  out.push(out[0].slice());return out;
 }
 function suavizarFeature(f){
   try{const g=f&&f.geometry;if(!g)return f;
-    const anel=r=>r.length>=4?suavizarAnel(r,3):r;
+    const anel=r=>r.length>=4?suavizarAnel(r,10):r;
     if(g.type==='Polygon')return {...f,geometry:{type:'Polygon',coordinates:g.coordinates.map(anel)}};
     if(g.type==='MultiPolygon')return {...f,geometry:{type:'MultiPolygon',coordinates:g.coordinates.map(p=>p.map(anel))}};
   }catch(e){}
@@ -522,6 +527,6 @@ document.getElementById('modelBtn').onclick=()=>document.getElementById('modelMo
    no layout da Previsão diária (297 × 210 mm), atualizado sozinho. */
 garantirLayoutMapa().then(()=>{
   if(LayoutMapa.fundoNoEditor)LayoutMapa.fundoNoEditor(map,{mg:MG_MASK,aoMudar:null});
-  if(LayoutMapa.editorExtras)LayoutMapa.editorExtras(map,{mg:MG_MASK,estados:window.BRASIL_ESTADOS});
+  if(LayoutMapa.editorExtras)LayoutMapa.editorExtras(map,{suavizarAnel,corDesenho:()=>selected.stroke||selected.fill,mg:MG_MASK,estados:window.BRASIL_ESTADOS});
   if(LayoutMapa.painelAoVivo)LayoutMapa.painelAoVivo(document.querySelector('section.panel.preview'),opcoesMapa,'Mapa final — Tempo Severo');
 }).catch(()=>{});

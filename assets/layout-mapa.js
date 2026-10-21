@@ -583,9 +583,27 @@
       '.lm-centro a{display:flex!important;align-items:center;justify-content:center;width:30px;height:30px;color:#092b6a}';
     document.head.appendChild(css);
     // primeiro ponto do polígono em vermelho: é nele que se clica para fechar o desenho
+    // prévia da borda suave enquanto desenha (inclui a posição do mouse), antes de fechar o polígono
+    var verts = [], desenhando = false, previa = null;
+    function limparPrevia() { if (previa) { map.removeLayer(previa); previa = null; } }
+    function mostrarPrevia(cursor) {
+      if (!opts.suavizarAnel) return;
+      var pts = verts.map(function (v) { return [v.lng, v.lat]; });
+      if (cursor) pts.push([cursor.lng, cursor.lat]);
+      if (pts.length < 3) { limparPrevia(); return; }
+      var anel = opts.suavizarAnel(pts.concat([pts[0]]), 10).map(function (c) { return [c[1], c[0]]; });
+      var cor = (opts.corDesenho && opts.corDesenho()) || '#0b57c8';
+      if (!previa) previa = L.polygon(anel, { interactive: false, color: cor, weight: 2, dashArray: '5 4', fillColor: cor, fillOpacity: 0.18 }).addTo(map);
+      else { previa.setLatLngs(anel); previa.setStyle({ color: cor, fillColor: cor }); }
+    }
+    map.on('draw:drawstart', function () { verts = []; desenhando = true; limparPrevia(); });
+    map.on('draw:drawstop draw:created', function () { desenhando = false; verts = []; limparPrevia(); });
+    map.on('mousemove', function (e) { if (desenhando && verts.length) mostrarPrevia(e.latlng); });
     map.on('draw:drawvertex', function (e) {
       var ms = e.layers && e.layers.getLayers ? e.layers.getLayers() : [];
       ms.forEach(function (m, i) { if (m._icon) m._icon.classList.toggle('lm-primeiro', i === 0); });
+      verts = ms.map(function (m) { return m.getLatLng(); });
+      mostrarPrevia(null);
     });
     // centralizar Minas
     var limites = null;
