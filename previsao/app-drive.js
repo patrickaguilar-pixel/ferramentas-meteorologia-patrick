@@ -295,7 +295,7 @@ function groupRects(r){
   const [w, h] = iconDims(c, iconKr(r));
   const tsz = tempSz(r), ns = S.opts.nameSize || 3.5;
   const [mx, mn] = shownTemps(r);
-  const solid = [[-w/2*0.94, -h/2*0.94, w/2*0.94, h/2*0.94]];
+  const solid = [[-w/2*0.98, -h/2*0.98, w/2*0.98, h/2*0.98]];
   if (mx != null || mn != null){
     const tw = Math.max(mx != null ? textW(fmtTemp(mx)+"°C", tsz, 700) : 0, mn != null ? textW(fmtTemp(mn)+"°C", tsz, 700) : 0);
     const both = mx != null && mn != null, lh = (ASC+DESC)*tsz;
@@ -354,13 +354,22 @@ function blockInMG(r, cx, cy){ return groupRects(r).solid.every(q => rectOut(cx+
    Regras: ícone, temperaturas e nome inteiros dentro de Minas; nada se sobrepõe a nada (ícones, nomes,
    temperaturas e pontos de outros municípios). Preferência: ícone logo acima do ponto e nome logo abaixo;
    quanto mais longe disso, maior o custo. Ícones arrastados à mão ficam onde foram deixados. */
-const EX_PERTO = 5; let EX_MAX = EX_PERTO;
+// afastamento máximo aceitável (linha de ~1,5 cm); além disso o tamanho não cabe
+const EX_PERTO = 5, CAP_MAX = 14; let EX_MAX = EX_PERTO;
 function layoutSede(){
   const ns = S.opts.nameSize || 3.5, nh = (ASC+DESC)*ns, SQ = PT_R + 0.35, M = 0.4;
   const auto = !!S.opts.autoSpread;
   let seed = 20261020; const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
     t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };   // sorteio fixo: mesmo resultado sempre
   // encosta/sobrepõe considerando uma folga de conforto M entre os desenhos
+  // segmento (linha do ponto até o ícone) cruza o retângulo (aumentado de m)?
+  const segHit = (L, r, m) => { let t0 = 0, t1 = 1; const dx = L[2] - L[0], dy = L[3] - L[1];
+    const P = [-dx, dx, -dy, dy], Q = [L[0] - (r[0] - m), (r[2] + m) - L[0], L[1] - (r[1] - m), (r[3] + m) - L[1]];
+    for (let i = 0; i < 4; i++){ if (Math.abs(P[i]) < 1e-12){ if (Q[i] < 0) return false; } else { const t = Q[i]/P[i]; if (P[i] < 0){ if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; } } }
+    return true; };
+  const segX = (a, b) => { const d = (p, q, r) => (q[0]-p[0])*(r[1]-p[1]) - (q[1]-p[1])*(r[0]-p[0]);
+    const A1 = [a[0], a[1]], A2 = [a[2], a[3]], B1 = [b[0], b[1]], B2 = [b[2], b[3]];
+    return d(A1, A2, B1)*d(A1, A2, B2) < 0 && d(B1, B2, A1)*d(B1, B2, A2) < 0; };
   const hitM = (q, p) => Math.min(q[2], p[2]) - Math.max(q[0], p[0]) + M > 0 && Math.min(q[3], p[3]) - Math.max(q[1], p[1]) + M > 0;
   const n = S.rows.length;
   // partes fixas de cada município: ponto e nome (centralizado logo abaixo do ponto)
@@ -370,8 +379,9 @@ function layoutSede(){
   const ALLFIX = FIXED.flatMap((o, ri) => o.map(q => ({q, ri})));
   const PTS = S.rows.map(r => sedeXY(r));
   // posições candidatas do ícone (com as temperaturas) de um município, no tamanho atual dele
-  function gen(r, ri){
+  function gen(r, ri, capGen){
     const [sx, sy] = sedeXY(r), pt = FIXED[ri][0], nameQ = FIXED[ri][1] || null;
+    const cap = capGen || CAP_MAX;                                        // gera até o afastamento máximo; quem decide o quanto usar é a busca
     const g = groupRects(r), [nx0, ny0] = iconXY(r);
     const blkR = g.solid, blkL = g.solid.map((q, k) => k ? [-q[2], q[1], -q[0], q[3]] : q);   // temperaturas à direita ou à esquerda
     const I = g.solid[0];
@@ -401,10 +411,11 @@ function layoutSede(){
         const tx = dx > 1e-9 ? (SQ - I[0])/dx : dx < -1e-9 ? (-SQ - I[2])/dx : Infinity;
         const ty = dy > 1e-9 ? (SQ - I[1])/dy : dy < -1e-9 ? (-SQ - I[3])/dy : Infinity;
         const t0 = Math.max(0, Math.min(tx, ty)) + 0.25, ang = Math.min(k, 36-k)*24/36;
-        for (const ex of [0, 0.7, 1.5, 2.5, 4, 5.5, 7.5, 10]) add(sx + dx*(t0+ex), sy + dy*(t0+ex), 1.2 + 0.3*ang, left);
+        for (const ex of [0, 0.7, 1.5, 2.5, 4, 5.5, 7.5, 10, 13, 16.5, 20, 24, 28, 33, 38, 44, 50]){ if (ex > cap + 3) break; add(sx + dx*(t0+ex), sy + dy*(t0+ex), 1.2 + 0.3*ang, left); }
       }
       // varredura fina ao redor do ponto: acha os vãos entre nomes e divisas que as posições acima não pegam
-      for (let gx = -15; gx <= 15; gx += 1.2) for (let gy = -13; gy <= 13; gy += 1.2) add(sx + gx, sy + gy, 1.4, left);
+      { const G = Math.max(15, cap + 12), st = Math.max(1.2, G/16);
+        for (let gx = -G; gx <= G; gx += st) for (let gy = -G + 2; gy <= G - 2; gy += st) add(sx + gx, sy + gy, 1.4, left); }
     }
     if (!ic.length) add(nx0, ny0, 0, false, true);
     const def = [sx, sy - SQ - 0.25 - I[3]];
@@ -414,14 +425,19 @@ function layoutSede(){
       if (q.out && !q.fix) continue;                                                      // ícone fora de Minas: descartado
       // não pode encostar em ponto ou nome de outro município (partes fixas)
       if (!q.fix && ALLFIX.some(f => f.ri !== ri && q.R.some(s => hitM(s, f.q)))) continue;
+      // linha até o ícone (mesma regra do desenho): não pode cruzar nome/ponto de ninguém nem as próprias temperaturas
+      { const I0 = q.R[0], lx = Math.max(I0[0], Math.min(sx, I0[2])), ly = Math.max(I0[1], Math.min(sy, I0[3])), dd = Math.hypot(lx - sx, ly - sy);
+        q.L = !q.stack && dd > PT_R + 1.2 ? [sx + (lx - sx)/dd*(PT_R + 0.2), sy + (ly - sy)/dd*(PT_R + 0.2), lx, ly] : null; }
+      if (q.L && !q.fix && (ALLFIX.some(f => (f.ri !== ri || f.q !== pt) && segHit(q.L, f.q, 0.25)) || q.R.slice(1).some(s => segHit(q.L, s, 0.2)))) continue;
       const J = q.R[0], gx = Math.max(J[0] - sx, 0, sx - J[2]), gy = Math.max(J[1] - sy, 0, sy - J[3]);
       q.ex = Math.max(0, Math.hypot(gx, gy) - PT_R - 0.35);
       if (q.stack) q.ex = 0;                                                  // empilhado sob o nome: fica junto, sem linha
       q.cost = q.fix ? 0 : q.c + 1.8*q.ex + (q.ex > 3 ? 2.5*(q.ex - 3) : 0) + (q.stack ? 0 : 0.12*Math.hypot(q.x - def[0], q.y - def[1]));
       let x1 = 1e9, y1 = 1e9, x2 = -1e9, y2 = -1e9; for (const s of q.R){ x1 = Math.min(x1, s[0]); y1 = Math.min(y1, s[1]); x2 = Math.max(x2, s[2]); y2 = Math.max(y2, s[3]); }
+      if (q.L){ x1 = Math.min(x1, q.L[0]); y1 = Math.min(y1, q.L[1]); x2 = Math.max(x2, q.L[0]); y2 = Math.max(y2, q.L[1]); }
       q.bb = [x1, y1, x2, y2];
       // o ícone tem de ficar claramente mais perto do próprio ponto do que de qualquer outro município
-      if (!q.fix){ const cx = (x1 + x2)/2, cy = (y1 + y2)/2, d0 = Math.hypot(cx - sx, cy - sy);
+      if (!q.fix && q.ex <= EX_PERTO){ const cx = (x1 + x2)/2, cy = (y1 + y2)/2, d0 = Math.hypot(cx - sx, cy - sy);   // afastado com linha: a linha já mostra de quem é
         if (PTS.some((p, j) => j !== ri && Math.hypot(cx - p[0], cy - p[1]) < d0 + 2)) continue; }
       out.push(q);
     }
@@ -429,124 +445,135 @@ function layoutSede(){
     // ícone nunca vai longe do ponto (nada de linhas compridas atravessando o mapa): só se aceita afastar
     // o mínimo que a própria geografia exige; se faltar espaço, o mapa todo diminui por igual
     const minEx = out.reduce((m, q) => Math.min(m, q.fix ? 0 : q.ex), Infinity);
-    const lim = Math.max(EX_MAX, minEx + 1);
-    const fin = out.filter(q => q.fix || q.ex <= lim).slice(0, 400); return fin;
+    const lim = Math.max(cap, minEx + 1);
+    void lim; return out;
   }
   const clash = (A, B) => { if (A.bb[0] > B.bb[2] + M || B.bb[0] > A.bb[2] + M || A.bb[1] > B.bb[3] + M || B.bb[1] > A.bb[3] + M) return false;
-    for (const q of A.R) for (const p of B.R) if (hitM(q, p)) return true; return false; };
+    for (const q of A.R) for (const p of B.R) if (hitM(q, p)) return true;
+    if (A.L && B.R.some(p => segHit(A.L, p, 0.3))) return true;
+    if (B.L && A.R.some(p => segHit(B.L, p, 0.3))) return true;
+    if (A.L && B.L && segX(A.L, B.L)) return true;
+    return false; };
   // tamanhos que um ícone pode assumir sozinho quando não cabe em lugar nenhum (relativos ao tamanho geral)
   // todos os ícones sempre do MESMO tamanho: nenhum diminui sozinho (quem não cabe perto do ponto vai um pouco
   // mais longe, com linha, ou fica logo abaixo do nome; se nem assim couber, o mapa todo reduz por igual)
   const STEPS = [1];
-  const items = S.rows.map((r, ri) => ({r, ri, step: 0, cands: null, sel: null}));
-  // o passo é relativo ao tamanho escolhido pela pessoa: se o mapa todo já diminuiu, ele não diminui de novo
-  const build = it => { if (vazio(it.r)){ ROW_K.delete(it.r.id); it.cands = []; return; } const k = +((S.opts.iconScale || 1)*STEPS[it.step]).toFixed(3);
-    if (it.step === 0 || k >= iconK() - 1e-6) ROW_K.delete(it.r.id); else ROW_K.set(it.r.id, k); it.cands = gen(it.r, it.ri); };
-  items.forEach(build);
-  // municípios que precisam diminuir só por causa da geografia e dos nomes fixos (nada perto do ponto)
-  for (const it of items){ while (auto && !vazio(it.r) && !isPinned(it.r) && it.step < STEPS.length - 1 && !it.cands.some(q => q.ex <= 3)){ it.step++; build(it); } it.geo = it.step; }
+  // Todos os ícones no tamanho escolhido. Cada município começa podendo ficar só bem perto do próprio ponto;
+  // se não houver arranjo sem encostar, só os municípios do aperto ganham um degrau a mais de afastamento
+  // (com linha), e assim por diante — no fim, cada um volta para a posição livre mais próxima que houver.
+  const items = S.rows.map((r, ri) => ({r, ri, step: 0, geo: 0, all: [], cands: [], sel: null, cap: EX_PERTO, minEx: 0}));
+  for (const it of items){ ROW_K.delete(it.r.id); if (!vazio(it.r)){ it.all = gen(it.r, it.ri); it.minEx = it.all.reduce((m, q) => Math.min(m, q.fix ? 0 : q.ex), Infinity); if (!isFinite(it.minEx)) it.minEx = 0; } }
+  const filtra = it => { const lim = Math.max(it.cap, it.minEx + 1); it.cands = it.all.filter(q => q.fix || q.ex <= lim); };
   const nb = items.map(it => items.filter(o => o !== it && Math.abs(FIXED[o.ri][0][0] - FIXED[it.ri][0][0]) < 95 && Math.abs(FIXED[o.ri][0][1] - FIXED[it.ri][0][1]) < 95));
   const free = (it, q) => nb[it.ri].every(o => !o.sel || !clash(q, o.sel));
-  const ovPen = (A, B) => { if (A.bb[0] > B.bb[2] + M || B.bb[0] > A.bb[2] + M || A.bb[1] > B.bb[3] + M || B.bb[1] > A.bb[3] + M) return 0;
-    let s = 0; for (const q of A.R) for (const p of B.R){ const w = Math.min(q[2], p[2]) - Math.max(q[0], p[0]) + M, h = Math.min(q[3], p[3]) - Math.max(q[1], p[1]) + M;
-      if (w > 0 && h > 0) s += 3000 + w*h*400; } return s; };
+  const ovPen = (A, B) => clash(A, B) ? 3000 : 0;
   const local = (it, q) => { let s = q.cost; for (const o of nb[it.ri]) if (o.sel) s += ovPen(q, o.sel); return s; };
-  // 1) colocação inicial: quem tem menos opções primeiro, na melhor posição considerando os já colocados
-  const order = items.slice().sort((u, v) => u.cands.length - v.cands.length);
-  for (const it of order){ let best = null, bc = Infinity;
-    for (const q of it.cands){ if (q.cost >= bc) break; const c = local(it, q); if (c < bc){ bc = c; best = q; } }
-    it.sel = best || it.cands[0] || null; }
-  // 2) recozimento simulado: troca posições para baixar o custo total (encostar pesa muito mais que distância)
-  const live = items.filter(it => it.cands && it.cands.length > 1);
-  const IT = 16000, T0 = 1500, T1 = 0.5;
-  for (let s = 0; s < IT && live.length; s++){
-    const T = T0 * Math.pow(T1/T0, s/IT), it = live[Math.floor(rnd()*live.length)];
-    const q = it.cands[Math.floor(Math.pow(rnd(), 1.5) * it.cands.length)]; if (q === it.sel) continue;
-    const d = local(it, q) - local(it, it.sel);
-    if (d <= 0 || rnd() < Math.exp(-d/T)) it.sel = q;
-  }
-  for (let round = 0; round < 3; round++){ let ch = false;
-    for (const it of live){ let best = it.sel, bc = local(it, it.sel);
-      for (const q of it.cands){ if (q.cost >= bc) break; const c = local(it, q); if (c < bc - 1e-9){ bc = c; best = q; } }
-      if (best !== it.sel){ it.sel = best; ch = true; } }
-    if (!ch) break; }
-  // 3) reparo obrigatório: cada par que ainda encosta procura junto duas posições livres; se não houver,
-  //    diminui só o ícone com menos opções do par (e depois o outro)
   const freeEx = (it, q, ex) => nb[it.ri].every(o => o === ex || !o.sel || !clash(q, o.sel));
-  for (let guard = 0; guard < 120; guard++){
+  const problemas = () => { const p = new Set(); for (const it of items){ if (vazio(it.r)) continue; if (!it.sel){ p.add(it); continue; }
+    for (const o of nb[it.ri]) if (o.sel && clash(it.sel, o.sel)){ p.add(it); p.add(o); } } return p; };
+  const resolve = () => {
+    // 1) colocação inicial: quem tem menos opções primeiro
+    items.forEach(it => { it.sel = null; });
+    for (const it of items.slice().sort((u, v) => u.cands.length - v.cands.length)){ let best = null, bc = Infinity;
+      for (const q of it.cands){ if (q.cost >= bc) break; const c = local(it, q); if (c < bc){ bc = c; best = q; } }
+      it.sel = best || it.cands[0] || null; }
+    // 2) recozimento simulado
+    const live = items.filter(it => it.cands.length > 1);
+    const IT = 9000, T0 = 1500, T1 = 0.5;
+    for (let s = 0; s < IT && live.length; s++){
+      const T = T0 * Math.pow(T1/T0, s/IT), it = live[Math.floor(rnd()*live.length)];
+      const q = it.cands[Math.floor(Math.pow(rnd(), 1.5) * it.cands.length)]; if (q === it.sel) continue;
+      const d = local(it, q) - local(it, it.sel);
+      if (d <= 0 || rnd() < Math.exp(-d/T)) it.sel = q;
+    }
+    // 3) pares que ainda encostam procuram juntos duas posições livres
+    for (let guard = 0; guard < 80; guard++){
+      let A = null, B = null;
+      for (const it of items){ if (!it.sel) continue; const o = nb[it.ri].find(o => o.sel && clash(it.sel, o.sel)); if (o){ A = it; B = o; break; } }
+      if (!A) break;
+      const qa = A.cands.filter(c => freeEx(A, c, B)).slice(0, 150), qb = B.cands.filter(c => freeEx(B, c, A)).slice(0, 150);
+      let best = null, bc = Infinity;
+      for (const x of qa){ if (x.cost >= bc) break; for (const y of qb){ const c = x.cost + y.cost; if (c >= bc) break; if (!clash(x, y)){ bc = c; best = [x, y]; } } }
+      if (!best) break; A.sel = best[0]; B.sel = best[1];
+    }
+    // 4) se ainda sobrou: busca com retrocesso (menos opções livres primeiro, cortando dos vizinhos o que encostaria)
+    if (auto && problemas().size){
+      const act = items.filter(it => it.cands.length), ant = new Map(items.map(it => [it, it.sel]));
+      const dom = new Map(act.map(it => [it, it.cands.slice(0, 260)]));
+      act.forEach(it => { it.sel = null; });
+      const viz = new Map(act.map(it => [it, act.filter(o => o !== it && nb[it.ri].includes(o))]));
+      const t0 = performance.now(); let nos = 0;
+      const acabou = () => nos > 20000 || performance.now() - t0 > 160;
+      const busca = rest => {
+        if (!rest.length) return true;
+        if (++nos > 20000 || acabou()) return false;
+        let bi = 0; for (let i = 1; i < rest.length; i++) if (dom.get(rest[i]).length < dom.get(rest[bi]).length) bi = i;
+        const it = rest[bi], resto = rest.filter((_, i) => i !== bi), vz = viz.get(it).filter(o => !o.sel);
+        for (const q of dom.get(it).slice(0, 30)){
+          const sv = []; let morto = false;
+          for (const o of vz){ const d0 = dom.get(o), d1 = d0.filter(c => !clash(q, c)); sv.push([o, d0]); dom.set(o, d1); if (!d1.length){ morto = true; break; } }
+          if (!morto){ it.sel = q; if (busca(resto)) return true; it.sel = null; }
+          for (const [o, d0] of sv) dom.set(o, d0);
+          if (acabou()) return false;
+        }
+        return false;
+      };
+      if (!busca(act)) items.forEach(it => { it.sel = ant.get(it); });
+    }
+  };
+  const NIV = [EX_PERTO, 8, 11, CAP_MAX];
+  items.forEach(filtra); resolve();
+  for (let v = 0; v < 10 && auto; v++){
+    const p = problemas(); if (!p.size) break;
+    let mudou = false;
+    for (const it of p){ const nx = NIV.find(x => x > it.cap + 1e-6); if (nx != null){ it.cap = nx; filtra(it); mudou = true; } }
+    if (!mudou) break;
+    resolve();
+  }
+  // último recurso: quem ainda encosta pega a posição livre mais próxima entre todas as possíveis
+  const reparaPares = () => {
+  for (let guard = 0; guard < 40 && auto; guard++){   // pares que encostam: procura juntos em TODAS as posições possíveis
     let A = null, B = null;
     for (const it of items){ if (!it.sel) continue; const o = nb[it.ri].find(o => o.sel && clash(it.sel, o.sel)); if (o){ A = it; B = o; break; } }
     if (!A) break;
-    const qa = A.cands.filter(c => freeEx(A, c, B)), qb = B.cands.filter(c => freeEx(B, c, A));
+    const qa = A.all.filter(c => freeEx(A, c, B)).slice(0, 500), qb = B.all.filter(c => freeEx(B, c, A)).slice(0, 500);
     let best = null, bc = Infinity;
     for (const x of qa){ if (x.cost >= bc) break; for (const y of qb){ const c = x.cost + y.cost; if (c >= bc) break; if (!clash(x, y)){ bc = c; best = [x, y]; } } }
-    if (best){ A.sel = best[0]; B.sel = best[1]; continue; }
-    const pode = it => auto && !isPinned(it.r) && it.step < STEPS.length - 1;
-    const alvo = [A, B].filter(pode).sort((u, v) => u.cands.length - v.cands.length)[0];
-    if (!alvo) break;
-    alvo.step++; build(alvo);
-    alvo.sel = alvo.cands.find(c => free(alvo, c)) || alvo.cands[0] || alvo.sel;
-  }
-  // 3b) melhora em dupla: um município numa posição ruim pode precisar que o vizinho também mude (ex.: Buritis/Paracatu)
-  for (let round = 0; round < 2; round++) for (const A of items){
-    if (!A.sel || A.cands.length < 2 || A.sel.cost <= A.cands[0].cost + 1.5) continue;
-    for (const B of nb[A.ri]){ if (!B.sel || !B.cands.length) continue;
-      const qa = A.cands.slice(0, 60).filter(c => c.cost < A.sel.cost && freeEx(A, c, B));
-      if (!qa.length) continue;
-      const qb = B.cands.slice(0, 60).filter(c => freeEx(B, c, A));
-      let best = null, bc = A.sel.cost + B.sel.cost - 0.5;
-      for (const x of qa){ if (x.cost >= bc) break; for (const y of qb){ const c = x.cost + y.cost; if (c >= bc) break; if (!clash(x, y)){ bc = c; best = [x, y]; } } }
-      if (best){ A.sel = best[0]; B.sel = best[1]; break; }
+    if (!best){
+      // nem em dupla: tira do caminho o vizinho mais "folgado" de A e tenta de novo
+      const C = nb[A.ri].filter(o => o !== B && o.sel && o.all.length > 1 && A.all.some(c => clash(c, o.sel))).sort((u, v) => v.all.length - u.all.length)[0];
+      if (!C) break; const keep = C.sel; C.sel = null;
+      const qa2 = A.all.filter(c => freeEx(A, c, B)).slice(0, 500);
+      let b2 = null, c2 = Infinity;
+      for (const x of qa2){ if (x.cost >= c2) break; for (const y of qb){ const c = x.cost + y.cost; if (c >= c2) break; if (!clash(x, y)){ c2 = c; b2 = [x, y]; } } }
+      if (b2){ A.sel = b2[0]; B.sel = b2[1]; C.sel = C.all.find(c => free(C, c)) || keep; } else { C.sel = keep; break; }
+      continue;
     }
+    A.sel = best[0]; B.sel = best[1];
   }
-  // 3c) se ainda sobrou algum encostando: busca completa com retrocesso (quem tem menos opções primeiro),
-  //     escolhendo sempre a posição mais barata que não encosta em ninguém já colocado (limite de tempo curto)
-  if (auto && items.some(it => it.sel && !free(it, it.sel))){
-    // busca com retrocesso: sempre o município com menos opções livres primeiro; ao escolher uma posição,
-    // corta dos vizinhos as posições que encostariam nela (se algum vizinho ficar sem opção, volta atrás)
-    const act = items.filter(it => it.cands && it.cands.length);
-    const ant = new Map(items.map(it => [it, it.sel]));
-    const dom = new Map(act.map(it => [it, it.cands.slice(0, 220)]));
-    act.forEach(it => { it.sel = null; });
-    const viz = new Map(act.map(it => [it, act.filter(o => o !== it && nb[it.ri].includes(o))]));
-    const t0 = performance.now(); let nos = 0;
-    const acabou = () => nos > 30000 || performance.now() - t0 > 450;
-    const solve = rest => {
-      if (!rest.length) return true;
-      if (++nos > 30000 || acabou()) return false;
-      let bi = 0; for (let i = 1; i < rest.length; i++) if (dom.get(rest[i]).length < dom.get(rest[bi]).length) bi = i;
-      const it = rest[bi], resto = rest.filter((_, i) => i !== bi), vz = viz.get(it).filter(o => !o.sel);
-      for (const q of dom.get(it).slice(0, 40)){
-        const sv = []; let morto = false;
-        for (const o of vz){ const d0 = dom.get(o), d1 = d0.filter(c => !clash(q, c)); sv.push([o, d0]); dom.set(o, d1); if (!d1.length){ morto = true; break; } }
-        if (!morto){ it.sel = q; if (solve(resto)) return true; it.sel = null; }
-        for (const [o, d0] of sv) dom.set(o, d0);
-        if (acabou()) return false;
-      }
-      return false;
-    };
-    if (!solve(act)) items.forEach(it => { it.sel = ant.get(it); });   // não achou: volta como estava
-    else for (let rd = 0; rd < 3; rd++) for (const it of act){ const b = it.cands.find(c => c.cost < it.sel.cost && free(it, c)); if (b) it.sel = b; }
-  }
-  // 4) quem ficou menor tenta voltar a um tamanho maior, se couber perto
-  for (const it of items){
-    while (it.step > 0){ const keep = {step: it.step, cands: it.cands, sel: it.sel};
-      it.step--; build(it); const q = it.cands.find(c => free(it, c));
-      if (q && q.ex <= Math.max(3, keep.sel ? keep.sel.ex : 0)) it.sel = q;
-      else { it.step = keep.step; it.cands = keep.cands; it.sel = keep.sel;
-        if (it.step === 0 || +((S.opts.iconScale || 1)*STEPS[it.step]).toFixed(3) >= iconK() - 1e-6) ROW_K.delete(it.r.id);
-        else ROW_K.set(it.r.id, +((S.opts.iconScale || 1)*STEPS[it.step]).toFixed(3));
-        break; } }
-  }
+  };
+  reparaPares();
+  // se ainda assim não couber, só os do aperto podem ir ainda mais longe
+  for (let rd = 0; rd < 6 && auto; rd++){ const p = [...problemas()]; if (!p.length) break;
+    p.sort((u, v) => u.all.length - v.all.length);
+    for (const it of p){ if (it.sel && free(it, it.sel)) continue; const prev = it.sel; it.sel = null;
+      it.sel = it.all.find(c => free(it, c)) || prev; } }
+  // acabamento: cada um vai para a posição livre mais próxima que existir (desfaz afastamentos desnecessários)
+  if (!problemas().size) for (let rd = 0; rd < 4; rd++){ let ch = false;
+    for (const it of items.filter(it => it.sel).sort((u, v) => v.sel.cost - u.sel.cost)){
+      const b = it.all.find(c => c.cost < it.sel.cost - 1e-9 && free(it, c)); if (b){ it.sel = b; ch = true; } }
+    if (!ch) break; }
+  for (const it of items) it.cands = it.all;
   // resultado
   let pen = 0, maxEx = 0, out = 0, excSum = 0, menores = 0, longe = 0; const far = [];
-  for (const it of items){ const q = it.sel; if (!q){ if (!vazio(it.r)) pen += 100; continue; }   // sem lugar livre nenhum: este tamanho não serve
+  const prob = new Set();
+  for (const it of items){ const q = it.sel; if (!q){ if (!vazio(it.r)){ pen += 100; prob.add(it.r.id); } continue; }   // sem lugar livre nenhum: este tamanho não serve
     out += q.out || 0; maxEx = Math.max(maxEx, q.ex || 0); if (it.step > (it.geo || 0)) menores += STEPS[it.step] < 0.76 ? 2 : 1;
     // afastamento além do que a própria geografia já exige (pontas do estado, nomes fixos vizinhos)
     const minEx = it.cands.length ? Math.min(...it.cands.map(c => c.ex || 0)) : 0, lim = Math.max(3, minEx + 1.5);
     longe += Math.max(0, (q.ex || 0) - EX_MAX);
     if ((q.ex || 0) > lim){ far.push(it.r.name + ':' + q.ex.toFixed(1)); excSum += q.ex - lim; }
-    for (const o of nb[it.ri]) if (o.ri > it.ri && o.sel){ for (const a1 of q.R) for (const b1 of o.sel.R) if (Math.min(a1[2], b1[2]) - Math.max(a1[0], b1[0]) > 0.02 && Math.min(a1[3], b1[3]) - Math.max(a1[1], b1[1]) > 0.02) pen++; }
+    for (const o of nb[it.ri]) if (o.ri > it.ri && o.sel){ if (clash(q, o.sel)){ prob.add(it.r.id); prob.add(o.r.id); } for (const a1 of q.R) for (const b1 of o.sel.R) if (Math.min(a1[2], b1[2]) - Math.max(a1[0], b1[0]) > 0.02 && Math.min(a1[3], b1[3]) - Math.max(a1[1], b1[1]) > 0.02) pen++; }
     for (const f of ALLFIX) if (f.ri !== it.ri) for (const a1 of q.R) if (Math.min(a1[2], f.q[2]) - Math.max(a1[0], f.q[0]) > 0.02 && Math.min(a1[3], f.q[3]) - Math.max(a1[1], f.q[1]) > 0.02) pen++;
     if (it.step === 0) ROW_K.delete(it.r.id);
     const [x0, y0] = iconXY(it.r);
@@ -555,9 +582,10 @@ function layoutSede(){
     if (q.left) TEMP_LEFT.add(it.r.id);
     if (q.stack) STACKED.add(it.r.id);
   }
-  return {ok: pen === 0 && out === 0 && longe === 0 && excSum <= 6 && menores <= 3, valid: pen === 0 && out === 0, excSum: excSum + 2*menores + 25*longe, longe, pen, out, maxEx, far};
+  return {prob: [...prob], ok: pen === 0 && out === 0 && longe === 0 && excSum <= 6 && menores <= 3, valid: pen === 0 && out === 0 && !prob.size, excSum: excSum + 2*menores + 25*longe, longe, pen, out, maxEx, far};
 }
-let AUTO_KEY = "", AUTO_INFO = null, LAST_K = null, AJUSTE = null;
+let AUTO_KEY = "", AUTO_INFO = null, LAST_K = null, AJUSTE = null; const MEMO_K = new Map();
+const dadosAuto = () => JSON.stringify([S.opts.ptSede, S.opts.temps, S.opts.autoSpread, S.opts.names, S.opts.nameSize, S.rows.map(r => [r.id, r.name, r.tempo, String(r.tmax ?? "").length, String(r.tmin ?? "").length, r.dx, r.dy])]);
 const chaveAuto = () => JSON.stringify([S.opts.ptSede, S.opts.temps, S.opts.autoSpread, S.opts.names, S.opts.iconScale, S.opts.nameSize, S.rows.map(r => [r.id, r.name, r.tempo, String(r.tmax ?? "").length, String(r.tmin ?? "").length, r.dx, r.dy])]);
 function computeAuto(){
   const key = chaveAuto();
@@ -566,19 +594,28 @@ function computeAuto(){
   if (S.opts.ptSede){
     // O tamanho é sempre o escolhido pela pessoa (nada de redução automática). Primeiro tenta com os ícones
     // bem perto das sedes; se não couber sem sobrepor, aceita afastar um pouco mais (com linha curta).
-    const run = (k, ex) => { EX_MAX = ex; EFF_K = k; AUTO = new Map(); NAME_POS = new Map(); TEMP_LEFT = new Set(); ROW_K = new Map(); STACKED = new Set(); const res = layoutSede(); EX_MAX = EX_PERTO; return {k, res, A:AUTO, N:NAME_POS, T:TEMP_LEFT, RK:ROW_K, ST:STACKED}; };
-    // nunca pode sair de Minas nem encostar: se o tamanho escolhido não couber, o próprio tamanho escolhido
-    // desce de 5 em 5% até caber (o controle mostra o novo valor e avisa)
-    const tenta = k => { let x = run(k, EX_PERTO); if (S.opts.autoSpread && !(x.res.valid && !x.res.longe)){ const y = run(k, 9); if (y.res.valid && (!x.res.valid || y.res.excSum < x.res.excSum)) x = y; } return x; };
-    let s0 = S.opts.iconScale || 1, r1 = tenta(s0);
-    while (S.opts.autoSpread && !r1.res.valid && s0 > 0.2 + 1e-6){ s0 = Math.round((s0 - 0.05)*100)/100; r1 = tenta(s0); }
-    if (Math.abs(s0 - (S.opts.iconScale || 1)) > 1e-6){
-      AJUSTE = {de: Math.round((S.opts.iconScale || 1)*100), para: Math.round(s0*100)};
-      S.opts.iconScale = s0; AUTO_KEY = chaveAuto();
-      setTimeout(() => { fillOpts(); persist(); }, 0);
+    const run = (k, ex) => { const ck = dadosAuto() + "|" + k; if (MEMO_K.has(ck)) return MEMO_K.get(ck); EX_MAX = ex; EFF_K = k; AUTO = new Map(); NAME_POS = new Map(); TEMP_LEFT = new Set(); ROW_K = new Map(); STACKED = new Set(); const res = layoutSede(); EX_MAX = EX_PERTO; const o = {k, res, A:AUTO, N:NAME_POS, T:TEMP_LEFT, RK:ROW_K, ST:STACKED}; if (MEMO_K.size > 40) MEMO_K.clear(); MEMO_K.set(ck, o); return o; };
+    // Tamanho sempre o escolhido (nunca diminui). Se não couber, só os municípios apertados ganham permissão
+    // de se afastar, um degrau por vez (linha fina até o ponto) — o mínimo necessário para não sobrepor
+    // nem sair de Minas; quem tem espaço continua colado no próprio ponto.
+    // Limite real: se nem afastando com linha couber sem sobrepor/sair de Minas, fica no maior tamanho que cabe
+    // (procura rápida por bissecção, de 5 em 5%) e avisa uma vez.
+    let s0 = S.opts.iconScale || 1, r1 = run(s0, EX_PERTO);
+    if (S.opts.autoSpread && !r1.res.valid){
+      const st = v => Math.round(v*20)/20;
+      let lo = 0.2, hi = s0, best = null;
+      const prev = LAST_K && LAST_K.dados === dadosAuto() && LAST_K.ok ? LAST_K.k : null;
+      if (prev != null && prev < s0){ lo = prev; best = run(prev, EX_PERTO); }
+      while (hi - lo > 0.05 + 1e-6){ const mid = st((lo + hi)/2); if (mid <= lo + 1e-6 || mid >= hi - 1e-6) break; const x = run(mid, EX_PERTO); if (x.res.valid){ lo = mid; best = x; } else hi = mid; }
+      if (!best || !best.res.valid){ let k = st(lo); best = run(k, EX_PERTO); while (!best.res.valid && k > 0.2 + 1e-6){ k = st(k - 0.05); best = run(k, EX_PERTO); } }
+      if (best.k < s0 - 1e-6){
+        AJUSTE = {de: Math.round(s0*100), para: Math.round(best.k*100)};
+        S.opts.iconScale = best.k; s0 = best.k; r1 = best;
+        setTimeout(() => { fillOpts(); persist(); }, 0);
+      }
     }
     EFF_K = r1.k === s0 ? null : r1.k; AUTO = r1.A; NAME_POS = r1.N; TEMP_LEFT = r1.T; ROW_K = r1.RK; STACKED = r1.ST;
-    AUTO_INFO = r1; LAST_K = {s0, k: r1.k};
+    AUTO_INFO = r1; LAST_K = {s0, k: r1.k, ok: r1.res.valid, dados: dadosAuto()}; AUTO_KEY = chaveAuto();
     return; }
   // cada retângulo: [x1, y1, x2, y2, tipo] relativo ao ponto do ícone; tipo 0 = ícone/temperatura, 1 = nome
   const PT = !!S.opts.ptSede;
@@ -862,7 +899,8 @@ function drawPreview(){
     const so = $("#szOut");
     if (so){ const u = Math.round((S.opts.iconScale||1)*100), e = Math.round(iconK()*100);
       so.textContent = `${u}%`; void e; so.title = "";
-      if (AJUSTE){ const a = AJUSTE; AJUSTE = null; avisoTamanho(a.de > a.para + 5 || a.de - a.para > 0 ? `${a.de}% não cabe com estes municípios — ficou em ${a.para}%` : ""); } }
+      if (AJUSTE){ const a = AJUSTE; AJUSTE = null; avisoTamanho(`Limite: ${a.para}% é o maior tamanho em que todos os ícones cabem sem se sobrepor e dentro de Minas.`); }
+    }
     if (focusId){
       const g = paper.querySelector(`.mk[data-id="${focusId}"] .hit`);
       if (g){ g.setAttribute("stroke", "#078fd2"); g.setAttribute("stroke-width", ".45"); g.setAttribute("stroke-dasharray", "1.2 .7"); }
@@ -1075,13 +1113,13 @@ const op = {mun:$("#opMun"), meso:$("#opMeso"), mesoNames:$("#opMesoNames"), sta
 op.mgFill = $("#opMgFill"); op.bgClipMG = $("#opBgClip");
 
 const rng = {iconScale:[$("#opIconScale"), $("#outIconScale"), v => Math.round(v*100)+"%"], nameSize:[$("#opNameSize"), $("#outNameSize"), v => (v/PT).toFixed(0)+" pt"]};
-{ const st = document.createElement("style"); st.textContent = "#szAviso{position:absolute;z-index:50;background:#1f2328;color:#fff;font-size:12px;line-height:1.3;padding:6px 9px;border-radius:6px;max-width:240px;box-shadow:0 4px 14px rgba(0,0,0,.25);pointer-events:none;transition:opacity .3s}"; document.head.appendChild(st); }
+{ const st = document.createElement("style"); st.textContent = "#szAviso{position:absolute;z-index:50;background:#1f2328;color:#fff;font-size:12px;line-height:1.35;padding:6px 9px;border-radius:6px;max-width:250px;box-shadow:0 4px 14px rgba(0,0,0,.25);pointer-events:none;transition:opacity .3s}"; document.head.appendChild(st); }
 let avisoT = 0;
 function avisoTamanho(txt){
   const so = $("#szOut"); if (!so || !txt) return;
   let b = document.getElementById("szAviso"); if (!b){ b = document.createElement("div"); b.id = "szAviso"; document.body.appendChild(b); }
   const r = so.getBoundingClientRect(); b.textContent = txt; b.style.opacity = "1";
-  b.style.left = Math.max(8, r.left + window.scrollX - 60) + "px"; b.style.top = (r.bottom + window.scrollY + 6) + "px";
+  b.style.left = Math.max(8, r.left + window.scrollX - 70) + "px"; b.style.top = (r.bottom + window.scrollY + 6) + "px";
   clearTimeout(avisoT); avisoT = setTimeout(() => { b.style.opacity = "0"; }, 3500);
 }
 function fillOpts(){ S.opts.iconScale = Math.min(1, Math.max(0.2, +S.opts.iconScale || 0.5)); for (const k in op) op[k].checked = !!S.opts[k]; for (const k in rng){ rng[k][0].value = S.opts[k]; rng[k][1].textContent = rng[k][2](S.opts[k]); }
