@@ -47,7 +47,7 @@
   var CREDITOS_FIXOS = ['Limites municipais e mesorregiões - IBGE', 'Base cartográfica: IBGE', 'Projeção: Latitude/Longitude - Datum SIRGAS 2000'];
   var LOGO_SLOTS = ['igam', 'simge', 'appa', 'riodoce'];
   var LOGO_Y = 196.35, LOGO_H = 10, LOGO_X0 = 10.5, LOGO_X1 = 196.4;
-  var PT_R = 0.9, NOME_TAM = 3.5;
+  var PT_R = 0.45, NOME_TAM = 3.5;                  // ponto da sede com metade do tamanho anterior (igual à Previsão)
   var COL = 258.49, LIN_W = 51.28;                   // eixo e largura das linhas da coluna da legenda (iguais à Previsão 1.15)
   var MG_FILL = '#ecf4f5';                           // Minas sem mapa base: o mesmo tom claro da Previsão                    // marcação das cidades: a mesma da Previsão
   var STATE_LABELS = [['MT', -51.18, -14.494], ['GO', -49.744, -16.279], ['DF', -47.797, -15.7755], ['BA', -40.865, -14.794], ['MS', -51.0, -20.45],
@@ -261,12 +261,16 @@
   }
 
   /* ===== seletor "Mapa de fundo" ao lado do botão "Prévia do mapa" ===== */
-  var LS_FUNDO = 'layoutMapa:fundo';
+  var LS_FUNDO = 'layoutMapa:fundo2', FUNDO_PADRAO = 'osm';   // padrão: OpenStreetMap padrão, como na Previsão
+  function fundoSalvo() {
+    try { var v = localStorage.getItem(LS_FUNDO); if (v != null && (v === '' || fundoPorId(v))) return v; } catch (e) {}
+    return FUNDO_PADRAO;
+  }
   function fundoEscolhido() {
     var sel = document.getElementById('layoutFundo');
     if (sel) return sel.value;
-    try { var v = localStorage.getItem(LS_FUNDO); if (v != null) return v; } catch (e) {}
-    return '';
+    try { var v = localStorage.getItem(LS_FUNDO); if (v != null && (v === '' || fundoPorId(v))) return v; } catch (e) {}
+    return FUNDO_PADRAO;
   }
   function avisar(txt, erro) {
     var el = document.getElementById('layoutFundoAviso');
@@ -288,7 +292,7 @@
     if (cab) { cab.style.display = 'flex'; cab.style.alignItems = 'flex-start'; cab.style.gap = '12px'; cab.style.flexWrap = 'wrap'; lab.style.marginLeft = 'auto'; cab.appendChild(lab); }
     else ref.parentNode.insertBefore(lab, ref);
     var sel = lab.querySelector('select');
-    try { var v = localStorage.getItem(LS_FUNDO); if (v != null && (v === '' || fundoPorId(v))) sel.value = v; } catch (e) {}
+    sel.value = fundoSalvo();
     sel.addEventListener('change', function () { try { localStorage.setItem(LS_FUNDO, sel.value); } catch (e) {} avisar('');
       try { document.dispatchEvent(new CustomEvent('layoutfundo', { detail: sel.value })); } catch (e) {} });
     var av = document.createElement('div');
@@ -350,7 +354,7 @@
     cidades.forEach(function (c) {
       if (!isFinite(c.lon) || !isFinite(c.lat)) return;
       var p = proj(c.lon, c.lat), x = p[0] - MAP.x, y = p[1] - MAP.y;
-      pts.push('<circle cx="' + f2(x) + '" cy="' + f2(y) + '" r="' + PT_R + '" fill="#ffffff" stroke="#1f2328" stroke-width="0.32"/>');
+      pts.push('<circle cx="' + f2(x) + '" cy="' + f2(y) + '" r="' + PT_R + '" fill="#ffffff" stroke="#1f2328" stroke-width="0.2"/>');
       nomes.push('<text x="' + f2(x) + '" y="' + f2(y + PT_R + 0.35 + ASC * ns) + '" font-family="' + FONT + '" font-size="' + f2(ns) + '" font-weight="700" fill="' + navy + '" text-anchor="middle" stroke="#fff" stroke-width="' + f2(ns * 0.3) + '" stroke-linejoin="round" paint-order="stroke">' + esc(c.nome) + '</text>');
     });
     o.push(pts.join(''), nomes.join(''));
@@ -396,11 +400,8 @@
         if (/^(#fff|#ffffff|white)$/i.test(it.fill || '')) {
           // "sem cor" (Sem Tempestades, Sem Previsão, Sem alerta): mostra como Minas aparece no mapa —
           // um recorte do mapa base escolhido ou o tom claro de Minas sem mapa base
-          if (F) {
-            var cx0 = (-44.2 - MAP.xmin) * K, cy0 = (MAP.ymax + 19.4) * K, vw = 30, vh = vw * sh / sw;
-            o.push('<svg x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" viewBox="' + f2(cx0 - vw / 2) + ' ' + f2(cy0 - vh / 2) + ' ' + vw + ' ' + f2(vh) + '" preserveAspectRatio="xMidYMid slice">' +
-              '<image href="' + F.src + '" xlink:href="' + F.src + '" x="0" y="0" width="' + f2(MAP.w) + '" height="' + f2(MAP.h) + '" preserveAspectRatio="none"/></svg>');
-            o.push('<rect x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" fill="none" stroke="#555" stroke-width="0.2"/>');
+          if (F) {   // só a cor base do mapa base (o "chão" do mapa dentro de Minas)
+            o.push('<rect x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" fill="' + (F.cor || '#f2efe9') + '" stroke="#555" stroke-width="0.2"/>');
           } else o.push('<rect x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" fill="' + MG_FILL + '" stroke="#555" stroke-width="0.2"/>');
         } else
         o.push('<rect x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" fill="' + it.fill + '" stroke="#555" stroke-width="0.2"/>');
@@ -433,6 +434,27 @@
   }
 
   // carrega o mapa de fundo escolhido (se houver) antes de desenhar; avisa no seletor se trocou ou falhou
+  function corBase(F) {
+    if (!F || !F.src) return Promise.resolve(null);
+    if (F.cor) return Promise.resolve(F.cor);
+    return new Promise(function (res) {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var ex = ext(), W = img.width, H = img.height, c = document.createElement('canvas'); c.width = 160; c.height = 110;
+          var g = c.getContext('2d', { willReadFrequently: true });
+          var x0 = (-47.5 - ex.w) / (ex.e - ex.w) * W, y0 = (ex.n + 16.5) / (ex.n - ex.s) * H, x1 = (-42.0 - ex.w) / (ex.e - ex.w) * W, y1 = (ex.n + 21.0) / (ex.n - ex.s) * H;
+          g.drawImage(img, x0, y0, x1 - x0, y1 - y0, 0, 0, 160, 110);
+          var d = g.getImageData(0, 0, 160, 110).data, cont = {}, best = null, bn = 0;
+          for (var i = 0; i < d.length; i += 4) { var k = (d[i] >> 2) + ',' + (d[i + 1] >> 2) + ',' + (d[i + 2] >> 2); var nk = (cont[k] || 0) + 1; cont[k] = nk; if (nk > bn) { bn = nk; best = k; } }
+          var q = best.split(',').map(function (v) { return Math.min(255, (+v << 2) + 2); });
+          F.cor = '#' + q.map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join('');
+        } catch (e) { F.cor = null; }
+        res(F.cor);
+      };
+      img.onerror = function () { res(null); }; img.src = F.src;
+    });
+  }
   function comFundo(op) {
     op = op || {};
     var fid = op.fundo != null ? op.fundo : fundoEscolhido();
@@ -440,7 +462,7 @@
     avisar('Carregando o mapa de fundo…');
     return carregarFundo(fid).then(function (r) {
       avisar(r.aviso, !r.fundo);
-      return Object.assign({}, op, { _fundo: r.fundo });
+      return corBase(r.fundo).then(function () { return Object.assign({}, op, { _fundo: r.fundo }); });
     });
   }
 
@@ -598,21 +620,11 @@
     setTimeout(centralizar, 50);
   }
   // amostra do mapa base (para a legenda da tela): recorte em volta de Belo Horizonte
-  function amostraFundo(id) {
+  function amostraFundo(id) {   // cor base do mapa base (para a legenda da tela)
     if (!id) return Promise.resolve(null);
-    return carregarFundo(id).then(function (r) {
-      if (!r.fundo) return null;
-      return new Promise(function (res) {
-        var img = new Image();
-        img.onload = function () {
-          var ex = ext(), W = img.width, H = img.height, px = (-44.2 - ex.w) / (ex.e - ex.w) * W, py = (ex.n + 19.4) / (ex.n - ex.s) * H;
-          var c = document.createElement('canvas'); c.width = 54; c.height = 36; var g = c.getContext('2d');
-          g.drawImage(img, px - 81, py - 54, 162, 108, 0, 0, 54, 36); res(c.toDataURL('image/png'));
-        };
-        img.onerror = function () { res(null); }; img.src = r.fundo.src;
-      });
-    });
+    return carregarFundo(id).then(function (r) { return r.fundo ? corBase(r.fundo) : null; });
   }
+
 
   /* ===== painel "Mapa final" na tela (atualiza sozinho, como a folha da Previsão) ===== */
   function painelAoVivo(ancora, getOp, titulo) {

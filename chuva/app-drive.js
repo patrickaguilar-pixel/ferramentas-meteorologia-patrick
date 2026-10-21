@@ -23,14 +23,30 @@ const mesoDisplay=L.geoJSON(MESO,{style:{color:'#454545',weight:1.15,fillOpacity
 // v1.15: marcação das cidades igual à da Previsão (ponto branco pequeno e nome logo abaixo, em azul-marinho)
 (function(){const s=document.createElement('style');s.textContent='.leaflet-tooltip.lm-cidade{background:transparent;border:0;box-shadow:none;padding:0;color:#092b6a;font:700 12px Arial,"Liberation Sans",Helvetica,sans-serif;text-shadow:1px 1px 0 #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,0 1px 0 #fff,0 -1px 0 #fff}.leaflet-tooltip.lm-cidade:before{display:none}';document.head.appendChild(s);})();
 map.createPane('lmCidades').style.zIndex=450;   // cidades sempre por cima das áreas desenhadas
-L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'lmCidades',interactive:false,radius:2.6,color:'#1f2328',weight:1,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP||f.properties.nome||'';l.bindTooltip(n,{permanent:true,direction:'bottom',offset:[0,1],className:'lm-cidade'});}}).addTo(map);
+L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'lmCidades',interactive:false,radius:1.3,color:'#1f2328',weight:0.8,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP||f.properties.nome||'';l.bindTooltip(n,{permanent:true,direction:'bottom',offset:[0,1],className:'lm-cidade'});}}).addTo(map);
 function levelById(id){return LEVELS.find(x=>x.id===id)||LEVELS[0]} function styleFor(l){return {color:l.stroke,weight:1.5,fillColor:l.fill,fillOpacity:1}}
 function renderLevels(){const el=document.getElementById('levels');el.innerHTML='';LEVELS.forEach(l=>{const b=document.createElement('button');b.className='level'+(l.id===selected.id?' active':'');b.innerHTML=`<span class="swatch" style="background:${l.fill}"></span>${l.label}`;b.onclick=()=>{selected=l;document.getElementById('currentLabel').textContent=l.label;renderLevels()};el.appendChild(b)});renderLegend();}
 function renderLegend(){document.getElementById('legend').innerHTML=LEVELS.slice().reverse().map(l=>`<div><span class="swatch" style="background:${l.fill}"></span>${l.label}</div>`).join('')+'<div><span class="swatch lm-sem" style="background:#ecf4f5"></span>Sem Previsão de Chuvas</div>';try{atualizarAmostraSem();}catch(e){}}
 function renderLabelEditor(){const el=document.getElementById('labelEditor');el.innerHTML='';LEVELS.forEach(l=>{const r=document.createElement('div');r.className='labelrow';r.innerHTML=`<span class="swatch" style="background:${l.fill}"></span><input value="${l.label}" data-id="${l.id}">`;r.querySelector('input').oninput=e=>{l.label=e.target.value; if(selected.id===l.id)document.getElementById('currentLabel').textContent=l.label;renderLevels()};el.appendChild(r)})}
 renderLabelEditor();renderLevels();
 function setStatus(s){document.getElementById('status').textContent=s}
-function clipFeature(f){try{return turf.intersect(turf.featureCollection([f,MG_MASK]))}catch(e){return null}}
+// v1.15: bordas suaves — o contorno desenhado é arredondado (Chaikin, 3 passadas) antes do recorte de MG.
+// O desenho original (com os vértices clicados) continua guardado para edição; só o que aparece e sai no mapa é suavizado.
+function suavizarAnel(r,n){
+  let p=r.slice(0,-1);
+  for(let k=0;k<n;k++){const q=[];for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];
+    q.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25],[a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75]);}p=q;}
+  p.push(p[0].slice());return p;
+}
+function suavizarFeature(f){
+  try{const g=f&&f.geometry;if(!g)return f;
+    const anel=r=>r.length>=4?suavizarAnel(r,3):r;
+    if(g.type==='Polygon')return {...f,geometry:{type:'Polygon',coordinates:g.coordinates.map(anel)}};
+    if(g.type==='MultiPolygon')return {...f,geometry:{type:'MultiPolygon',coordinates:g.coordinates.map(p=>p.map(anel))}};
+  }catch(e){}
+  return f;
+}
+function clipFeature(f){try{return turf.intersect(turf.featureCollection([suavizarFeature(f),MG_MASK]))}catch(e){return null}}
 function addFeature(f,id){const cl=clipFeature(f);if(!cl)return [];const lv=levelById(id),added=[];const orig=JSON.parse(JSON.stringify(f));orig.properties={...(orig.properties||{}),level:id};L.geoJSON(cl,{style:styleFor(lv),onEachFeature:(ff,l)=>{l._level=id;l._orig=orig;drawnItems.addLayer(l);editorAreas.ligar(l);added.push(l);}});refreshZ();return added}
 window.delLayer=id=>{drawnItems.eachLayer(l=>{if(L.Util.stamp(l)===id)drawnItems.removeLayer(l)});refreshZ()}
 function refreshZ(){LEVELS.forEach(lv=>drawnItems.eachLayer(l=>{if(l._level===lv.id&&l.bringToFront)l.bringToFront()}))}
@@ -349,5 +365,5 @@ function atualizarAmostraSem(){
   const n=++amostraPedido,id=window.LayoutMapa?LayoutMapa.fundoEscolhido():'';
   const pintar=bg=>document.querySelectorAll('#legend .lm-sem').forEach(s=>{s.style.background=bg;s.style.backgroundSize='cover';});
   if(!id||!window.LayoutMapa||!LayoutMapa.amostraFundo){pintar('#ecf4f5');return;}
-  LayoutMapa.amostraFundo(id).then(u=>{if(n===amostraPedido)pintar(u?'url('+u+') center/cover':'#ecf4f5');}).catch(()=>{});
+  LayoutMapa.amostraFundo(id).then(cor=>{if(n===amostraPedido)pintar(cor||'#ecf4f5');}).catch(()=>{});   // só a cor base do mapa base
 }

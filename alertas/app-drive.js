@@ -166,8 +166,8 @@ function ajustarCidadesRef(){
   }
   [].forEach.call(cidadesG.childNodes,g=>{const x=+g.dataset.x,y=+g.dataset.y,c=g.firstChild,t=g.lastChild;
     if(g.dataset.uf){t.setAttribute('x',x);t.setAttribute('y',y+5*k);t.setAttribute('font-size',13*k);t.setAttribute('stroke-width',3*k);return;}
-    c.setAttribute('cx',x);c.setAttribute('cy',y);c.setAttribute('r',2.6*k);c.setAttribute('stroke-width',1*k);
-    t.setAttribute('x',x);t.setAttribute('y',y+(2.6+1.5)*k+11*k*0.9);t.setAttribute('font-size',12*k);t.setAttribute('stroke-width',3*k);});
+    c.setAttribute('cx',x);c.setAttribute('cy',y);c.setAttribute('r',1.3*k);c.setAttribute('stroke-width',0.7*k);
+    t.setAttribute('x',x);t.setAttribute('y',y+(1.3+1.5)*k+11*k*0.9);t.setAttribute('font-size',12*k);t.setAttribute('stroke-width',3*k);});
 }
 let fundoPedido=0;
 let mgD='';

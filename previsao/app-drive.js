@@ -252,7 +252,7 @@ const iconK = () => EFF_K ?? (S.opts.iconScale || 1);
 // ícone que não coube em lugar nenhum no tamanho geral (ex.: Extrema, na ponta do estado) fica só ele menor
 let ROW_K = new Map();
 const iconKr = r => ROW_K.get(r.id) ?? iconK();
-const PT_R = 0.9;                                               // raio do ponto (mm)
+const PT_R = 0.45;                                              // raio do ponto (mm): metade do tamanho anterior
 const sedeXY = r => proj(r.lon, r.lat);
 const iconXY = r => { const [x,y] = proj(r.lon, r.lat);
   let oy = 0; if (S.opts.ptSede){ const [, h] = iconDims(CAT[r.tempo] || CAT[NONE], iconKr(r)); oy = -(h/2 + PT_R + 0.6); }
@@ -705,7 +705,7 @@ function renderSVG({forExport=false} = {}){
       if (!vz && !STACKED.has(r.id) && Math.hypot(lx - qx, ly - qy) > PT_R + 1.2){
         const L = Math.hypot(lx - qx, ly - qy), ux = (lx - qx)/L, uy = (ly - qy)/L;
         L_LINE.push(`<line x1="${f2(qx + ux*PT_R)}" y1="${f2(qy + uy*PT_R)}" x2="${f2(lx - ux*0.3)}" y2="${f2(ly - uy*0.3)}" stroke="#1f2328" stroke-width="0.3" stroke-linecap="round"/>`); }
-      L_PT.push(`<circle cx="${f2(qx)}" cy="${f2(qy)}" r="${PT_R}" fill="#ffffff" stroke="#1f2328" stroke-width="0.32"/>`);
+      L_PT.push(`<circle cx="${f2(qx)}" cy="${f2(qy)}" r="${PT_R}" fill="#ffffff" stroke="#1f2328" stroke-width="0.2"/>`);
       const nr = NAME_POS.get(r.id), ncx = nr ? (nr[0]+nr[2])/2 - MAP.x : qx, nty = nr ? nr[1] - MAP.y : qy + PT_R + 0.35;
       if (S.opts.names) L_NAME.push(`<text x="${f2(ncx)}" y="${f2(nty + ASC*ns)}" font-family="${FONT}" font-size="${f2(ns)}" font-weight="700" fill="${navy}" text-anchor="middle" stroke="#fff" stroke-width="${f2(ns*0.3)}" stroke-linejoin="round" paint-order="stroke">${esc(r.name)}</text>`);
     }

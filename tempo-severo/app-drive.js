@@ -45,13 +45,29 @@ map.fitBounds(mesoDisplay.getBounds(),{padding:[25,25]});
 // v1.15: marcação das cidades igual à da Previsão (ponto branco pequeno e nome logo abaixo, em azul-marinho)
 (function(){const s=document.createElement('style');s.textContent='.leaflet-tooltip.lm-cidade{background:transparent;border:0;box-shadow:none;padding:0;color:#092b6a;font:700 12px Arial,"Liberation Sans",Helvetica,sans-serif;text-shadow:1px 1px 0 #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,0 1px 0 #fff,0 -1px 0 #fff}.leaflet-tooltip.lm-cidade:before{display:none}';document.head.appendChild(s);})();
 map.createPane('lmCidades').style.zIndex=450;   // cidades sempre por cima das áreas desenhadas
-L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'lmCidades',interactive:false,radius:2.6,color:'#1f2328',weight:1,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP;l.bindTooltip(n,{permanent:true,direction:'bottom',offset:[0,1],className:'lm-cidade'});}}).addTo(map);
+L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'lmCidades',interactive:false,radius:1.3,color:'#1f2328',weight:0.8,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP;l.bindTooltip(n,{permanent:true,direction:'bottom',offset:[0,1],className:'lm-cidade'});}}).addTo(map);
 const microPriorityLayer={clearLayers(){},addData(){}}; // microrregiões ficam somente para cálculo textual
 function styleFor(lv){return {color:lv.stroke,weight:2,fillColor:lv.fill,fillOpacity:lv.opacity};}
 function levelById(id){return LEVELS.find(x=>x.id===id)||LEVELS[0];}
+// v1.15: bordas suaves — o contorno desenhado é arredondado (Chaikin, 3 passadas) antes do recorte de MG.
+// O desenho original (com os vértices clicados) continua guardado para edição; só o que aparece e sai no mapa é suavizado.
+function suavizarAnel(r,n){
+  let p=r.slice(0,-1);
+  for(let k=0;k<n;k++){const q=[];for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];
+    q.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25],[a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75]);}p=q;}
+  p.push(p[0].slice());return p;
+}
+function suavizarFeature(f){
+  try{const g=f&&f.geometry;if(!g)return f;
+    const anel=r=>r.length>=4?suavizarAnel(r,3):r;
+    if(g.type==='Polygon')return {...f,geometry:{type:'Polygon',coordinates:g.coordinates.map(anel)}};
+    if(g.type==='MultiPolygon')return {...f,geometry:{type:'MultiPolygon',coordinates:g.coordinates.map(p=>p.map(anel))}};
+  }catch(e){}
+  return f;
+}
 function clipFeatureToMG(f){
   try{
-    const clipped=turf.intersect(turf.featureCollection([f,MG_MASK]));
+    const clipped=turf.intersect(turf.featureCollection([suavizarFeature(f),MG_MASK]));
     if(!clipped)return null;
     clipped.properties={...(f.properties||{})};
     return clipped;
