@@ -1,13 +1,24 @@
-/* Código da Previsão diária v1.14 (v1.13 + dois mapas base de reserva: OpenStreetMap França e OpenStreetMap Alemanha, com troca automática).
+/* Código da Previsão diária v1.15 (folha 297 × 210 mm, rodapé com quebra automática, mapas base, ícones sempre dentro de Minas).
    Extraído de "Previsão diária — Minas Gerais v1.1.html" para a versão Apps Script
    (carregado de fora para o Apps Script não interferir no código). */
 
 "use strict";
 /* ================= constantes do modelo QGIS (layout_mapas_icones_v3.6) ================= */
-const PAGE = {w:297, h:222.75};
-const MAP = {x:6.86137, y:19.8108, w:287.879, h:171.968,
-  xmin:-51.37697910145185887, xmax:-35.90814406617541721, ymin:-23.17966841410345324, ymax:-13.93919886637183225};
+/* Folha A4 deitada: 297 × 210 mm (antes 297 × 222,75). O quadro do mapa mantém a largura e a escala;
+   a altura passa de 171,97 para 168 mm, recortando só faixas sem Minas no norte e no sul. */
+const PAGE = {w:297, h:210};
+const GEO_YMAX = -13.93919886637183225;                 // topo da extensão em que o geo.js foi gerado
+const MAP = {x:6.86137, y:19.8108, w:287.879, h:168,
+  xmin:-51.37697910145185887, xmax:-35.90814406617541721};
 const K = MAP.w / (MAP.xmax - MAP.xmin);
+const GEO_DY = 3.4;                                       // mm: o mapa sobe 3,4 mm em relação ao geo.js
+MAP.ymax = GEO_YMAX - GEO_DY / K; MAP.ymin = MAP.ymax - MAP.h / K;
+// desloca as geometrias do geo.js (caminhos com "M" absoluto e "l" relativo) para a nova extensão, uma única vez
+if (typeof GEO !== "undefined" && GEO.__dy == null){
+  for (const k of ["land", "states", "mg", "munLines", "mesoLines"]) if (typeof GEO[k] === "string")
+    GEO[k] = GEO[k].replace(/M(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (m, x, y) => `M${x} ${Math.round((+y - GEO_DY)*100)/100}`);
+  GEO.__dy = GEO_DY;
+}
 const PT = 25.4/72; // mm por ponto tipográfico
 const NAVY = "#092b6a";
 const FONT = "Arial, 'Liberation Sans', Helvetica, sans-serif";
@@ -15,7 +26,7 @@ const CAT = Object.fromEntries(ICONS.map(c => [c.value, c]));
 const NONE = "sem informação";
 const DEFAULT_TEXTS = {
   region: "Minas Gerais",
-  footer: "Iniciativa realizada com recursos do Acordo de Reparação\ndo Rio Doce, firmado em decorrência do rompimento da\nBarragem de Fundão, da Samarco S.A. O rompimento, ocorrido\nem 5 de novembro de 2015, tirou a vida de 19 pessoas.",
+  footer: "Iniciativa realizada com recursos do Acordo de Reparação do Rio Doce, firmado em decorrência do rompimento da Barragem de Fundão, da Samarco S.A. O rompimento, ocorrido em 5 de novembro de 2015, tirou a vida de 19 pessoas.",
   credits: "Previsão de Tempo - SIMGE/IGAM, {ano}\nLimites municipais e mesorregiões - IBGE\nBase cartográfica: IBGE\nProjeção: Latitude/Longitude - Datum SIRGAS 2000"
 };
 // textos iniciais do boletim (exemplo enviado pela equipe; tudo editável)
@@ -35,7 +46,7 @@ const LOGO_SLOTS = [
   {key:"appa", name:"APPA", x:110.9, w:47.6},
   {key:"riodoce", name:"Reparação Rio Doce", x:161.4, w:37.6}
 ];
-const LOGO_Y = 202.9, LOGO_H = 15.5, LOGO_X0 = 10.5, LOGO_X1 = 196.4;
+const LOGO_Y = 196.35, LOGO_H = 10, LOGO_X0 = 10.5, LOGO_X1 = 196.4;   // rodapé de 13,1 mm (folha de 210 mm)
 // Todos os logotipos na mesma altura (ajustável por logotipo); espaçamento igual e separadores entre eles.
 function logoLayout(){
   const GAP = 6.5, avail = LOGO_X1 - LOGO_X0;
@@ -63,7 +74,7 @@ const MESO_LABELS = [
   ["METROPOLITANA DE BELO HORIZONTE",-43.75,-19.65],["VALE DO RIO DOCE",-42.05,-18.99],["OESTE DE MINAS",-45.24,-20.60],
   ["SUL/SUDOESTE DE MINAS",-45.87,-21.73],["CAMPO DAS VERTENTES",-44.29,-21.21],["ZONA DA MATA",-42.82,-21.01]];
 // siglas dos estados no ponto interno de cada um dentro da área do mapa; DF no centro do polígono
-const STATE_LABELS = [["MT",-51.18,-14.494],["GO",-49.744,-16.279],["DF",-47.797,-15.7755],["BA",-40.865,-14.794],["MS",-51.198,-19.86],
+const STATE_LABELS = [["MT",-51.18,-14.494],["GO",-49.744,-16.279],["DF",-47.797,-15.7755],["BA",-40.865,-14.794],["MS",-51.0,-20.45],
   ["SP",-48.785,-21.709],["RJ",-42.536,-22.359],["ES",-40.361,-19.342]];
 // PR fica de fora: a pequena parte dele dentro do mapa fica sob a escala gráfica
 const NORTH_ARROW = `<g transform="translate(-1.438 30.744)"><path d="m32-9.453l28.938 73.826-29-29-29 29z" fill="#000" stroke="#fff" stroke-width="3"/><path d="m32-9.453l29 73.45-29-29-29 29z" fill="none" stroke="#fff" stroke-linecap="square"/><text fill="#000" font-family="${FONT}" font-size="26" x="22.71" y="-10.854">N</text></g><g fill="none" stroke="#fff" stroke-width=".25" transform="translate(0 -3.829)"><path d="m4 92.82l6.74-3.891M4.603 90.7l10.397-6M3 95.17l4-2.309M5.442 88.45l13.856-8M12 72.26l18.686-10.812M14.593 65.45l16.09-9.291M15.343 63.24l15.343-8.858M16.877 60.58l13.809-7.972M17.511 58.45l13.174-7.606M18.412 56.15l12.274-7.087M19 54.04l11.427-6.597M20 51.757l10.822-6.311M20.826 49.45l9.86-5.693M21.48 47.3l9.206-5.315M23 44.647l7.686-4.437M23.744 42.45l6.928-4M24.549 40.21l6.137-3.543M25 38.18l5.686-3.283M26.663 35.446l4.02-2.323M27.617 33.12l3.069-1.772M28 31.13l2.686-1.551M29.15 28.694l1.534-.886M13 69.909l17.686-10.211M9.206 79.19l21.48-12.402M8.36 81.45l22.326-12.89M7.671 83.62l19.946-11.516M6.137 86.27l17.02-9.827M10 76.956l20.686-11.943M11.279 74.45l19.407-11.205M14 67.56l16.686-9.634"/><path d="m30.562 69.573v-43.566"/></g>`;
@@ -182,6 +193,24 @@ function fitSize(lines, sizeMM, maxW, weight){
 }
 // QGIS centraliza a linha pela altura ascendente+descendente (Arial: .905/.212)
 const ASC = .905, DESC = .212, LH = 1.117;
+// Quebra o texto em linhas na largura maxW e escolhe a maior letra (até sMax) em que tudo cabe na altura maxH.
+// Uma quebra de linha simples vira espaço; uma linha em branco separa parágrafos.
+function wrapFit(text, maxW, maxH, sMax, sMin, weight){
+  const paras = String(text).replace(/\r/g, "").split(/\n\s*\n/).map(p => p.replace(/\s*\n\s*/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean);
+  const wrap = s => { const out = [];
+    for (const p of paras){ let line = "";
+      for (const w of p.split(" ")){ const t = line ? line + " " + w : w;
+        if (!line || textW(t, s, weight) <= maxW) line = t; else { out.push(line); line = w; } }
+      if (line) out.push(line); }
+    return out; };
+  const alt = (n, s) => n*s*LH - (LH - (ASC+DESC))*s;
+  let s = sMax, lines = wrap(s);
+  while (s > sMin && (alt(lines.length, s) > maxH || lines.some(l => textW(l, s, weight) > maxW))){ s = Math.max(sMin, s - 0.02); lines = wrap(s); }
+  // última linha muito curta (palavra sozinha): tenta uma letra até 8% menor para caber numa linha a menos
+  if (lines.length > 1 && textW(lines[lines.length-1], s, weight) < maxW*0.35){
+    for (let s2 = s - 0.02; s2 >= Math.max(sMin, s*0.92); s2 -= 0.02){ const l2 = wrap(s2); if (l2.length < lines.length){ s = s2; lines = l2; break; } } }
+  return {lines, size: Math.min(s, ...lines.map(l => { const w = textW(l, s, weight); return w > maxW ? s*maxW/w : s; }))};
+}
 function textBlock({lines, x, yTop, h, size, weight, fill, anchor, extra}){
   const total = lines.length * size * LH - (LH - (ASC+DESC)) * size;
   let y = yTop + (h - total)/2 + ASC*size;
@@ -703,9 +732,9 @@ function renderSVG({forExport=false} = {}){
     o.push(`<text x="${f2(x)}" y="${f2(MAP.y+MAP.h+2.46133+ASC*gs)}" font-family="${FONT}" font-size="${f2(gs)}" fill="${gc}" text-anchor="middle">${lbl}</text>`);
   }
   // seta norte
-  o.push(`<svg x="19.3411" y="167.133" width="7.7942" height="9.08866" viewBox="0 0 61.06 96.62">${NORTH_ARROW}</svg>`);
+  o.push(`<svg x="19.3411" y="166.3" width="7.7942" height="9.08866" viewBox="0 0 61.06 96.62">${NORTH_ARROW}</svg>`);
   // escala gráfica (caixa simples, 2 × 50 km)
-  { const seg = 8.35894, ss = 9*PT, bx = 11.6913+1+textW("0",ss)/2, by = 184.8, ly = by - 1.6 - DESC*ss;
+  { const seg = 8.35894, ss = 9*PT, bx = 11.6913+1+textW("0",ss)/2, by = 184.0, ly = by - 1.6 - DESC*ss;
     o.push(`<rect x="${f2(bx)}" y="${by}" width="${seg}" height="3" fill="#000" stroke="#000" stroke-width=".3"/>`);
     o.push(`<rect x="${f2(bx+seg)}" y="${by}" width="${seg}" height="3" fill="#fff" stroke="#000" stroke-width=".3"/>`);
     [["0",0],["50",seg],["100",2*seg]].forEach(([t,dx]) => o.push(`<text x="${f2(bx+dx)}" y="${f2(ly)}" font-family="${FONT}" font-size="${f2(ss)}" fill="#000" text-anchor="middle">${t}</text>`));
@@ -761,11 +790,11 @@ function renderSVG({forExport=false} = {}){
   o.push(textBlock({lines:cred, x:228.723+59.3284/2, yTop:172.909, h:13.3322, size:fitSize(cred,6.68628*PT,62,400), fill:navy, anchor:"middle"}));
 
   /* ---- rodapé ---- */
-  [[4.30732,200.393,289.001,20.511,3.28177],[4.51243,200.598,288.59,20.1008,3.07666],[4.71754,200.803,288.18,19.6906,2.87155]]
+  [[4.30732,194.2,289.001,14.3,3.28177],[4.51243,194.4,288.59,13.9,3.07666],[4.71754,194.6,288.18,13.5,2.87155]]
     .forEach(([x,y,w,h,r]) => o.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="rgb(57,152,207)" fill-opacity=".02"/>`));
-  o.push(`<rect x="4.92265" y="201.008" width="287.77" height="19.2804" rx="2.46133" fill="rgb(249,252,255)" stroke="rgb(135,196,239)" stroke-width="0.307666"/>`);
+  o.push(`<rect x="4.92265" y="194.8" width="287.77" height="13.1" rx="2.46133" fill="rgb(249,252,255)" stroke="rgb(135,196,239)" stroke-width="0.307666"/>`);
   for (const it of logoLayout()){
-    if (it.sep != null){ o.push(`<rect x="${f2(it.sep)}" y="205.931" width="0.276899" height="10.0504" fill="rgb(32,153,234)"/>`); continue; }
+    if (it.sep != null){ o.push(`<rect x="${f2(it.sep)}" y="197.4" width="0.276899" height="7.9" fill="rgb(32,153,234)"/>`); continue; }
     const {s, L, x, w, h} = it, cy = LOGO_Y + LOGO_H/2;
     if (L) o.push(`<image href="${L.src}" xlink:href="${L.src}" x="${f2(x)}" y="${f2(cy-h/2)}" width="${f2(w)}" height="${f2(h)}"/>`);
     else if (!forExport){
@@ -773,8 +802,10 @@ function renderSVG({forExport=false} = {}){
       o.push(`<text x="${f2(x+w/2)}" y="${f2(cy+1)}" font-family="${FONT}" font-size="2.6" fill="#8fa8c2" text-anchor="middle">${esc(s.name)}</text>`);
     }
   }
-  const foot = (S.texts.footer || "").split("\n");
-  o.push(textBlock({lines:foot, x:200.624, yTop:203.265, h:15.1782, size:fitSize(foot, 9*PT, 91.5, 400), fill:navy}));
+  // texto do rodapé: quebra de linha automática na largura do quadro, com a maior letra que couber na altura
+  // (editar o texto não encolhe mais tudo numa linha só)
+  const ft = wrapFit(S.texts.footer || "", 90.5, 11.5, 8.5*PT, 5.5*PT);
+  o.push(textBlock({lines:ft.lines, x:200.624, yTop:195.6, h:11.5, size:ft.size, fill:navy}));
   o.push(`</svg>`);
   return o.join("");
 }
@@ -1414,7 +1445,7 @@ $("#btnPng").addEventListener("click", e => busy(e.currentTarget, async () => {
   try {
     const c = await svgToCanvas(300);
     const blob = await withDpi(await new Promise(r => c.toBlob(r, "image/png")), 300);
-    if (await saveFile(`previsao_${S.date}.png`, blob)) showMsg("ok", `PNG de ${fmtDateBR(S.date)} gerado (3508 × 2631 px, 300 dpi).`);
+    if (await saveFile(`previsao_${S.date}.png`, blob)) showMsg("ok", `PNG de ${fmtDateBR(S.date)} gerado (${Math.round(PAGE.w/25.4*300)} × ${Math.round(PAGE.h/25.4*300)} px, 300 dpi).`);
   } catch(err){ showMsg("err", "O navegador não conseguiu gerar a imagem. Tente novamente ou use o SVG."); }
 }));
 $("#btnSvg").addEventListener("click", e => busy(e.currentTarget, async () => {
@@ -1431,7 +1462,7 @@ $("#btnPdf").addEventListener("click", e => busy(e.currentTarget, async () => {
     const pdf = new JsPDF({orientation:"landscape", unit:"mm", format:[PAGE.w, PAGE.h], compress:true});
     pdf.addImage(c.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, PAGE.w, PAGE.h, undefined, "FAST");
     pdf.setProperties({title:`Previsão de Tempo - ${fmtDateBR(S.date)}`});
-    if (await saveFile(`previsao_${S.date}.pdf`, pdf.output("blob"))) showMsg("ok", "PDF gerado no tamanho do layout (297 × 222,75 mm).");
+    if (await saveFile(`previsao_${S.date}.pdf`, pdf.output("blob"))) showMsg("ok", "PDF gerado no tamanho do layout (297 × 210 mm).");
   } catch(err){ showMsg("err", "Não foi possível gerar o PDF agora. Tente de novo ou exporte o PNG."); }
 }));
 
@@ -1904,7 +1935,7 @@ C$("#btnCidPdf").addEventListener("click", e => busy(e.currentTarget, async () =
         else { pdf.setFont("helvetica", o.b ? "bold" : "normal"); pdf.setFontSize(o.pt); pdf.setTextColor(...cHex(o.c)); pdf.text(o.t, o.x, o.y, o.r ? {align:"right"} : undefined); }
       }
     }
-    pdf.setProperties({title:`Previsão por cidade - ${cidDate()}`, author:"SIMGE/IGAM", creator:"Previsão diária MG 1.14"});
+    pdf.setProperties({title:`Previsão por cidade - ${cidDate()}`, author:"SIMGE/IGAM", creator:"Previsão diária MG 1.15"});
     baixarLocal(`previsao_cidades_${S.date}.pdf`, pdf.output("blob"));
     showCMsg("ok", `PDF de ${fmtDateBR(S.date)} baixado no seu computador (${pages.length} página${pages.length>1?"s":""}).`);
   } catch(err){ showCMsg("err", "Não foi possível gerar o PDF. Tente novamente."); }

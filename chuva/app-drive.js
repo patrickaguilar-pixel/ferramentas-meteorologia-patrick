@@ -326,7 +326,7 @@ async function generatePNG(){
     a.href=URL.createObjectURL(blob);
     a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),60000);
-    setStatus('PNG gerado (3508 × 2631 px, 300 dpi).');
+    setStatus('PNG gerado (3508 × 2480 px, 300 dpi, 297 × 210 mm).');
   }catch(e){console.error(e);setStatus('O navegador não conseguiu gerar o mapa. Tente novamente.')}
 }
 pngBtn.onclick=generatePNG;

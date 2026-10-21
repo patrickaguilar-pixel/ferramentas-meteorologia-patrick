@@ -230,7 +230,7 @@ input[type=range]{accent-color:var(--azure)}
 .preview > header{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:16px 18px 10px}
 .preview > header .t{flex:1;min-width:200px}
 .stage{padding:0 14px 14px}
-.paper{background:#f7fcff;border-radius:4px;box-shadow:0 1px 2px rgba(9,43,106,.12),0 10px 30px rgba(9,43,106,.10);overflow:hidden;aspect-ratio:297/222.75;touch-action:none}
+.paper{background:#f7fcff;border-radius:4px;box-shadow:0 1px 2px rgba(9,43,106,.12),0 10px 30px rgba(9,43,106,.10);overflow:hidden;aspect-ratio:297/210;touch-action:none}
 .paper > svg{display:block;width:100%;height:100%}
 .paper .mk{cursor:grab}
 .paper .mk.drag{cursor:grabbing}
@@ -448,7 +448,7 @@ window.addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SC
     <header>
       <div class="t">
         <h2 id="hPrev">Layout de impressão</h2>
-        <p class="lede">297 × 222,75 mm, exportado a 300 dpi (3508 × 2631 px).</p>
+        <p class="lede">297 × 210 mm, exportado a 300 dpi (3508 × 2480 px).</p>
       </div>
       <div class="sizer" role="group" aria-label="Tamanho dos ícones no mapa">
         <span>Ícones</span>
@@ -461,7 +461,7 @@ window.addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SC
     </header>
     <div class="msg" id="msg" hidden role="status" aria-live="polite"></div>
     <div class="stage"><div class="paper" id="paper"></div></div>
-    <div class="status" id="status"><span class="dot"></span><span id="statusText">Carregando…</span><span class="ver">Versão 1.14</span></div>
+    <div class="status" id="status"><span class="dot"></span><span id="statusText">Carregando…</span><span class="ver">Versão 1.15</span></div>
   </section>
 </main>
 
@@ -503,7 +503,7 @@ window.addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SC
     </header>
     <div class="msg" id="bmsg" hidden role="status" aria-live="polite"></div>
     <div class="pages" id="bPages"></div>
-    <div class="vbar">Versão 1.14</div>
+    <div class="vbar">Versão 1.15</div>
   </section>
 </main>
 
@@ -560,7 +560,7 @@ window.addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SC
       </div>
     </header>
     <div class="pages" id="cPages"></div>
-    <div class="vbar">Versão 1.14</div>
+    <div class="vbar">Versão 1.15</div>
   </section>
 </main>
 
@@ -571,11 +571,11 @@ window.addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SC
 
 <dialog id="dlg"><h3 id="dlgT"></h3><div id="dlgB"></div><div class="r" id="dlgR"></div></dialog>
 
-<script src="../previsao/lib/jspdf.umd.min.js?v=1.14i-20261021"></script>
-<script src="../previsao/data/geo.js?v=1.14i-20261021"></script>
-<script src="../previsao/data/base-mg.js?v=1.14i-20261021"></script>
-<script src="../previsao/data/fundo.js?v=1.14i-20261021"></script>
-<script src="../previsao/app-drive.js?v=1.14i-20261021"></script>
-<script src="../assets/ponte-drive.js?v=1.14i-20261021"></script>
+<script src="../previsao/lib/jspdf.umd.min.js?v=1.15-20261021"></script>
+<script src="../previsao/data/geo.js?v=1.15-20261021"></script>
+<script src="../previsao/data/base-mg.js?v=1.15-20261021"></script>
+<script src="../previsao/data/fundo.js?v=1.15-20261021"></script>
+<script src="../previsao/app-drive.js?v=1.15-20261021"></script>
+<script src="../assets/ponte-drive.js?v=1.15-20261021"></script>
 </body>
 </html>

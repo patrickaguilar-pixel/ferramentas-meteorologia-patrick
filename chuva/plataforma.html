@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<script>
+/* Diagnóstico: mostra na tela qualquer erro de carregamento ou de código. */
+(function(){
+  function faixa(txt){
+    var d=document.getElementById('diagErro');
+    if(!d){d=document.createElement('div');d.id='diagErro';
+      d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:999999;background:#8a2025;color:#fff;font:13px/1.4 Arial,sans-serif;padding:8px 12px;white-space:pre-wrap;max-height:40vh;overflow:auto';
+      (document.body||document.documentElement).appendChild(d);}
+    d.textContent+=(d.textContent?'\n':'')+txt;
+  }
+  window.addEventListener('error',function(e){
+    var t=e.target;
+    if(t&&t!==window&&(t.src||t.href)){if(/fonts\.(googleapis|gstatic)\.com/.test(t.src||t.href))return;faixa('Falhou ao carregar: '+(t.src||t.href));return;}
+    faixa('Erro: '+e.message+(e.lineno?' (linha '+e.lineno+')':''));
+  },true);
+  window.addEventListener('DOMContentLoaded',function(){
+    var falta=[];
+    if(!window.L)falta.push('Leaflet (assets/lib no GitHub Pages)');
+    if(!window.L||!L.Draw)falta.push('Leaflet.draw (assets/lib no GitHub Pages)');
+    if(!window.turf)falta.push('Turf (assets/lib no GitHub Pages)');
+    if(!window.MESO)falta.push('meso.js (GitHub Pages)');
+    if(!window.CIDADES)falta.push('cidades.js (GitHub Pages)');
+    if(!window.BRASIL_ESTADOS)falta.push('brasil_estados.js (GitHub Pages)');
+    if(!window.LayoutMapa)falta.push('layout do mapa: previsao/data/geo.js ou assets/layout-mapa.js (GitHub Pages)');
+    if(falta.length)faixa('Não carregou: '+falta.join(', '));
+  });
+})();
+</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chuva + Tendência — Minas Gerais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/lib/leaflet-1.9.4/leaflet.css">
+<link rel="stylesheet" href="../assets/lib/leaflet.draw-1.0.4/leaflet.draw.css">
+<style>
+/* ===== base visual comum (copiado da Previsão diária) ===== */
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --ink:#092b6a; --ink-2:#3d5a8a; --muted:#6b7f9e;
+  --azure:#006cbf; --azure-d:#00559a; --sky:#a9e0f4; --cyan:#078fd2;
+  --paper:#f4f9fd; --card:#ffffff; --line:#d3e4f2; --line-2:#e7f0f8;
+  --max:#cc2029; --min:#1764bf; --warn:#a1580b; --warn-bg:#fff6e6; --err:#b3261e; --err-bg:#fdeeee; --ok:#1d7a46;
+  --focus:#078fd2;
+  --font:"Barlow", Arial, "Liberation Sans", Helvetica, sans-serif;
+  --font-c:"Barlow Semi Condensed", "Barlow", Arial, sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e3ecf8; --ink-2:#b8c8de; --muted:#8ea2bf;
+    --azure:#3b9be0; --azure-d:#5aafea; --sky:#1f4a68; --cyan:#4fb3ea;
+    --paper:#0e1726; --card:#152236; --line:#263a55; --line-2:#1c2c43;
+    --max:#ff6b6b; --min:#6fa8ff; --warn:#f2b45c; --warn-bg:#2d2412; --err:#ff8a80; --err-bg:#3a1a1a; --ok:#6fd69a;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e3ecf8; --ink-2:#b8c8de; --muted:#8ea2bf;
+  --azure:#3b9be0; --azure-d:#5aafea; --sky:#1f4a68; --cyan:#4fb3ea;
+  --paper:#0e1726; --card:#152236; --line:#263a55; --line-2:#1c2c43;
+  --max:#ff6b6b; --min:#6fa8ff; --warn:#f2b45c; --warn-bg:#2d2412; --err:#ff8a80; --err-bg:#3a1a1a; --ok:#6fd69a;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 15px/1.45 var(--font);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- barra superior: ecoa as faixas azuis do cabeçalho do mapa ---------- */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;display:flex;align-items:center;gap:16px;
+  padding:10px 20px;background:var(--card);border-bottom:1px solid var(--line);overflow:hidden}
+.bar .stripes{position:absolute;right:0;top:0;height:100%;width:200px;pointer-events:none}
+.bar h1{margin:0;font:700 20px/1.1 var(--font);letter-spacing:-.01em}
+.bar h1 small{display:block;white-space:nowrap;font:500 13px/1.2 var(--font);color:var(--muted);letter-spacing:0}
+.bar .spacer{flex:1}
+.bar .actions{position:relative;z-index:1;display:flex;gap:8px;flex-wrap:wrap;margin-right:200px}
+@media (max-width:820px){.bar .stripes{width:70px}.bar .actions{margin-right:52px}.bar h1 small{display:none}}
+
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--card);
+  border-radius:8px;padding:7px 13px;font-weight:600;cursor:pointer;white-space:nowrap;min-height:36px}
+.btn:hover{border-color:var(--azure)}
+.btn.primary{background:var(--azure);border-color:var(--azure);color:#fff}
+.btn.primary:hover{background:var(--azure-d)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--azure)}
+.btn.ghost:hover{background:var(--line-2)}
+.btn.small{min-height:30px;padding:4px 10px;font-size:14px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn svg{width:16px;height:16px;flex:none}
+
+/* ---------- layout geral ---------- */
+main{display:grid;grid-template-columns:minmax(560px,1fr) minmax(480px,1.15fr);gap:20px;padding:20px;align-items:start;max-width:1800px;margin:0 auto}
+main[hidden]{display:none!important}
+@media (max-width:1180px){main{grid-template-columns:1fr}}
+/* abas */
+.tabs{position:relative;z-index:1;display:flex;gap:4px;background:var(--line-2);border-radius:10px;padding:3px;margin-left:18px}
+.tabs button{white-space:nowrap;border:0;background:transparent;border-radius:8px;padding:6px 14px;font-weight:600;cursor:pointer;color:var(--ink-2);min-height:32px}
+.tabs button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(9,43,106,.15)}
+.actions [data-view][hidden]{display:none}
+@media (max-width:820px){.tabs{margin-left:0}.bar{flex-wrap:wrap}}
+.pages{display:grid;gap:16px;padding:0 14px 14px}
+.a4{background:#fff;border-radius:3px;box-shadow:0 1px 2px rgba(9,43,106,.12),0 10px 30px rgba(9,43,106,.10);aspect-ratio:210/297;overflow:hidden}
+.a4 > svg{display:block;width:100%;height:100%}
+.pgnum{font-size:12.5px;color:var(--muted);text-align:center;margin-top:-8px}
+@media (max-width:640px){main{padding:10px;gap:12px}.meta{grid-template-columns:1fr;gap:6px}.bar{padding:10px 12px}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px}
+.panel > header{padding:16px 18px 6px}
+.panel h2{margin:0;font:700 17px/1.25 var(--font)}
+.panel .lede{margin:4px 0 0;color:var(--muted);font-size:14px}
+
+.meta{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center;padding:12px 18px 14px;border-bottom:1px solid var(--line-2)}
+.meta label,.meta .lbl{font-weight:600;font-size:14px}
+.valtext span{color:var(--ink-2)}
+input[type=time].field{width:118px}
+.meta .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.field{border:1px solid var(--line);background:var(--card);border-radius:7px;padding:6px 9px;min-height:36px}
+.field:hover{border-color:#9cc3e3}
+.field[aria-invalid="true"]{border-color:var(--err);background:var(--err-bg)}
+.icobtn{width:30px;height:30px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center}
+.icobtn:hover{border-color:var(--line);color:var(--ink);background:var(--card)}
+.icobtn svg{width:16px;height:16px}
+.icobtn[hidden]{display:none}
+input[type=checkbox]{width:17px;height:17px;accent-color:var(--azure)}
+.hint{color:var(--muted);font-size:13.5px;padding:0 18px 14px;margin:0}
+
+details.sec{border-top:1px solid var(--line)}
+details.sec > summary{cursor:pointer;list-style:none;padding:14px 18px;font-weight:700;display:flex;align-items:center;gap:10px}
+details.sec > summary::-webkit-details-marker{display:none}
+details.sec > summary::before{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s}
+details.sec[open] > summary::before{transform:rotate(45deg)}
+details.sec > summary small{font-weight:500;color:var(--muted);margin-left:auto;font-size:13px}
+.secbody{padding:0 18px 18px;display:grid;gap:12px}
+.secbody label{font-weight:600;font-size:14px;display:grid;gap:5px}
+.secbody textarea{resize:vertical;min-height:84px;line-height:1.35}
+.logos{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.logo{border:1px dashed var(--line);border-radius:9px;padding:10px;display:grid;gap:8px;align-content:start}
+.logo.has{border-style:solid}
+.logo b{font-size:14px}
+.logo .thumb{height:52px;display:grid;place-items:center;background:repeating-conic-gradient(var(--line-2) 0 25%,transparent 0 50%) 0 0/12px 12px;border-radius:6px;color:var(--muted);font-size:12.5px;text-align:center}
+.logo .thumb img{max-width:100%;max-height:48px}
+.logo .r{display:flex;gap:6px;flex-wrap:wrap}
+.checks{display:grid;gap:8px}
+.checks label{display:flex;gap:9px;align-items:center;font-weight:500}
+.rng{display:grid!important;grid-template-columns:auto 1fr 52px;align-items:center;gap:10px!important;font-weight:500!important}
+.rng output{font-variant-numeric:tabular-nums;color:var(--muted);text-align:right}
+input[type=range]{accent-color:var(--azure)}
+.empty{color:var(--muted);font-size:14px}
+.preview{position:sticky;top:76px}
+@media (max-width:1180px){.preview{position:static}}
+.preview > header{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:16px 18px 10px}
+.preview > header .t{flex:1;min-width:200px}
+.stage{padding:0 14px 14px}
+.paper{background:#f7fcff;border-radius:4px;box-shadow:0 1px 2px rgba(9,43,106,.12),0 10px 30px rgba(9,43,106,.10);overflow:hidden;aspect-ratio:297/210;touch-action:none}
+.paper > svg{display:block;width:100%;height:100%}
+.paper .mk{cursor:grab}
+.paper .mk.drag{cursor:grabbing}
+.status{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 18px 16px;font-size:14px;color:var(--muted);border-top:1px solid var(--line-2)}
+.sizer{display:flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:8px;padding:2px 4px 2px 10px;min-height:36px}
+.sizer span{font-weight:600;font-size:14px;margin-right:4px}
+.sizer output{min-width:44px;text-align:center;font-variant-numeric:tabular-nums;font-weight:600;font-size:14px}
+.sizer .icobtn{color:var(--azure)}
+.status .ver{margin-left:auto;font-size:13px;color:var(--muted)}
+.vbar{display:flex;justify-content:flex-end;padding:10px 18px 16px;border-top:1px solid var(--line-2);font-size:13px;color:var(--muted)}
+.status .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.status.saved .dot{background:var(--ok)}
+.status.dirty .dot{background:var(--warn)}
+.msg{margin:0 18px 14px;padding:10px 12px;border-radius:8px;font-size:14px}
+.msg[hidden]{display:none}
+.msg.err{background:var(--err-bg);color:var(--err)}
+.msg.ok{background:color-mix(in srgb,var(--ok) 12%,transparent);color:var(--ok)}
+.msg.info{background:var(--line-2);color:var(--ink-2)}
+.msg ul{margin:6px 0 0;padding-left:18px}
+.msg .r{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);max-width:480px;padding:20px}
+dialog::backdrop{background:rgba(9,43,106,.35)}
+dialog h3{margin:0 0 8px}
+dialog .r{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.busy{opacity:.6;pointer-events:none}
+
+/* ===== Tempo Severo e Chuva: mesmo layout da Previsão diária ===== */
+main.tool{grid-template-columns:minmax(360px,440px) 1fr}
+@media (max-width:1180px){main.tool{grid-template-columns:1fr}}
+.tabs button.active{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(9,43,106,.15)}
+.sublbl{font:600 13px/1.2 var(--font-c);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0}
+.levels{display:grid;gap:6px}
+.level{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-weight:600;text-align:left;cursor:pointer;background:var(--card);color:var(--ink);min-height:38px}
+.level:hover{border-color:var(--azure)}
+.level.active{border-color:var(--azure);background:var(--line-2);box-shadow:inset 3px 0 0 var(--azure)}
+.swatch{width:16px;height:16px;display:inline-block;border:1px solid #555;border-radius:3px;vertical-align:-3px;margin-right:8px;flex:none}
+.toolsrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn.danger{color:var(--err)}
+.stbox{padding:8px 10px;border-radius:8px;background:var(--line-2);color:var(--ink-2);font-size:13.5px}
+.lists{font-size:13.5px;display:grid;gap:8px}
+.list-card{border:1px solid var(--line);border-radius:9px;padding:9px 10px}
+.list-card b{display:flex;align-items:center;margin-bottom:4px}
+.list-card p{margin:0;line-height:1.45;color:var(--ink-2)}
+.labelrow{display:grid;grid-template-columns:20px 1fr;align-items:center;gap:6px;margin-bottom:6px}
+.labelrow input{width:100%;border:1px solid var(--line);background:var(--card);border-radius:7px;padding:6px 9px;min-height:34px}
+.secbody .hint{padding:0}
+.secbody input[type=date].field,.secbody input[type=datetime-local].field{width:100%}
+/* mapa */
+.mapbox{position:relative;height:calc(100vh - 210px);min-height:460px;border-radius:6px;overflow:hidden;border:1px solid var(--line-2)}
+.mapbox #map,.map-wrap{height:100%;width:100%}
+.mapbox .toolbar{position:absolute;z-index:1000;top:10px;left:55px;right:60px;width:max-content;max-width:calc(100% - 115px);background:var(--card);color:var(--ink);padding:7px 11px;border-radius:8px;box-shadow:0 1px 7px rgba(9,43,106,.2);font-size:13.5px}
+.mapbox .legend{position:absolute;z-index:900;right:12px;bottom:14px;background:#fff;color:#111;padding:9px;border-radius:8px;box-shadow:0 1px 7px rgba(9,43,106,.2);font-size:12px}
+.mapbox .legend div{margin:3px 0}
+.city-label{background:transparent;border:none;box-shadow:none;color:#111;font-weight:700;font-size:10px;text-shadow:1px 1px 0 #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff}
+.leaflet-tooltip.city-label:before{display:none}
+.micro-highlight{pointer-events:none}
+.small{font-size:12.5px;color:var(--muted)}
+/* janela do mapa-modelo (Tempo Severo) */
+.modal{display:none;position:fixed;inset:0;background:rgba(9,43,106,.35);z-index:3000;align-items:center;justify-content:center}
+.modal.open{display:flex}
+.modal-box{background:var(--card);color:var(--ink);width:min(900px,94vw);max-height:90vh;overflow:auto;border-radius:12px;padding:18px;border:1px solid var(--line)}
+.modal-box img{width:100%;height:auto}
+.modal-box .close{float:right}
+
+</style>
+</head>
+<body>
+<div class="bar">
+  <svg class="stripes" viewBox="0 0 218 64" preserveAspectRatio="none" aria-hidden="true"><path d="M42 0H218V64H0Z" fill="#006cbf"/><path d="M42 0H83L40 64H0Z" fill="#a9e0f4"/><path d="M83 0H121L78 64H40Z" fill="#078fd2"/></svg>
+  <h1>Chuva + Tendência <small>Minas Gerais · acumulados previstos</small></h1>
+  <nav class="tabs" aria-label="Produto">
+    <button id="tabChuva" class="active" type="button">Previsão de Chuva</button>
+    <button id="tabTend" type="button">Tendência 48h</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="actions">
+    <button class="btn" id="saveBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></svg>
+      Salvar neste navegador</button>
+    <button class="btn" id="previewBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+      Prévia do mapa</button>
+    <button class="btn primary" id="pngBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+      Gerar mapa PNG</button>
+  </div>
+</div>
+
+<main class="tool">
+  <section class="panel" aria-labelledby="hEd">
+    <header>
+      <h2 id="hEd">Desenhe as áreas</h2>
+      <p class="lede">Escolha a faixa e desenhe as áreas. Os polígonos são recortados no limite de Minas Gerais. Em sobreposição, a faixa de maior acumulado prevalece.</p>
+    </header>
+    <div class="meta">
+      <label for="forecastDate">Data da previsão</label>
+      <div class="inline"><input class="field" id="forecastDate" type="date"></div>
+      <label for="validUntil">Válido até</label>
+      <div class="inline"><input class="field" id="validUntil" type="datetime-local"></div>
+    </div>
+    <div id="trendDates" style="display:none"><div class="meta">
+      <label for="trendDate1">1º dia da tendência</label>
+      <div class="inline"><input class="field" id="trendDate1" type="date"></div>
+      <label for="trendDate2">2º dia da tendência</label>
+      <div class="inline"><input class="field" id="trendDate2" type="date"></div>
+    </div></div>
+    <div class="secbody" style="padding-top:14px">
+      <p class="sublbl">Faixa do próximo polígono</p>
+      <div id="levels" class="levels"></div>
+      <div class="toolsrow">
+        <button class="btn primary small" id="drawBtn" type="button">Desenhar área</button>
+        <button class="btn small ghost danger" id="clearBtn" type="button">Limpar tudo</button>
+      </div>
+      <div id="status" class="stbox" role="status" aria-live="polite">Pronto.</div>
+    </div>
+    <details class="sec" open>
+      <summary>Textos da legenda</summary>
+      <div class="secbody">
+        <div id="labelEditor"></div>
+        <p class="hint">Você pode editar os acumulados (ex.: 20–40 mm, 40–60 mm) sem alterar as cores originais do projeto.</p>
+      </div>
+    </details>
+    <details class="sec">
+      <summary>Cores <small>v0.3</small></summary>
+      <div class="secbody"><p class="hint">Chuva Não Significativa #BFEAF2; baixo RGB 40/227/240; médio 33/173/243; alto 14/109/250; muito alto 25/30/180.</p></div>
+    </details>
+  </section>
+
+  <section class="panel preview" aria-labelledby="hMap">
+    <header>
+      <div class="t">
+        <h2 id="hMap">Mapa</h2>
+        <p class="lede">Desenhe no mapa e dê duplo clique para concluir. O PNG sai no layout da Previsão diária (3508 × 2480 px, 297 × 210 mm).</p>
+      </div>
+    </header>
+    <div class="stage">
+      <div class="mapbox">
+        <div class="toolbar"><b id="currentLabel">Chuva Não Significativa</b> — desenhe no mapa e dê duplo clique para concluir.</div>
+        <div class="map-wrap"><div id="map"></div></div>
+        <div class="legend" id="legend"></div>
+      </div>
+    </div>
+    <div class="vbar">Chuva + Tendência v0.3 · mapa no layout da Previsão · 1.15-20261021</div>
+  </section>
+</main>
+
+<script src="../assets/lib/leaflet-1.9.4/leaflet.js"></script><script src="../assets/lib/leaflet.draw-1.0.4/leaflet.draw.js"></script><script src="../assets/lib/turf-7.4.0/turf.min.js"></script><script src="../chuva/data/meso.js"></script><script src="../chuva/data/cidades.js"></script><script src="../chuva/data/brasil_estados.js"></script>
+<script>window.BASE_DADOS='../';window.FERRAMENTA='chuva';window.PONTE_SELO='PNG é salvo no Drive';</script>
+<script src="../previsao/data/geo.js?v=1.15-20261021"></script>
+<script src="../assets/layout-mapa.js?v=1.15-20261021"></script>
+<script src="../chuva/app-drive.js?v=1.15-20261021"></script>
+<script src="../assets/ponte-drive.js?v=1.15-20261021"></script>
+</body>
+</html>
