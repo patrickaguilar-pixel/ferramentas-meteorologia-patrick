@@ -17,9 +17,11 @@ let selected=LEVELS[0], product='chuva';
 const MG_MASK=((window.BRASIL_ESTADOS&&BRASIL_ESTADOS.features)||[]).find(f=>f.properties.UF==='MG')||turf.union(turf.featureCollection(MESO.features));
 const map=L.map('map',{zoomControl:true,attributionControl:false,minZoom:5,maxZoom:12});
 const drawnItems=new L.FeatureGroup().addTo(map);
-L.geoJSON(BRASIL_ESTADOS,{style:f=>({color:f.properties.UF==='MG'?'#777':'#c8c8c8',weight:f.properties.UF==='MG'?0.5:1,fillColor:'#fff',fillOpacity:1})}).addTo(map);
+const estadosEditor=L.geoJSON(BRASIL_ESTADOS,{style:f=>({color:f.properties.UF==='MG'?'#777':'#c8c8c8',weight:f.properties.UF==='MG'?0.5:1,fillColor:'#fff',fillOpacity:1})}).addTo(map);
 const mesoDisplay=L.geoJSON(MESO,{style:{color:'#454545',weight:1.15,fillOpacity:0}}).addTo(map); map.fitBounds(mesoDisplay.getBounds(),{padding:[25,25]});
-L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:3.1,color:'#111',weight:1.4,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP||f.properties.nome||'';l.bindTooltip(n,{permanent:true,direction:'right',offset:[5,-3],className:'city-label'});}}).addTo(map);
+// v1.15: marcação das cidades igual à da Previsão (ponto branco pequeno e nome logo abaixo, em azul-marinho)
+(function(){const s=document.createElement('style');s.textContent='.leaflet-tooltip.lm-cidade{background:transparent;border:0;box-shadow:none;padding:0;color:#092b6a;font:700 12px Arial,"Liberation Sans",Helvetica,sans-serif;text-shadow:1px 1px 0 #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,0 1px 0 #fff,0 -1px 0 #fff}.leaflet-tooltip.lm-cidade:before{display:none}';document.head.appendChild(s);})();
+L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:2.6,color:'#1f2328',weight:1,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP||f.properties.nome||'';l.bindTooltip(n,{permanent:true,direction:'bottom',offset:[0,1],className:'lm-cidade'});}}).addTo(map);
 function levelById(id){return LEVELS.find(x=>x.id===id)||LEVELS[0]} function styleFor(l){return {color:l.stroke,weight:1.5,fillColor:l.fill,fillOpacity:1}}
 function renderLevels(){const el=document.getElementById('levels');el.innerHTML='';LEVELS.forEach(l=>{const b=document.createElement('button');b.className='level'+(l.id===selected.id?' active':'');b.innerHTML=`<span class="swatch" style="background:${l.fill}"></span>${l.label}`;b.onclick=()=>{selected=l;document.getElementById('currentLabel').textContent=l.label;renderLevels()};el.appendChild(b)});renderLegend();}
 function renderLegend(){document.getElementById('legend').innerHTML=LEVELS.slice().reverse().map(l=>`<div><span class="swatch" style="background:${l.fill}"></span>${l.label}</div>`).join('')+'<div><span class="swatch" style="background:#fff"></span>Sem Previsão de Chuvas</div>'}
@@ -331,3 +333,10 @@ async function generatePNG(){
 }
 pngBtn.onclick=generatePNG;
 {const pb=document.getElementById('previewBtn');if(pb)pb.onclick=()=>garantirLayoutMapa().then(()=>LayoutMapa.previa(opcoesMapa())).catch(()=>setStatus('Não foi possível carregar o layout do mapa. Recarregue a página.'))}
+
+/* v1.15: mapa base no editor (mesmo seletor "Fundo" do mapa final) e painel "Mapa final" na tela,
+   no layout da Previsão diária (297 × 210 mm), atualizado sozinho. */
+garantirLayoutMapa().then(()=>{
+  if(LayoutMapa.fundoNoEditor)LayoutMapa.fundoNoEditor(map,{mg:MG_MASK,aoMudar:ativo=>estadosEditor.eachLayer(l=>{if(l.feature&&l.feature.properties.UF==='MG')l.setStyle({fillOpacity:ativo?0:1});})});
+  if(LayoutMapa.painelAoVivo)LayoutMapa.painelAoVivo(document.querySelector('section.panel.preview'),opcoesMapa,'Mapa final — Chuva e Tendência');
+}).catch(()=>{});

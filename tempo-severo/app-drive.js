@@ -42,7 +42,9 @@ function ensureMicroLoaded(){
 const drawnItems=new L.FeatureGroup().addTo(map);
 const mesoDisplay=L.geoJSON(MESO,{interactive:false,style:{color:'#4b5563',weight:1.15,fillOpacity:0}}).addTo(map);   // só desenho: não captura o clique (fica por cima das áreas)
 map.fitBounds(mesoDisplay.getBounds(),{padding:[25,25]});
-L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:2.4,color:'#111',weight:1,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP;l.bindTooltip(n,{permanent:true,direction:'right',offset:[3,0],className:'city-label'});}}).addTo(map);
+// v1.15: marcação das cidades igual à da Previsão (ponto branco pequeno e nome logo abaixo, em azul-marinho)
+(function(){const s=document.createElement('style');s.textContent='.leaflet-tooltip.lm-cidade{background:transparent;border:0;box-shadow:none;padding:0;color:#092b6a;font:700 12px Arial,"Liberation Sans",Helvetica,sans-serif;text-shadow:1px 1px 0 #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,0 1px 0 #fff,0 -1px 0 #fff}.leaflet-tooltip.lm-cidade:before{display:none}';document.head.appendChild(s);})();
+L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{radius:2.6,color:'#1f2328',weight:1,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP;l.bindTooltip(n,{permanent:true,direction:'bottom',offset:[0,1],className:'lm-cidade'});}}).addTo(map);
 const microPriorityLayer={clearLayers(){},addData(){}}; // microrregiões ficam somente para cálculo textual
 function styleFor(lv){return {color:lv.stroke,weight:2,fillColor:lv.fill,fillOpacity:lv.opacity};}
 function levelById(id){return LEVELS.find(x=>x.id===id)||LEVELS[0];}
@@ -498,3 +500,10 @@ document.getElementById('kmlBtn').onclick=()=>{
   setStatus('KML gerado no mesmo padrão de estilos do arquivo operacional de referência.');
 };
 document.getElementById('modelBtn').onclick=()=>document.getElementById('modelModal').classList.add('open');document.getElementById('closeModel').onclick=()=>document.getElementById('modelModal').classList.remove('open');
+
+/* v1.15: mapa base no editor (mesmo seletor "Fundo" do mapa final) e painel "Mapa final" na tela,
+   no layout da Previsão diária (297 × 210 mm), atualizado sozinho. */
+garantirLayoutMapa().then(()=>{
+  if(LayoutMapa.fundoNoEditor)LayoutMapa.fundoNoEditor(map,{mg:MG_MASK,aoMudar:null});
+  if(LayoutMapa.painelAoVivo)LayoutMapa.painelAoVivo(document.querySelector('section.panel.preview'),opcoesMapa,'Mapa final — Tempo Severo');
+}).catch(()=>{});

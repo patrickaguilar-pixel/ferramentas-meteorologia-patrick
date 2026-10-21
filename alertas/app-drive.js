@@ -123,6 +123,57 @@ function render(){
     t.setAttribute('clip-path',`url(#clipMun${idx})`);t.textContent=f.properties.nome;fl.appendChild(t);
   });
   $('clipDefs').appendChild(fd);layer.appendChild(fg);labels.appendChild(fl);
+  montarCamadasNovas();
+}
+/* v3.8: mapa base por baixo dos municípios (mesmo seletor "Fundo" do mapa do relatório) e as 25 cidades
+   de referência com a marcação da Previsão (ponto branco pequeno e nome logo abaixo, tamanho fixo na tela). */
+const NS_SVG='http://www.w3.org/2000/svg';
+let fundoG=null,cidadesG=null;
+function montarCamadasNovas(){
+  if(fundoG)return;
+  fundoG=document.createElementNS(NS_SVG,'g');fundoG.id='fundoTela';fundoG.setAttribute('pointer-events','none');
+  svg.insertBefore(fundoG,$('wxBaseLayer'));
+  cidadesG=document.createElementNS(NS_SVG,'g');cidadesG.id='cidadesRef';cidadesG.setAttribute('pointer-events','none');
+  svg.insertBefore(cidadesG,$('drawLine'));
+  const css=document.createElement('style');
+  css.textContent='#cidadesRef circle{fill:#fff;stroke:#1f2328}#cidadesRef text{fill:#092b6a;font-family:Arial,"Liberation Sans",Helvetica,sans-serif;font-weight:700;text-anchor:middle;stroke:#fff;stroke-linejoin:round;paint-order:stroke}'+
+    '#mapSvg.labels-visible #cidadesRef text{display:none}';
+  document.head.appendChild(css);
+}
+function ajustarCidadesRef(){
+  if(!cidadesG)return;
+  const k=state.view.w/Math.max(1,svg.clientWidth||1000);   // unidades do mapa por pixel da tela
+  if(!cidadesG.childNodes.length){
+    CIDADES_REF.forEach(n=>{const f=featureByName.get(n);if(!f)return;
+      const q=xy(f.properties.label_lon,f.properties.label_lat),g=document.createElementNS(NS_SVG,'g');
+      g.dataset.x=q[0];g.dataset.y=q[1];
+      g.appendChild(document.createElementNS(NS_SVG,'circle'));const t=document.createElementNS(NS_SVG,'text');t.textContent=n;g.appendChild(t);
+      cidadesG.appendChild(g);});
+  }
+  [].forEach.call(cidadesG.childNodes,g=>{const x=+g.dataset.x,y=+g.dataset.y,c=g.firstChild,t=g.lastChild;
+    c.setAttribute('cx',x);c.setAttribute('cy',y);c.setAttribute('r',2.6*k);c.setAttribute('stroke-width',1*k);
+    t.setAttribute('x',x);t.setAttribute('y',y+(2.6+1.5)*k+11*k*0.9);t.setAttribute('font-size',12*k);t.setAttribute('stroke-width',3*k);});
+}
+let fundoPedido=0;
+function aplicarFundoTela(id){
+  const n=++fundoPedido;
+  if(!fundoG||!window.LayoutMapa)return;
+  while(fundoG.firstChild)fundoG.removeChild(fundoG.firstChild);
+  if(!id)return;
+  window.LayoutMapa.carregarFundo(id).then(r=>{
+    if(n!==fundoPedido||!r.fundo)return;
+    const b=window.LayoutMapa.extensao(),p1=xy(b.w,b.n),p2=xy(b.e,b.s);
+    // recorte no contorno de Minas (mesorregiões; sem elas, os municípios)
+    let clip=$('clipMG');
+    if(!clip){clip=document.createElementNS(NS_SVG,'clipPath');clip.id='clipMG';
+      const fonte=MESO?MESO.features.map(mesoPathFor):GEO.features.map(pathFor);
+      const cp=document.createElementNS(NS_SVG,'path');cp.setAttribute('d',fonte.join(''));clip.appendChild(cp);$('clipDefs').appendChild(clip);}
+    const im=document.createElementNS(NS_SVG,'image');
+    im.setAttribute('href',r.fundo.src);im.setAttributeNS('http://www.w3.org/1999/xlink','href',r.fundo.src);
+    im.setAttribute('x',p1[0]);im.setAttribute('y',p1[1]);im.setAttribute('width',p2[0]-p1[0]);im.setAttribute('height',p2[1]-p1[1]);
+    im.setAttribute('preserveAspectRatio','none');im.setAttribute('clip-path','url(#clipMG)');
+    fundoG.appendChild(im);
+  }).catch(()=>{});
 }
 
 /* ---------------- camadas meteorológicas (RealEarth / SSEC) ---------------- */
@@ -161,6 +212,7 @@ render();renderMeso();[irLayer,visLayer,glmLayer].forEach(setImagePlacement);
 function applyView(){
   const v=state.view;svg.setAttribute('viewBox',`${v.x} ${v.y} ${v.w} ${v.h}`);
   svg.classList.toggle('labels-visible',1000/v.w>=8.5);
+  try{ajustarCidadesRef();}catch(e){}   // antes do layout carregar, as cidades ainda não existem
 }
 function zoomAt(factor,cx=state.view.x+state.view.w/2,cy=state.view.y+state.view.h/2){
   const v=state.view,nw=Math.max(55,Math.min(1000,v.w*factor)),nh=nw*0.76;
@@ -982,8 +1034,9 @@ async function mapaDoRelatorio(nomes,forcar){
 // carrega o layout logo e põe o seletor "Fundo" ao lado de "Baixar PDF no PC"
 garantirLayout().then(()=>{
   if(window.LayoutMapa.montarSeletor)window.LayoutMapa.montarSeletor($('baixarRel'));
-  const lab=$('layoutFundo')&&$('layoutFundo').closest('label');
-  if(lab){lab.setAttribute('data-view','plantao');lab.hidden=$('baixarRel').hidden;}   // só na aba do relatório, como o botão do PDF
+  // o seletor vale para a tela e para o mapa do relatório: fica visível nas duas abas
+  document.addEventListener('layoutfundo',e=>aplicarFundoTela(e.detail||''));
+  aplicarFundoTela(window.LayoutMapa.fundoEscolhido());ajustarCidadesRef();
   document.addEventListener('layoutfundo',()=>{mapaCache.chave=null;agendarRelatorio(true);});
   mapaCache.chave=null;agendarRelatorio(true);
 }).catch(()=>{});

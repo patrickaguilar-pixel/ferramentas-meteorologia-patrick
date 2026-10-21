@@ -222,6 +222,7 @@
         });
       }).then(function () {
         var cv = map.getCanvas(), H = Math.round(W * (ex.n - ex.s) / (ex.e - ex.w));
+        try { F.srcMerc = cv.toDataURL('image/jpeg', 0.9); } catch (e) {}   // versão em Web Mercator, para o editor (Leaflet)
         var out = document.createElement('canvas'); out.width = W; out.height = H;
         var o = out.getContext('2d'); o.imageSmoothingQuality = 'high';
         var sy = cv.height / Hm, y0 = my(ex.n);
@@ -494,7 +495,74 @@
     return comFundo(op).then(mostrar);
   }
 
+  /* ===== mapa base também no editor (Leaflet) do Tempo Severo e da Chuva =====
+     Usa o mesmo seletor "Fundo". Os mapas do OSM entram como camada de blocos; o OpenFreeMap, como imagem.
+     Fora de Minas fica uma máscara clara, como na Previsão (o fundo aparece só dentro do estado). */
+  var TILES = { osm: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', osmfr: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', osmde: 'https://tile.openstreetmap.de/{z}/{x}/{y}.png' };
+  function fundoNoEditor(map, opts) {
+    opts = opts || {};
+    var L = window.L; if (!L || !map) return;
+    if (!map.getPane('lmFundo')) { map.createPane('lmFundo'); map.getPane('lmFundo').style.zIndex = 250; map.getPane('lmFundo').style.pointerEvents = 'none'; }
+    if (!map.getPane('lmMascara')) { map.createPane('lmMascara'); map.getPane('lmMascara').style.zIndex = 260; map.getPane('lmMascara').style.pointerEvents = 'none'; }
+    var camada = null, mascara = null, pedido = 0;
+    if (opts.mg && opts.mg.geometry) {
+      var g = opts.mg.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [];
+      var aneis = [[[-89, -179], [-89, 179], [89, 179], [89, -179]]];
+      polys.forEach(function (poly) { aneis.push(poly[0].map(function (c) { return [c[1], c[0]]; })); });
+      mascara = L.polygon(aneis, { pane: 'lmMascara', stroke: false, fillColor: opts.corFora || '#eef3f6', fillOpacity: 1, interactive: false });
+    }
+    function aplicar(id) {
+      var n = ++pedido;
+      if (camada) { map.removeLayer(camada); camada = null; }
+      if (mascara && map.hasLayer(mascara)) map.removeLayer(mascara);
+      if (opts.aoMudar) opts.aoMudar(!!id);
+      if (!id) return;
+      if (semEndereco() || noClaude()) return;
+      if (mascara) mascara.addTo(map);
+      if (TILES[id]) {
+        camada = L.tileLayer(TILES[id], { pane: 'lmFundo', subdomains: 'abc', maxZoom: 19, crossOrigin: true }).addTo(map);
+        return;
+      }
+      var F = fundoPorId(id);
+      if (F && F.vector) carregarUm(F).then(function () {
+        if (n !== pedido || !F.srcMerc) return;
+        var ex = ext();
+        camada = L.imageOverlay(F.srcMerc, [[ex.s, ex.w], [ex.n, ex.e]], { pane: 'lmFundo', interactive: false }).addTo(map);
+      }, function () { if (n === pedido) avisar('O mapa de fundo “' + F.curto + '” não carregou agora. Troque em “Fundo” ou tente mais tarde.', true); });
+    }
+    document.addEventListener('layoutfundo', function (e) { aplicar(e.detail || ''); });
+    aplicar(fundoEscolhido());
+  }
+
+  /* ===== painel "Mapa final" na tela (atualiza sozinho, como a folha da Previsão) ===== */
+  function painelAoVivo(ancora, getOp, titulo) {
+    if (!ancora || document.getElementById('lmPainel')) return;
+    var sec = document.createElement('section');
+    sec.className = ancora.className || 'panel'; sec.id = 'lmPainel';
+    sec.style.cssText = 'grid-column:1/-1';
+    sec.innerHTML = '<header style="padding:14px 18px 6px"><h2 style="margin:0;font-size:17px">' + esc(titulo || 'Mapa final') + '</h2>' +
+      '<p class="lede" style="margin:4px 0 0">Layout de impressão (297 × 210 mm), igual ao da Previsão diária. Atualiza sozinho; o PNG sai assim.</p></header>' +
+      '<div data-folha style="padding:6px 18px 18px;line-height:0"></div>';
+    ancora.parentNode.insertBefore(sec, ancora.nextSibling);
+    var folha = sec.querySelector('[data-folha]'), chave = '', ocupado = false;
+    function desenhar() {
+      if (ocupado || document.hidden) return;
+      var op; try { op = getOp(); } catch (e) { return; }
+      var k = JSON.stringify(op) + '#' + fundoEscolhido();
+      if (k === chave) return;
+      chave = k; ocupado = true;
+      comFundo(op).then(function (op2) {
+        folha.innerHTML = svg(op2);
+        var s = folha.querySelector('svg'); s.setAttribute('width', '100%'); s.removeAttribute('height');
+        s.style.cssText = 'border-radius:6px;box-shadow:0 1px 2px rgba(9,43,106,.12),0 8px 24px rgba(9,43,106,.10)';
+      }).catch(function () {}).then(function () { ocupado = false; });
+    }
+    document.addEventListener('layoutfundo', function () { chave = ''; desenhar(); });
+    desenhar(); setInterval(desenhar, 1500);
+  }
+
   window.LayoutMapa = { svg: svg, png: png, previa: previa, canvas: canvas, validadeTexto: validadeTexto, fmtDateBR: fmtDateBR,
     fundos: FUNDOS.map(function (F) { return { id: F.id, nome: F.nome }; }), carregarFundo: carregarFundo, PAGE: PAGE,
-    montarSeletor: montarSeletor, fundoEscolhido: fundoEscolhido };
+    montarSeletor: montarSeletor, fundoEscolhido: fundoEscolhido, extensao: ext, fundoNoEditor: fundoNoEditor, painelAoVivo: painelAoVivo,
+    PT_R: PT_R, NOME_TAM: NOME_TAM };
 })();
