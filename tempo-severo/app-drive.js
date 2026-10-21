@@ -70,9 +70,23 @@ function suavizarFeature(f){
   }catch(e){}
   return f;
 }
+// recortes já calculados ficam guardados: refazer o recorte das divisas de Minas a cada atualização pesava
+const memoRecorte=new Map();
+function memo(chave,fn){if(memoRecorte.has(chave))return memoRecorte.get(chave);const v=fn();if(memoRecorte.size>300)memoRecorte.clear();memoRecorte.set(chave,v);return v;}
 function clipFeatureToMG(f){
+  const k=JSON.stringify(f.geometry);
+  const r=memo('c'+k,()=>clipGeomTS(f));
+  if(!r)return null;
+  return {...r,properties:{...(f.properties||{})}};
+}
+function clipGeomTS(f){
   try{
-    const clipped=turf.intersect(turf.featureCollection([suavizarFeature(f),MG_MASK]));
+    const sf=suavizarFeature(f);
+    // corta antes o contorno de Minas na caixa do desenho: a interseção fica muito mais leve
+    let mask=MG_MASK;
+    try{const b=turf.bbox(sf),m=0.05;const bc=turf.bboxClip(MG_MASK,[b[0]-m,b[1]-m,b[2]+m,b[3]+m]);
+      const g=bc&&bc.geometry;if(g&&g.coordinates&&g.coordinates.length)mask=bc;}catch(e){}
+    const clipped=turf.intersect(turf.featureCollection([sf,mask]));
     if(!clipped)return null;
     clipped.properties={...(f.properties||{})};
     return clipped;
@@ -337,6 +351,15 @@ function reclipAllLayers(){
 
 function attachPopup(layer){editorAreas.ligar(layer);}   // clique na área = edição (editor de áreas)
 function drawnFeatures(){const arr=[];editorAreas.cadaCamada(l=>{const f=l._orig?JSON.parse(JSON.stringify(l._orig)):l.toGeoJSON();f.properties={level:l._severity};arr.push(f)});return arr;}
+// quais microrregiões cada área toca fica guardado: só a área nova/alterada é recalculada
+const memoToque=new Map();
+function toca(item,i,mf){
+  if(!item.key)item.key=JSON.stringify(item.pf.geometry);
+  let m=memoToque.get(item.key);if(!m){if(memoToque.size>300)memoToque.clear();m=new Map();memoToque.set(item.key,m);}
+  if(m.has(i))return m.get(i);
+  let v=false;try{v=turf.booleanIntersects(mf,item.pf);}catch(e){}
+  m.set(i,v);return v;
+}
 async function computeAssignments(){
  const data=await ensureMicroLoaded();
  const draw=clippedDrawnFeatures();
@@ -350,11 +373,7 @@ async function computeAssignments(){
    let best=null;
    for(const item of drawWithBBox){
      if(!boxesOverlap(mb,item.bbox)) continue;
-     try{
-       if(turf.booleanIntersects(mf,item.pf)){
-         if(!best||item.lv.rank>best.rank) best=item.lv;
-       }
-     }catch(e){}
+     if(toca(item,i,mf)){ if(!best||item.lv.rank>best.rank) best=item.lv; }
    }
    if(best) assignments[mf.properties.nm_micro]=best.id;
  }
@@ -528,5 +547,6 @@ document.getElementById('modelBtn').onclick=()=>document.getElementById('modelMo
 garantirLayoutMapa().then(()=>{
   if(LayoutMapa.fundoNoEditor)LayoutMapa.fundoNoEditor(map,{mg:MG_MASK,aoMudar:null});
   if(LayoutMapa.editorExtras)LayoutMapa.editorExtras(map,{suavizarAnel,corDesenho:()=>selected.stroke||selected.fill,mg:MG_MASK,estados:window.BRASIL_ESTADOS});
-  if(LayoutMapa.painelAoVivo)LayoutMapa.painelAoVivo(document.querySelector('section.panel.preview'),opcoesMapa,'Mapa final — Tempo Severo');
+  if(LayoutMapa.painelAoVivo)LayoutMapa.painelAoVivo(document.querySelector('section.panel.preview'),opcoesMapa,'Mapa final — Tempo Severo',
+    ()=>JSON.stringify([drawnFeatures(),document.getElementById('forecastDate').value,document.getElementById('validUntil').value]));
 }).catch(()=>{});

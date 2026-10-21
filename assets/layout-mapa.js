@@ -645,7 +645,9 @@
 
 
   /* ===== painel "Mapa final" na tela (atualiza sozinho, como a folha da Previsão) ===== */
-  function painelAoVivo(ancora, getOp, titulo) {
+  // assinatura(): texto barato que muda quando o desenho/datas mudam. Só então o mapa é recalculado
+  // (o recorte pelas divisas de Minas é pesado), com uma pequena espera, e só se o painel estiver à vista.
+  function painelAoVivo(ancora, getOp, titulo, assinatura) {
     if (!ancora || document.getElementById('lmPainel')) return;
     var sec = document.createElement('section');
     sec.className = ancora.className || 'panel'; sec.id = 'lmPainel';
@@ -654,21 +656,25 @@
       '<p class="lede" style="margin:4px 0 0">Layout de impressão (297 × 210 mm), igual ao da Previsão diária. Atualiza sozinho; o PNG sai assim.</p></header>' +
       '<div data-folha style="padding:6px 18px 18px;line-height:0"></div>';
     ancora.parentNode.insertBefore(sec, ancora.nextSibling);
-    var folha = sec.querySelector('[data-folha]'), chave = '', ocupado = false;
+    var folha = sec.querySelector('[data-folha]'), feita = null, vista = true, ocupado = false, timer = 0;
+    function marca() { var s = ''; try { s = assinatura ? assinatura() : JSON.stringify(getOp()); } catch (e) {} return s + '#' + fundoEscolhido(); }
     function desenhar() {
-      if (ocupado || document.hidden) return;
+      if (ocupado || document.hidden || !vista) return;
+      var m = marca(); if (m === feita) return;
       var op; try { op = getOp(); } catch (e) { return; }
-      var k = JSON.stringify(op) + '#' + fundoEscolhido();
-      if (k === chave) return;
-      chave = k; ocupado = true;
+      feita = m; ocupado = true;
       comFundo(op).then(function (op2) {
         folha.innerHTML = svg(op2);
         var s = folha.querySelector('svg'); s.setAttribute('width', '100%'); s.removeAttribute('height');
         s.style.cssText = 'border-radius:6px;box-shadow:0 1px 2px rgba(9,43,106,.12),0 8px 24px rgba(9,43,106,.10)';
       }).catch(function () {}).then(function () { ocupado = false; });
     }
-    document.addEventListener('layoutfundo', function () { chave = ''; desenhar(); });
-    desenhar(); setInterval(desenhar, 1500);
+    function agendar() { clearTimeout(timer); timer = setTimeout(desenhar, 500); }
+    if (window.IntersectionObserver) new IntersectionObserver(function (es) { vista = es.some(function (e) { return e.isIntersecting; }); if (vista) agendar(); }, { rootMargin: '200px' }).observe(sec);
+    document.addEventListener('layoutfundo', function () { feita = null; agendar(); });
+    var ultima = '';
+    setInterval(function () { if (document.hidden || !vista || ocupado) return; var m = marca(); if (m !== ultima) { ultima = m; agendar(); } }, 800);
+    agendar();
   }
 
   window.LayoutMapa = { svg: svg, png: png, previa: previa, canvas: canvas, validadeTexto: validadeTexto, fmtDateBR: fmtDateBR,

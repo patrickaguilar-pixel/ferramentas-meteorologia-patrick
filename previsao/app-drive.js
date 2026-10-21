@@ -396,7 +396,7 @@ function layoutSede(){
         const tx = dx > 1e-9 ? (SQ - I[0])/dx : dx < -1e-9 ? (-SQ - I[2])/dx : Infinity;
         const ty = dy > 1e-9 ? (SQ - I[1])/dy : dy < -1e-9 ? (-SQ - I[3])/dy : Infinity;
         const t0 = Math.max(0, Math.min(tx, ty)) + 0.25, ang = Math.min(k, 24-k);
-        for (const ex of [0, 0.7, 1.5, 2.5, 4, 5.5, 7.5, 10, 13, 16.5]) add(sx + dx*(t0+ex), sy + dy*(t0+ex), 1.2 + 0.3*ang, left);
+        for (const ex of [0, 0.7, 1.5, 2.5, 4, 5.5, 7.5, 10, 13, 16.5, 20, 24]) add(sx + dx*(t0+ex), sy + dy*(t0+ex), 1.2 + 0.3*ang, left);
       }
     }
     if (!ic.length) add(nx0, ny0, 0, false, true);
@@ -421,14 +421,16 @@ function layoutSede(){
   const clash = (A, B) => { if (A.bb[0] > B.bb[2] + M || B.bb[0] > A.bb[2] + M || A.bb[1] > B.bb[3] + M || B.bb[1] > A.bb[3] + M) return false;
     for (const q of A.R) for (const p of B.R) if (hitM(q, p)) return true; return false; };
   // tamanhos que um ícone pode assumir sozinho quando não cabe em lugar nenhum (relativos ao tamanho geral)
-  const STEPS = [1, 0.88, 0.76, 0.66, 0.58, 0.5];
+  // todos os ícones sempre do MESMO tamanho: nenhum diminui sozinho (quem não cabe perto do ponto vai um pouco
+  // mais longe, com linha, ou fica logo abaixo do nome; se nem assim couber, o mapa todo reduz por igual)
+  const STEPS = [1];
   const items = S.rows.map((r, ri) => ({r, ri, step: 0, cands: null, sel: null}));
   // o passo é relativo ao tamanho escolhido pela pessoa: se o mapa todo já diminuiu, ele não diminui de novo
   const build = it => { if (vazio(it.r)){ ROW_K.delete(it.r.id); it.cands = []; return; } const k = +((S.opts.iconScale || 1)*STEPS[it.step]).toFixed(3);
     if (it.step === 0 || k >= iconK() - 1e-6) ROW_K.delete(it.r.id); else ROW_K.set(it.r.id, k); it.cands = gen(it.r, it.ri); };
   items.forEach(build);
   // municípios que precisam diminuir só por causa da geografia e dos nomes fixos (nada perto do ponto)
-  for (const it of items){ while (auto && !vazio(it.r) && !isPinned(it.r) && it.step < 2 && !it.cands.some(q => q.ex <= 3)){ it.step++; build(it); } it.geo = it.step; }
+  for (const it of items){ while (auto && !vazio(it.r) && !isPinned(it.r) && it.step < STEPS.length - 1 && !it.cands.some(q => q.ex <= 3)){ it.step++; build(it); } it.geo = it.step; }
   const nb = items.map(it => items.filter(o => o !== it && Math.abs(FIXED[o.ri][0][0] - FIXED[it.ri][0][0]) < 95 && Math.abs(FIXED[o.ri][0][1] - FIXED[it.ri][0][1]) < 95));
   const free = (it, q) => nb[it.ri].every(o => !o.sel || !clash(q, o.sel));
   const ovPen = (A, B) => { if (A.bb[0] > B.bb[2] + M || B.bb[0] > A.bb[2] + M || A.bb[1] > B.bb[3] + M || B.bb[1] > A.bb[3] + M) return 0;
@@ -482,6 +484,29 @@ function layoutSede(){
       for (const x of qa){ if (x.cost >= bc) break; for (const y of qb){ const c = x.cost + y.cost; if (c >= bc) break; if (!clash(x, y)){ bc = c; best = [x, y]; } } }
       if (best){ A.sel = best[0]; B.sel = best[1]; break; }
     }
+  }
+  // 3c) se ainda sobrou algum encostando: busca completa com retrocesso (quem tem menos opções primeiro),
+  //     escolhendo sempre a posição mais barata que não encosta em ninguém já colocado (limite de tempo curto)
+  if (auto && items.some(it => it.sel && !free(it, it.sel))){
+    const ord = items.filter(it => it.cands && it.cands.length).sort((u, v) => u.cands.length - v.cands.length);
+    const fixos = items.filter(it => !it.cands || !it.cands.length);
+    const atual = new Map(items.map(it => [it, it.sel]));
+    items.forEach(it => { if (it.cands && it.cands.length) it.sel = null; });
+    const t0 = performance.now(); let nos = 0, achou = false;
+    const opc = ord.map(it => it.cands.slice(0, 120));
+    const dfs = i => {
+      if (i === ord.length){ achou = true; return true; }
+      if (++nos > 60000 || performance.now() - t0 > 250) return false;
+      const it = ord[i];
+      for (const c of opc[i]){ if (free(it, c)){ it.sel = c; if (dfs(i + 1)) return true; it.sel = null; } if (nos > 60000) break; }
+      return false;
+    };
+    dfs(0);
+    if (!achou) items.forEach(it => { it.sel = atual.get(it); });   // não achou: volta como estava
+    else {   // achou: melhora cada um mantendo tudo livre
+      for (let rd = 0; rd < 2; rd++) for (const it of ord){ const b = it.cands.find(c => c.cost < it.sel.cost && free(it, c)); if (b) it.sel = b; }
+    }
+    void fixos;
   }
   // 4) quem ficou menor tenta voltar a um tamanho maior, se couber perto
   for (const it of items){
