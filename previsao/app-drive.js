@@ -54,7 +54,7 @@ function logoLayout(){
 }
 // Municípios base cadastrados (lista fornecida pela equipe)
 const START_MUN = ["Almenara","Barbacena","Belo Horizonte","Buritis","Campos Altos","Carneirinho","Curvelo","Diamantina","Divinópolis","Extrema","Governador Valadares","Ipatinga","Itamonte","Januária","Juiz de Fora","Manhuaçu","Montes Claros","Paracatu","Patos de Minas","Pirapora","Poços de Caldas","Teófilo Otoni","Uberaba","Uberlândia","Viçosa"];
-const BASE_VERSION = 3;
+const BASE_VERSION = 4;
 // deslocamento inicial (mm) para quem fica cortado pela borda do mapa
 const DEFAULT_OFFSET = {};   // o posicionamento automático cuida das bordas (Extrema etc.)
 const MESO_LABELS = [
@@ -91,6 +91,8 @@ function shownTemps(r){
   if (useMin()) try { mn = parseTemp(r.tmin); } catch(e){}
   return [mx, mn];
 }
+// município ainda sem condição do tempo e sem temperatura: no mapa ficam só o ponto e o nome
+const vazio = r => r.tempo === NONE && shownTemps(r).every(v => v == null);
 function checkRow(r){
   const e = {};
   let mx = null, mn = null;
@@ -146,8 +148,11 @@ if (S.namesDefaultV !== 2){ S.opts.names = true; S.namesDefaultV = 2;
   S.rows.forEach(r => { if (DEFAULT_OFFSET[r.name] && !r.dx && !r.dy){ [r.dx, r.dy] = DEFAULT_OFFSET[r.name]; } }); }   // nomes passam a vir marcados
 if (S.baseVersion !== BASE_VERSION){
   S.rows.forEach(r => { if (r.name === "Extrema" && r.dx === 0 && r.dy === -5.5) r.dy = 0; });
-  const old = new Map(S.rows.map(r => [r.name, r]));
-  S.rows = START_MUN.map(n => old.has(n) ? old.get(n) : makeRow(n));
+  // acrescenta os municípios base que faltarem (ex.: Paracatu, Uberaba, Campos Altos, Manhuaçu, Ipatinga,
+  // Barbacena), sem apagar o que já está na lista nem o que já foi preenchido
+  const tem = new Set(S.rows.map(r => r.name));
+  for (const n of START_MUN) if (!tem.has(n) && MUN.has(n)) S.rows.push(makeRow(n));
+  S.rows.sort((a, b) => a.name.localeCompare(b.name, "pt-BR", {sensitivity:"base"}));
   S.baseVersion = BASE_VERSION; S.noticeDismissed = true;
 }
 let LOGOS = {};                                    // logotipos sempre os incluídos no layout
@@ -192,7 +197,7 @@ function usedCats(){
   const used = new Set();
   for (const r of S.rows){
     const [x, y] = iconXY(r);
-    if (x >= MAP.x && x <= MAP.x+MAP.w && y >= MAP.y && y <= MAP.y+MAP.h) used.add(r.tempo);
+    if (!vazio(r) && x >= MAP.x && x <= MAP.x+MAP.w && y >= MAP.y && y <= MAP.y+MAP.h) used.add(r.tempo);
   }
   return ICONS.filter(c => used.has(c.value));
 }
@@ -389,11 +394,11 @@ function layoutSede(){
   const STEPS = [1, 0.88, 0.76, 0.66, 0.58, 0.5];
   const items = S.rows.map((r, ri) => ({r, ri, step: 0, cands: null, sel: null}));
   // o passo é relativo ao tamanho escolhido pela pessoa: se o mapa todo já diminuiu, ele não diminui de novo
-  const build = it => { const k = +((S.opts.iconScale || 1)*STEPS[it.step]).toFixed(3);
+  const build = it => { if (vazio(it.r)){ ROW_K.delete(it.r.id); it.cands = []; return; } const k = +((S.opts.iconScale || 1)*STEPS[it.step]).toFixed(3);
     if (it.step === 0 || k >= iconK() - 1e-6) ROW_K.delete(it.r.id); else ROW_K.set(it.r.id, k); it.cands = gen(it.r, it.ri); };
   items.forEach(build);
   // municípios que precisam diminuir só por causa da geografia e dos nomes fixos (nada perto do ponto)
-  for (const it of items){ while (auto && !isPinned(it.r) && it.step < 2 && !it.cands.some(q => q.ex <= 3)){ it.step++; build(it); } it.geo = it.step; }
+  for (const it of items){ while (auto && !vazio(it.r) && !isPinned(it.r) && it.step < 2 && !it.cands.some(q => q.ex <= 3)){ it.step++; build(it); } it.geo = it.step; }
   const nb = items.map(it => items.filter(o => o !== it && Math.abs(FIXED[o.ri][0][0] - FIXED[it.ri][0][0]) < 95 && Math.abs(FIXED[o.ri][0][1] - FIXED[it.ri][0][1]) < 95));
   const free = (it, q) => nb[it.ri].every(o => !o.sel || !clash(q, o.sel));
   const ovPen = (A, B) => { if (A.bb[0] > B.bb[2] + M || B.bb[0] > A.bb[2] + M || A.bb[1] > B.bb[3] + M || B.bb[1] > A.bb[3] + M) return 0;
@@ -660,26 +665,27 @@ function renderSVG({forExport=false} = {}){
     const x = px - MAP.x, y = py - MAP.y;
     const [w, h] = iconDims(c, iconKr(r));
     const [mx, mn] = shownTemps(r);
-    L_ICON.push(`<g class="mk" data-id="${r.id}">` + (forExport ? "" : `<rect class="hit" x="${f2(x-w/2-1)}" y="${f2(y-h/2-1)}" width="${f2(w+2)}" height="${f2(h+2)}" rx="2" fill="transparent"/>`)
+    const vz = vazio(r);
+    if (!vz) L_ICON.push(`<g class="mk" data-id="${r.id}">` + (forExport ? "" : `<rect class="hit" x="${f2(x-w/2-1)}" y="${f2(y-h/2-1)}" width="${f2(w+2)}" height="${f2(h+2)}" rx="2" fill="transparent"/>`)
       + `<image href="${c.src}" xlink:href="${c.src}" x="${f2(x-w/2)}" y="${f2(y-h/2)}" width="${f2(w)}" height="${f2(h)}" preserveAspectRatio="xMidYMid meet"/></g>`);
     if (S.opts.ptSede){
       const [sx, sy] = sedeXY(r), qx = sx - MAP.x, qy = sy - MAP.y;
       // linha fina do ponto até o ícone quando ele precisou ficar mais afastado
       const lx = Math.max(x - w/2*0.94, Math.min(qx, x + w/2*0.94)), ly = Math.max(y - h/2*0.94, Math.min(qy, y + h/2*0.94));
-      if (!STACKED.has(r.id) && Math.hypot(lx - qx, ly - qy) > PT_R + 1.2){
+      if (!vz && !STACKED.has(r.id) && Math.hypot(lx - qx, ly - qy) > PT_R + 1.2){
         const L = Math.hypot(lx - qx, ly - qy), ux = (lx - qx)/L, uy = (ly - qy)/L;
         L_LINE.push(`<line x1="${f2(qx + ux*PT_R)}" y1="${f2(qy + uy*PT_R)}" x2="${f2(lx - ux*0.3)}" y2="${f2(ly - uy*0.3)}" stroke="#1f2328" stroke-width="0.3" stroke-linecap="round"/>`); }
       L_PT.push(`<circle cx="${f2(qx)}" cy="${f2(qy)}" r="${PT_R}" fill="#ffffff" stroke="#1f2328" stroke-width="0.32"/>`);
       const nr = NAME_POS.get(r.id), ncx = nr ? (nr[0]+nr[2])/2 - MAP.x : qx, nty = nr ? nr[1] - MAP.y : qy + PT_R + 0.35;
       if (S.opts.names) L_NAME.push(`<text x="${f2(ncx)}" y="${f2(nty + ASC*ns)}" font-family="${FONT}" font-size="${f2(ns)}" font-weight="700" fill="${navy}" text-anchor="middle" stroke="#fff" stroke-width="${f2(ns*0.3)}" stroke-linejoin="round" paint-order="stroke">${esc(r.name)}</text>`);
     }
-    const nyTop = NAME_UP.has(r.id) ? y-h/2-0.3-(ASC+DESC)*ns : y+h/2+0.3;
+    const nyTop = vz ? y - (ASC+DESC)*ns/2 : NAME_UP.has(r.id) ? y-h/2-0.3-(ASC+DESC)*ns : y+h/2+0.3;
     if (S.opts.names && !S.opts.ptSede) L_NAME.push(`<g class="mk" data-id="${r.id}"><text x="${f2(x)}" y="${f2(nyTop+ASC*ns)}" font-family="${FONT}" font-size="${f2(ns)}" font-weight="700" fill="${navy}" text-anchor="middle" stroke="#fff" stroke-width="${f2(ns*0.3)}" stroke-linejoin="round" paint-order="stroke">${esc(r.name)}</text></g>`);
     const tl = TEMP_LEFT.has(r.id);
     const lab = (v, col, base) => `<text x="${f2(tl ? x-w/2-1.3 : x+w/2+1.3)}" y="${f2(base)}"${tl ? ' text-anchor="end"' : ''} font-family="${FONT}" font-size="${f2(tsz)}" font-weight="700" fill="${col}" stroke="#fff" stroke-width="1.2" stroke-linejoin="round" paint-order="stroke">${esc(fmtTemp(v))}°C</text>`;
     // com as duas: máxima em cima e mínima embaixo; com uma só: centralizada ao lado do ícone
     const one = y + (ASC-DESC)/2*tsz, both = mx != null && mn != null;
-    if (mx != null || mn != null) L_TEMP.push(`<g class="mk" data-id="${r.id}">` + (mx != null ? lab(mx, "#cc2029", both ? y + 0.4 - DESC*tsz : one) : "") + (mn != null ? lab(mn, "#1764bf", both ? y + 0.4 + ASC*tsz : one) : "") + `</g>`);
+    if (!vz && (mx != null || mn != null)) L_TEMP.push(`<g class="mk" data-id="${r.id}">` + (mx != null ? lab(mx, "#cc2029", both ? y + 0.4 - DESC*tsz : one) : "") + (mn != null ? lab(mn, "#1764bf", both ? y + 0.4 + ASC*tsz : one) : "") + `</g>`);
   }
   o.push(...L_LINE, ...L_ICON, ...L_PT, ...L_NAME, ...L_TEMP);   // ícone, ponto da sede, nome e, por cima, as temperaturas
   o.push(`</g>`);
@@ -1373,7 +1379,7 @@ async function preflight(){
   if (miss.length) issues.push(`Logotipos ausentes: ${miss.join(", ")}.`);
   if (!validityText()) issues.push("Validade não informada (preencha a hora e a data).");
   const none = S.rows.filter(r => r.tempo === NONE).length;
-  if (none) issues.push(`${none} município${none>1?"s":""} com “Sem informação”.`);
+  if (none) issues.push(`${none} município${none>1?"s":""} sem condição do tempo (no mapa ${none>1?"ficam":"fica"} só o ponto e o nome).`);
   if (!issues.length) return true;
   const go = await ask("Conferir antes de exportar", `<ul style="margin:0;padding-left:18px">${issues.map(i => `<li>${esc(i)}</li>`).join("")}</ul>`, [["Voltar e completar", false, "ghost"], ["Exportar assim mesmo", true, "primary"]]);
   return !!go;
