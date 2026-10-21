@@ -557,18 +557,26 @@ function layoutSede(){
   }
   return {ok: pen === 0 && out === 0 && longe === 0 && excSum <= 6 && menores <= 3, valid: pen === 0 && out === 0, excSum: excSum + 2*menores + 25*longe, longe, pen, out, maxEx, far};
 }
-let AUTO_KEY = "", AUTO_INFO = null, LAST_K = null;
+let AUTO_KEY = "", AUTO_INFO = null, LAST_K = null, AJUSTE = null;
+const chaveAuto = () => JSON.stringify([S.opts.ptSede, S.opts.temps, S.opts.autoSpread, S.opts.names, S.opts.iconScale, S.opts.nameSize, S.rows.map(r => [r.id, r.name, r.tempo, String(r.tmax ?? "").length, String(r.tmin ?? "").length, r.dx, r.dy])]);
 function computeAuto(){
-  const key = JSON.stringify([S.opts.ptSede, S.opts.temps, S.opts.autoSpread, S.opts.names, S.opts.iconScale, S.opts.nameSize, S.rows.map(r => [r.id, r.name, r.tempo, String(r.tmax ?? "").length, String(r.tmin ?? "").length, r.dx, r.dy])]);
+  const key = chaveAuto();
   if (key === AUTO_KEY) return;            // nada mudou desde o último cálculo
   AUTO_KEY = key; AUTO = new Map(); NAME_UP = new Set(); NAME_POS = new Map(); TEMP_LEFT = new Set(); EFF_K = null; AUTO_INFO = null; ROW_K = new Map(); STACKED = new Set();
   if (S.opts.ptSede){
     // O tamanho é sempre o escolhido pela pessoa (nada de redução automática). Primeiro tenta com os ícones
     // bem perto das sedes; se não couber sem sobrepor, aceita afastar um pouco mais (com linha curta).
     const run = (k, ex) => { EX_MAX = ex; EFF_K = k; AUTO = new Map(); NAME_POS = new Map(); TEMP_LEFT = new Set(); ROW_K = new Map(); STACKED = new Set(); const res = layoutSede(); EX_MAX = EX_PERTO; return {k, res, A:AUTO, N:NAME_POS, T:TEMP_LEFT, RK:ROW_K, ST:STACKED}; };
-    const s0 = S.opts.iconScale || 1;
-    let r1 = run(s0, EX_PERTO);
-    if (S.opts.autoSpread && !(r1.res.valid && !r1.res.longe)) for (const ex of [9, 16]){ const x = run(s0, ex); if (x.res.valid && (!r1.res.valid || x.res.pen < r1.res.pen)) r1 = x; if (r1.res.valid) break; }
+    // nunca pode sair de Minas nem encostar: se o tamanho escolhido não couber, o próprio tamanho escolhido
+    // desce de 5 em 5% até caber (o controle mostra o novo valor e avisa)
+    const tenta = k => { let x = run(k, EX_PERTO); if (S.opts.autoSpread && !(x.res.valid && !x.res.longe)){ const y = run(k, 9); if (y.res.valid && (!x.res.valid || y.res.excSum < x.res.excSum)) x = y; } return x; };
+    let s0 = S.opts.iconScale || 1, r1 = tenta(s0);
+    while (S.opts.autoSpread && !r1.res.valid && s0 > 0.2 + 1e-6){ s0 = Math.round((s0 - 0.05)*100)/100; r1 = tenta(s0); }
+    if (Math.abs(s0 - (S.opts.iconScale || 1)) > 1e-6){
+      AJUSTE = {de: Math.round((S.opts.iconScale || 1)*100), para: Math.round(s0*100)};
+      S.opts.iconScale = s0; AUTO_KEY = chaveAuto();
+      setTimeout(() => { fillOpts(); persist(); }, 0);
+    }
     EFF_K = r1.k === s0 ? null : r1.k; AUTO = r1.A; NAME_POS = r1.N; TEMP_LEFT = r1.T; ROW_K = r1.RK; STACKED = r1.ST;
     AUTO_INFO = r1; LAST_K = {s0, k: r1.k};
     return; }
@@ -853,9 +861,8 @@ function drawPreview(){
     paper.innerHTML = renderSVG();
     const so = $("#szOut");
     if (so){ const u = Math.round((S.opts.iconScale||1)*100), e = Math.round(iconK()*100);
-      so.textContent = `${u}%`; void e;
-      const cheio = AUTO_INFO && AUTO_INFO.res && !AUTO_INFO.res.valid;
-      so.title = cheio ? "Neste tamanho alguns ícones não cabem sem encostar em outros. Diminua o tamanho com o botão −." : ""; so.classList.toggle("sz-cheio", !!cheio); }
+      so.textContent = `${u}%`; void e; so.title = "";
+      if (AJUSTE){ const a = AJUSTE; AJUSTE = null; avisoTamanho(a.de > a.para + 5 || a.de - a.para > 0 ? `${a.de}% não cabe com estes municípios — ficou em ${a.para}%` : ""); } }
     if (focusId){
       const g = paper.querySelector(`.mk[data-id="${focusId}"] .hit`);
       if (g){ g.setAttribute("stroke", "#078fd2"); g.setAttribute("stroke-width", ".45"); g.setAttribute("stroke-dasharray", "1.2 .7"); }
@@ -1068,7 +1075,15 @@ const op = {mun:$("#opMun"), meso:$("#opMeso"), mesoNames:$("#opMesoNames"), sta
 op.mgFill = $("#opMgFill"); op.bgClipMG = $("#opBgClip");
 
 const rng = {iconScale:[$("#opIconScale"), $("#outIconScale"), v => Math.round(v*100)+"%"], nameSize:[$("#opNameSize"), $("#outNameSize"), v => (v/PT).toFixed(0)+" pt"]};
-{ const st = document.createElement("style"); st.textContent = "#szOut.sz-cheio{color:#f0a020}"; document.head.appendChild(st); }
+{ const st = document.createElement("style"); st.textContent = "#szAviso{position:absolute;z-index:50;background:#1f2328;color:#fff;font-size:12px;line-height:1.3;padding:6px 9px;border-radius:6px;max-width:240px;box-shadow:0 4px 14px rgba(0,0,0,.25);pointer-events:none;transition:opacity .3s}"; document.head.appendChild(st); }
+let avisoT = 0;
+function avisoTamanho(txt){
+  const so = $("#szOut"); if (!so || !txt) return;
+  let b = document.getElementById("szAviso"); if (!b){ b = document.createElement("div"); b.id = "szAviso"; document.body.appendChild(b); }
+  const r = so.getBoundingClientRect(); b.textContent = txt; b.style.opacity = "1";
+  b.style.left = Math.max(8, r.left + window.scrollX - 60) + "px"; b.style.top = (r.bottom + window.scrollY + 6) + "px";
+  clearTimeout(avisoT); avisoT = setTimeout(() => { b.style.opacity = "0"; }, 3500);
+}
 function fillOpts(){ S.opts.iconScale = Math.min(1, Math.max(0.2, +S.opts.iconScale || 0.5)); for (const k in op) op[k].checked = !!S.opts[k]; for (const k in rng){ rng[k][0].value = S.opts[k]; rng[k][1].textContent = rng[k][2](S.opts[k]); }
   $("#szOut").textContent = Math.round((S.opts.iconScale||1)*100) + "%"; }
 function stepIcons(d){ S.opts.iconScale = Math.round(Math.min(1, Math.max(0.2, (S.opts.iconScale||1) + d))*100)/100; fillOpts(); persist(); drawPreview(); }
