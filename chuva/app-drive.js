@@ -26,7 +26,7 @@ const mesoDisplay=L.geoJSON(MESO,{style:{color:'#454545',weight:1.15,fillOpacity
 (function(){const s=document.createElement('style');s.textContent='.leaflet-tooltip.lm-cidade{background:transparent;border:0;box-shadow:none;padding:0;color:#092b6a;font:700 12px Arial,"Liberation Sans",Helvetica,sans-serif;text-shadow:1px 1px 0 #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,0 1px 0 #fff,0 -1px 0 #fff}.leaflet-tooltip.lm-cidade:before{display:none}';document.head.appendChild(s);})();
 map.createPane('lmCidades').style.zIndex=450;   // cidades sempre por cima das áreas desenhadas
 L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'lmCidades',interactive:false,radius:1.9,color:'#1f2328',weight:0.9,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP||f.properties.nome||'';l.bindTooltip(n,{permanent:true,direction:'bottom',offset:[0,1],className:'lm-cidade'});}}).addTo(map);
-function levelById(id){return LEVELS.find(x=>x.id===id)||LEVELS[0]} function styleFor(l){return {color:l.stroke,weight:1.5,fillColor:l.fill,fillOpacity:l.opacity??1}}
+function levelById(id){return LEVELS.find(x=>x.id===id)||LEVELS[0]} function styleFor(l){return {stroke:false,color:l.stroke,weight:0,fillColor:l.fill,fillOpacity:l.opacity??1}}   // só preenchimento, sem contorno
 function renderLevels(){const el=document.getElementById('levels');el.innerHTML='';LEVELS.forEach(l=>{const b=document.createElement('button');b.className='level'+(l.id===selected.id?' active':'');b.innerHTML=`<span class="swatch" style="background:${l.fill}"></span>${l.label}`;b.onclick=()=>{selected=l;document.getElementById('currentLabel').textContent=l.label;renderLevels()};el.appendChild(b)});renderLegend();}
 function renderLegend(){document.getElementById('legend').innerHTML=LEVELS.slice().reverse().map(l=>`<div><span class="swatch" style="background:linear-gradient(${corLeg(l)},${corLeg(l)}),#ecf4f5"></span>${l.label}</div>`).join('')+'<div><span class="swatch lm-sem" style="background:#ecf4f5"></span>Sem Previsão de Chuvas</div>';try{atualizarAmostraSem();}catch(e){}}
 function renderLabelEditor(){const el=document.getElementById('labelEditor');el.innerHTML='';LEVELS.forEach(l=>{const r=document.createElement('div');r.className='labelrow';r.innerHTML=`<span class="swatch" style="background:${l.fill}"></span><input value="${l.label}" data-id="${l.id}">`;r.querySelector('input').oninput=e=>{l.label=e.target.value; if(selected.id===l.id)document.getElementById('currentLabel').textContent=l.label;renderLevels()};el.appendChild(r)})}
@@ -133,7 +133,7 @@ function criarEditorAreas(o){
     poly.fire('revert-edited',{layer:poly});   // faz o Leaflet.draw reler os vértices atuais
     poly.editing.enable();
   }
-  function estiloEdicao(nivel){return {...o.estilo(nivel),fillOpacity:.45,dashArray:'6 4',weight:2.5};}
+  function estiloEdicao(nivel){return {...o.estilo(nivel),stroke:true,fillOpacity:.45,dashArray:'6 4',weight:2.5};}   // contorno tracejado só enquanto edita
   function iniciar(layer){
     if(ed||o.desenhoAtivo())return;
     const antes=retrato();
@@ -331,7 +331,7 @@ function opcoesMapa(){
     titulo:nome+' - '+(product==='tendencia'?datasTendencia(trendDate1.value,trendDate2.value):(fd?brDate(fd):'data pendente')),
     validade:vd?{date:vd,time:(vt||'10:00').slice(0,5)}:null,
     credito:nome+' - SIMGE/IGAM, '+ano,
-    areas:fs.map(f=>{const lv=levelById(f.properties.level);return {geometry:f.geometry,fill:lv.fill,stroke:lv.stroke,opacity:lv.opacity}}),
+    areas:fs.map(f=>{const lv=levelById(f.properties.level);return {geometry:f.geometry,fill:lv.fill,stroke:'none',opacity:lv.opacity}}),
     legenda:usados.map(l=>({fill:l.fill,label:l.label,opacity:l.opacity})).concat([{fill:'#ffffff',label:'Sem Previsão de Chuvas'}]),
     cidades:CIDADES.features.map(f=>({nome:f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP||f.properties.nome||'',lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1]}))
   };

@@ -47,7 +47,7 @@ map.fitBounds(mesoDisplay.getBounds(),{padding:[25,25]});
 map.createPane('lmCidades').style.zIndex=450;   // cidades sempre por cima das áreas desenhadas
 L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'lmCidades',interactive:false,radius:1.9,color:'#1f2328',weight:0.9,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP;l.bindTooltip(n,{permanent:true,direction:'bottom',offset:[0,1],className:'lm-cidade'});}}).addTo(map);
 const microPriorityLayer={clearLayers(){},addData(){}}; // microrregiões ficam somente para cálculo textual
-function styleFor(lv){return {color:lv.stroke,weight:2,fillColor:lv.fill,fillOpacity:lv.opacity};}
+function styleFor(lv){return {stroke:false,color:lv.stroke,weight:0,fillColor:lv.fill,fillOpacity:lv.opacity};}   // só preenchimento, sem contorno
 function levelById(id){return LEVELS.find(x=>x.id===id)||LEVELS[0];}
 // v1.15: bordas suaves — curva que PASSA pelos pontos clicados (spline cardinal fechada, tensão baixa):
 // arredonda de leve, sem cortar a área nem estufar o desenho. O desenho original continua guardado para edição.
@@ -183,7 +183,7 @@ function criarEditorAreas(o){
     poly.fire('revert-edited',{layer:poly});   // faz o Leaflet.draw reler os vértices atuais
     poly.editing.enable();
   }
-  function estiloEdicao(nivel){return {...o.estilo(nivel),fillOpacity:.45,dashArray:'6 4',weight:2.5};}
+  function estiloEdicao(nivel){return {...o.estilo(nivel),stroke:true,fillOpacity:.45,dashArray:'6 4',weight:2.5};}   // contorno tracejado só enquanto edita
   function iniciar(layer){
     if(ed||o.desenhoAtivo())return;
     const antes=retrato();
@@ -433,7 +433,7 @@ function opcoesMapa(){
     titulo:'Tempo Severo - '+(fd?brDate(fd):'data pendente'),
     validade:vd?{date:vd,time:(vt||'10:00').slice(0,5)}:null,
     credito:'Tempo Severo - SIMGE/IGAM, '+ano,
-    areas:fs.map(f=>{const lv=levelById(f.properties.level);return {geometry:f.geometry,fill:lv.fill,stroke:lv.stroke,opacity:lv.opacity}}),
+    areas:fs.map(f=>{const lv=levelById(f.properties.level);return {geometry:f.geometry,fill:lv.fill,stroke:'none',opacity:lv.opacity}}),
     legenda:usados.map(l=>({fill:l.fill,label:l.label,opacity:l.opacity})).concat([{fill:'#ffffff',label:'Sem Tempestades'}]),
     cidades:CIDADES.features.map(f=>({nome:f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP||'',lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1]}))
   };
