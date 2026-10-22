@@ -359,6 +359,17 @@ function blockInMG(r, cx, cy){ return groupRects(r).solid.every(q => rectOut(cx+
    quanto mais longe disso, maior o custo. Ícones arrastados à mão ficam onde foram deixados. */
 // afastamento máximo aceitável (linha de ~1,5 cm); além disso o tamanho não cabe
 const EX_PERTO = 5, CAP_MAX = 14; let EX_MAX = EX_PERTO;
+// Linha de indicação: sai do ponto apontando para o CENTRO do ícone e para na borda do desenho (não "raspa"
+// de lado nem termina no vazio). Retorna [x1, y1, x2, y2] ou null quando o ícone já está colado no ponto.
+function linhaIcone(sx, sy, x, y, w, h){
+  const vx = sx - x, vy = sy - y, hw = w/2*0.8, hh = h/2*0.8;
+  const s = Math.min(Math.abs(vx) > 1e-9 ? hw/Math.abs(vx) : Infinity, Math.abs(vy) > 1e-9 ? hh/Math.abs(vy) : Infinity);
+  if (!(s < 1)) return null;
+  const ex = x + vx*s, ey = y + vy*s, L = Math.hypot(ex - sx, ey - sy);
+  if (L < PT_R + 2.6) return null;          // ícone praticamente colado: sem tracinho (evita "toquinhos")
+  const ux = (ex - sx)/L, uy = (ey - sy)/L;
+  return [sx + ux*(PT_R + 0.25), sy + uy*(PT_R + 0.25), ex - ux*0.35, ey - uy*0.35];
+}
 function layoutSede(){
   const ns = S.opts.nameSize || 3.5, nh = (ASC+DESC)*ns, SQ = PT_R + 0.35, M = 0.4;
   const auto = !!S.opts.autoSpread;
@@ -429,9 +440,9 @@ function layoutSede(){
       // não pode encostar em ponto ou nome de outro município (partes fixas)
       if (!q.fix && ALLFIX.some(f => f.ri !== ri && q.R.some(s => hitM(s, f.q)))) continue;
       // linha até o ícone (mesma regra do desenho): não pode cruzar nome/ponto de ninguém nem as próprias temperaturas
-      { const I0 = q.R[0], lx = Math.max(I0[0], Math.min(sx, I0[2])), ly = Math.max(I0[1], Math.min(sy, I0[3])), dd = Math.hypot(lx - sx, ly - sy);
-        q.L = !q.stack && dd > PT_R + 1.2 ? [sx + (lx - sx)/dd*(PT_R + 0.2), sy + (ly - sy)/dd*(PT_R + 0.2), lx, ly] : null; }
-      if (q.L && !q.fix && (ALLFIX.some(f => (f.ri !== ri || f.q !== pt) && segHit(q.L, f.q, 0.25)) || q.R.slice(1).some(s => segHit(q.L, s, 0.2)))) continue;
+      { const I0 = q.R[0]; q.L = q.stack ? null : linhaIcone(sx, sy, q.x, q.y, (I0[2] - I0[0])/0.98, (I0[3] - I0[1])/0.98); }
+      // com folga (o contorno branco dos textos é largo): nada de linha encostando em nome, ponto ou temperatura
+      if (q.L && !q.fix && (ALLFIX.some(f => (f.ri !== ri || f.q !== pt) && segHit(q.L, f.q, 0.6)) || q.R.slice(1).some(s => segHit(q.L, s, 0.9)))) continue;
       const J = q.R[0], gx = Math.max(J[0] - sx, 0, sx - J[2]), gy = Math.max(J[1] - sy, 0, sy - J[3]);
       q.ex = Math.max(0, Math.hypot(gx, gy) - PT_R - 0.35);
       if (q.stack) q.ex = 0;                                                  // empilhado sob o nome: fica junto, sem linha
@@ -580,8 +591,12 @@ function layoutSede(){
       if (!pior || pior.sel.cost < 3) break;
       tentados.add(pior);
       const cx = FIXED[pior.ri][0][0], cy = FIXED[pior.ri][0][1];
-      const U = [pior, ...nb[pior.ri].filter(o => o.sel && !o.sel.fix && o.all.length > 1)
-        .sort((u, v) => Math.hypot(FIXED[u.ri][0][0] - cx, FIXED[u.ri][0][1] - cy) - Math.hypot(FIXED[v.ri][0][0] - cx, FIXED[v.ri][0][1] - cy)).slice(0, 4)];
+      // quem está ocupando as posições melhores do pior colocado entra no grupo primeiro; depois os mais próximos
+      const melhores = pior.all.filter(c => c.cost < pior.sel.cost).slice(0, 60), bloq = new Map();
+      for (const c of melhores) for (const o of nb[pior.ri]) if (o.sel && !o.sel.fix && o.all.length > 1 && clash(c, o.sel)) bloq.set(o, (bloq.get(o) || 0) + 1);
+      const perto = nb[pior.ri].filter(o => o.sel && !o.sel.fix && o.all.length > 1 && !bloq.has(o))
+        .sort((u, v) => Math.hypot(FIXED[u.ri][0][0] - cx, FIXED[u.ri][0][1] - cy) - Math.hypot(FIXED[v.ri][0][0] - cx, FIXED[v.ri][0][1] - cy));
+      const U = [pior, ...[...bloq.keys()].sort((u, v) => bloq.get(v) - bloq.get(u)), ...perto].slice(0, 5);
       const ant = U.map(it => it.sel), custoAnt = ant.reduce((t, q) => t + q.cost, 0);
       U.forEach(it => { it.sel = null; });
       const op = U.map(it => it.all.filter(c => free(it, c)).slice(0, 70));
@@ -822,10 +837,8 @@ function renderSVG({forExport=false} = {}){
     if (S.opts.ptSede){
       const [sx, sy] = sedeXY(r), qx = sx - MAP.x, qy = sy - MAP.y;
       // linha fina do ponto até o ícone quando ele precisou ficar mais afastado
-      const lx = Math.max(x - w/2*0.94, Math.min(qx, x + w/2*0.94)), ly = Math.max(y - h/2*0.94, Math.min(qy, y + h/2*0.94));
-      if (!vz && !STACKED.has(r.id) && Math.hypot(lx - qx, ly - qy) > PT_R + 1.2){
-        const L = Math.hypot(lx - qx, ly - qy), ux = (lx - qx)/L, uy = (ly - qy)/L;
-        L_LINE.push(`<line x1="${f2(qx + ux*PT_R)}" y1="${f2(qy + uy*PT_R)}" x2="${f2(lx - ux*0.3)}" y2="${f2(ly - uy*0.3)}" stroke="#1f2328" stroke-width="0.3" stroke-linecap="round"/>`); }
+      const Ln = !vz && !STACKED.has(r.id) ? linhaIcone(qx, qy, x, y, w, h) : null;
+      if (Ln) L_LINE.push(`<line x1="${f2(Ln[0])}" y1="${f2(Ln[1])}" x2="${f2(Ln[2])}" y2="${f2(Ln[3])}" stroke="#ffffff" stroke-width="0.9" stroke-linecap="round" opacity=".85"/><line x1="${f2(Ln[0])}" y1="${f2(Ln[1])}" x2="${f2(Ln[2])}" y2="${f2(Ln[3])}" stroke="#2b3440" stroke-width="0.35" stroke-linecap="round"/>`);
       L_PT.push(`<circle cx="${f2(qx)}" cy="${f2(qy)}" r="${PT_R}" fill="#ffffff" stroke="#1f2328" stroke-width="0.25"/>`);
       const nr = NAME_POS.get(r.id), ncx = nr ? (nr[0]+nr[2])/2 - MAP.x : qx, nty = nr ? nr[1] - MAP.y : qy + PT_R + 0.35;
       if (S.opts.names) L_NAME.push(`<text x="${f2(ncx)}" y="${f2(nty + ASC*ns)}" font-family="${FONT}" font-size="${f2(ns)}" font-weight="700" fill="${navy}" text-anchor="middle" stroke="#fff" stroke-width="${f2(ns*0.3)}" stroke-linejoin="round" paint-order="stroke">${esc(r.name)}</text>`);
