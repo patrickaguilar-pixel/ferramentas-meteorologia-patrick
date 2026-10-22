@@ -299,7 +299,7 @@ window.addEventListener('mouseup',()=>{
       const a=state.drawPts[0],b=state.drawPts.at(-1);
       if(a[0]!==b[0]||a[1]!==b[1])state.drawPts.push(a);
       drawLine.setAttribute('points',state.drawPts.map(x=>x.join(',')).join(' '));
-      GEO.features.forEach(f=>{if(featureIntersectsDraw(f,state.drawPts))state.selected.add(f.properties.nome);});
+      guardarSel();GEO.features.forEach(f=>{if(featureIntersectsDraw(f,state.drawPts))state.selected.add(f.properties.nome);});
       updateSelection();
     }else drawLine.style.display='none';
     dragged=true;setMode('click');setTimeout(()=>{dragged=false;},50);
@@ -370,7 +370,7 @@ function atualizarCards(){
 }
 setInterval(()=>{pintarMapa();atualizarCards();},30000);
 
-function toggleCity(name){state.selected.has(name)?state.selected.delete(name):state.selected.add(name);updateSelection();}
+function toggleCity(name){guardarSel();state.selected.has(name)?state.selected.delete(name):state.selected.add(name);updateSelection();}
 function updateSelection(){
   pintarMapa();
   const arr=[...state.selected].sort((a,b)=>a.localeCompare(b,'pt-BR'));
@@ -378,8 +378,20 @@ function updateSelection(){
   $('selectedNames').textContent=arr.length?arr.join(', ')+'.':'Nenhum município selecionado.';
   $('create').disabled=!arr.length;
 }
-$('clear').onclick=()=>{state.selected.clear();drawLine.style.display='none';updateSelection();};
-$('novo').onclick=()=>{state.selected.clear();drawLine.style.display='none';setMode('click');updateSelection();mostrarAba('mapa');};
+$('clear').onclick=()=>{if(state.selected.size)guardarSel();state.selected.clear();drawLine.style.display='none';updateSelection();};
+$('novo').onclick=()=>{if(state.selected.size)guardarSel();state.selected.clear();drawLine.style.display='none';setMode('click');updateSelection();mostrarAba('mapa');};
+/* Desfazer: volta a seleção de municípios anterior (clique, desenho, busca, limpar) — botão no cabeçalho do mapa e Ctrl+Z */
+const HIST_SEL=[];
+function guardarSel(){HIST_SEL.push([...state.selected]);if(HIST_SEL.length>60)HIST_SEL.shift();atualizarDesfazer();}
+function desfazerSel(){if(!HIST_SEL.length)return;state.selected=new Set(HIST_SEL.pop());drawLine.style.display='none';updateSelection();atualizarDesfazer();}
+const btnDesfazerSel=document.createElement('button');
+btnDesfazerSel.type='button';btnDesfazerSel.className='btn';btnDesfazerSel.id='desfazerSel';btnDesfazerSel.disabled=true;
+btnDesfazerSel.title='Desfazer a última alteração na seleção de municípios (Ctrl+Z)';
+btnDesfazerSel.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>Desfazer';
+btnDesfazerSel.onclick=desfazerSel;
+function atualizarDesfazer(){btnDesfazerSel.disabled=!HIST_SEL.length;}
+{const cab=$('hMapa')&&$('hMapa').closest('header');if(cab){cab.appendChild(btnDesfazerSel);btnDesfazerSel.style.marginLeft='auto';}}
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&(e.key==='z'||e.key==='Z')){const t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;if($('modalback').style.display==='flex')return;e.preventDefault();desfazerSel();}});
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function showTip(ev,name){
@@ -520,7 +532,7 @@ $('emit').onclick=()=>{
       cities.forEach(city=>state.dailyRows.push({alertId:a.id,date,time:a.start,duration:a.duration,city}));
       $('pAlertas').value=($('pAlertas').value.trim()?$('pAlertas').value.trim()+'\n':'')+a.linha;
       if(querPc())baixarKml(cities,folder);   // cópia local, como no att_alerta (opção "Baixar também no PC")
-      state.selected.clear();drawLine.style.display='none';
+      state.selected.clear();drawLine.style.display='none';HIST_SEL.length=0;atualizarDesfazer();
       desenharAlertas();updateSelection();salvarRascunho();
       $('modalback').style.display='none';
       sincronizarAlertas();
@@ -598,7 +610,7 @@ $('findCity').onclick=()=>{
   const q=$('searchCity').value.trim().toLocaleLowerCase('pt-BR');if(!q)return;
   const f=GEO.features.find(x=>x.properties.nome.toLocaleLowerCase('pt-BR').includes(q));
   if(!f){$('searchCity').setCustomValidity('Município não encontrado.');$('searchCity').reportValidity();setTimeout(()=>$('searchCity').setCustomValidity(''),1500);return;}
-  state.selected.add(f.properties.nome);updateSelection();
+  guardarSel();state.selected.add(f.properties.nome);updateSelection();
   const c=xy(f.properties.label_lon,f.properties.label_lat);state.view={x:Math.max(0,c[0]-120),y:Math.max(0,c[1]-91),w:240,h:182.4};clampView();applyView();
 };
 $('searchCity').addEventListener('keydown',e=>{if(e.key==='Enter')$('findCity').click();});
@@ -1058,7 +1070,8 @@ garantirLayout().then(()=>{
   if(!$('centralizarMG')){const b=document.createElement('button');b.type='button';b.className='btn';b.id='centralizarMG';
     b.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3"/></svg>Centralizar Minas';
     b.onclick=()=>$('zoomReset').click();const lab=$('layoutFundo')&&$('layoutFundo').closest('label');
-    const cab=$('hMapa').closest('header');if(lab)cab.insertBefore(b,lab);else cab.appendChild(b);b.style.marginLeft=lab?'auto':'';if(lab)lab.style.marginLeft='0';}
+    const cab=$('hMapa').closest('header');if(lab)cab.insertBefore(b,lab);else cab.appendChild(b);b.style.marginLeft=lab?'auto':'';if(lab)lab.style.marginLeft='0';
+    cab.insertBefore(btnDesfazerSel,b);btnDesfazerSel.style.marginLeft='auto';b.style.marginLeft='0';}
   $('zoomReset').title='Centralizar Minas Gerais';
   // o seletor vale para a tela e para o mapa do relatório: fica visível nas duas abas
   document.addEventListener('layoutfundo',e=>aplicarFundoTela(e.detail||''));
