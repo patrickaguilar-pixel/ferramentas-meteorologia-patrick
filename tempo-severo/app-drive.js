@@ -8,7 +8,7 @@
    impedia clicar nelas para editar). */
 
 const LEVELS=[
- {id:'Nivel0',label:'Tempestades não severas',rank:0,fill:'#D2F7CB',opacity:0.33,stroke:'#5BCB59'},
+ {id:'Nivel0',label:'Tempestades não severas',rank:0,fill:'#82EA6E',opacity:0.5,stroke:'#4FB83C'},
  {id:'Nivel1',label:'Nível 1',rank:1,fill:'#FFFF00',opacity:0.6,stroke:'#b8b800'},
  {id:'Nivel2',label:'Nível 2',rank:2,fill:'#FFA500',opacity:0.7,stroke:'#e39000'},
  {id:'Nivel3',label:'Nível 3',rank:3,fill:'#EE0000',opacity:0.8,stroke:'#c60000'},

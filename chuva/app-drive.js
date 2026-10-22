@@ -8,7 +8,7 @@
    Ctrl+Z / Desfazer e a área guarda o desenho original (recorte em MG só para mostrar). */
 
 const LEVELS=[
-{id:'nao_significativa',rank:0,fill:'#BFEAF2',stroke:'#8FCBD6',label:'Chuva Não Significativa',opacity:0.5},
+{id:'nao_significativa',rank:0,fill:'#A7E3F0',stroke:'#7CC3D3',label:'Chuva Não Significativa',opacity:0.5},
 {id:'baixo',rank:1,fill:'#28E3F0',stroke:'#20B7C0',label:'20–40 mm',opacity:0.6},
 {id:'medio',rank:2,fill:'#21ADF3',stroke:'#178BC4',label:'40–60 mm',opacity:0.7},
 {id:'alto',rank:3,fill:'#0E6DFA',stroke:'#0B57C8',label:'60–80 mm',opacity:0.8},
