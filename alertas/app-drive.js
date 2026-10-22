@@ -607,13 +607,43 @@ $('undoLastAlert').onclick=()=>{
 };
 
 $('findCity').onclick=()=>{
-  const q=$('searchCity').value.trim().toLocaleLowerCase('pt-BR');if(!q)return;
-  const f=GEO.features.find(x=>x.properties.nome.toLocaleLowerCase('pt-BR').includes(q));
+  const q=semAcento($('searchCity').value.trim());if(!q)return;fecharSug();
+  const f=GEO.features.find(x=>semAcento(x.properties.nome)===q)||GEO.features.find(x=>semAcento(x.properties.nome).startsWith(q))||GEO.features.find(x=>semAcento(x.properties.nome).includes(q));
   if(!f){$('searchCity').setCustomValidity('Município não encontrado.');$('searchCity').reportValidity();setTimeout(()=>$('searchCity').setCustomValidity(''),1500);return;}
   guardarSel();state.selected.add(f.properties.nome);updateSelection();
   const c=xy(f.properties.label_lon,f.properties.label_lat);state.view={x:Math.max(0,c[0]-120),y:Math.max(0,c[1]-91),w:240,h:182.4};clampView();applyView();
 };
-$('searchCity').addEventListener('keydown',e=>{if(e.key==='Enter')$('findCity').click();});
+/* sugestões de municípios enquanto digita (sem diferenciar acentos/maiúsculas; ↑ ↓ para escolher, Enter vai) */
+function semAcento(t){return String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');}
+const NOMES_MUN=GEO.features.map(f=>f.properties.nome).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+let sugBox=null,sugIdx=-1,sugItens=[];
+function fecharSug(){if(sugBox)sugBox.style.display='none';sugIdx=-1;sugItens=[];}
+function escolherSug(nome){$('searchCity').value=nome;fecharSug();$('findCity').click();}
+function mostrarSug(){
+  const inp=$('searchCity'),q=semAcento(inp.value.trim());
+  if(!q){fecharSug();return;}
+  const ini=[],meio=[];
+  for(const n of NOMES_MUN){const k=semAcento(n);if(k.startsWith(q))ini.push(n);else if(k.includes(q))meio.push(n);if(ini.length>=8)break;}
+  sugItens=ini.concat(meio).slice(0,8);
+  if(!sugBox){sugBox=document.createElement('div');sugBox.className='sug-mun';sugBox.setAttribute('role','listbox');
+    const wrap=inp.closest('.search')||inp.parentNode;wrap.style.position='relative';wrap.appendChild(sugBox);}
+  if(!sugItens.length){sugBox.innerHTML='<div class="sug-vazio">Nenhum município encontrado</div>';sugBox.style.display='block';sugIdx=-1;return;}
+  const marca=n=>{const k=semAcento(n),i=k.indexOf(q);return i<0?esc(n):esc(n.slice(0,i))+'<b>'+esc(n.slice(i,i+q.length))+'</b>'+esc(n.slice(i+q.length));};
+  sugBox.innerHTML=sugItens.map((n,i)=>`<div class="sug-it${i===sugIdx?' on':''}" role="option" data-i="${i}">${marca(n)}</div>`).join('');
+  sugBox.querySelectorAll('.sug-it').forEach(el=>el.onmousedown=e=>{e.preventDefault();escolherSug(sugItens[+el.dataset.i]);});
+  sugBox.style.display='block';
+}
+$('searchCity').addEventListener('input',()=>{sugIdx=-1;mostrarSug();});
+$('searchCity').addEventListener('blur',()=>setTimeout(fecharSug,120));
+$('searchCity').addEventListener('keydown',e=>{
+  const aberto=sugBox&&sugBox.style.display==='block'&&sugItens.length;
+  if(e.key==='ArrowDown'&&aberto){e.preventDefault();sugIdx=(sugIdx+1)%sugItens.length;mostrarSug();}
+  else if(e.key==='ArrowUp'&&aberto){e.preventDefault();sugIdx=(sugIdx-1+sugItens.length)%sugItens.length;mostrarSug();}
+  else if(e.key==='Escape'){fecharSug();}
+  else if(e.key==='Enter'){e.preventDefault();if(aberto&&sugIdx>=0)escolherSug(sugItens[sugIdx]);else if(aberto&&sugItens.length===1)escolherSug(sugItens[0]);else $('findCity').click();}
+});
+{const st=document.createElement('style');st.textContent='.sug-mun{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:2000;background:var(--card,#16243a);border:1px solid var(--line,#2b3d57);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);max-height:280px;overflow:auto;padding:4px}'+
+  '.sug-it{padding:7px 10px;border-radius:6px;cursor:pointer;font-size:14px}.sug-it b{color:#4fb3ff}.sug-it:hover,.sug-it.on{background:rgba(79,179,255,.16)}.sug-vazio{padding:7px 10px;font-size:13px;opacity:.7}';document.head.appendChild(st);}
 
 /* ---------------- transparências ---------------- */
 function aplicarLimites(){const v=Number($('boundaryOpacity').value)/100;pathByName.forEach(p=>p.style.strokeOpacity=v);}
