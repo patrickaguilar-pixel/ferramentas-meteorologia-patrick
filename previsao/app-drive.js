@@ -358,6 +358,7 @@ function blockInMG(r, cx, cy){ return groupRects(r).solid.every(q => rectOut(cx+
    temperaturas e pontos de outros municípios). Preferência: ícone logo acima do ponto e nome logo abaixo;
    quanto mais longe disso, maior o custo. Ícones arrastados à mão ficam onde foram deixados. */
 // afastamento máximo aceitável (linha de ~1,5 cm); além disso o tamanho não cabe
+const GEN_CACHE = new Map();
 const EX_PERTO = 6, CAP_MAX = 14, TRACO_MIN = 1.8; let EX_MAX = EX_PERTO;   // TRACO_MIN: tamanho mínimo do tracinho (mm)
 // Linha de indicação: sai do ponto apontando para o CENTRO do ícone e para na borda do desenho (não "raspa"
 // de lado nem termina no vazio). Retorna [x1, y1, x2, y2] ou null quando o ícone já está colado no ponto.
@@ -395,7 +396,11 @@ function layoutSede(){
   // posições candidatas do ícone (com as temperaturas) de um município, no tamanho atual dele
   function gen(r, ri, capGen){
     const [sx, sy] = sedeXY(r), pt = FIXED[ri][0], nameQ = FIXED[ri][1] || null;
-    const cap = capGen || CAP_MAX;                                        // gera até o afastamento máximo; quem decide o quanto usar é a busca
+    const cap = capGen || CAP_MAX;
+    // só o que está por perto pode colidir (bem mais rápido do que testar o mapa inteiro a cada posição)
+    const RAIO = Math.max(15, cap + 12) + 40, perto = q => Math.max(q[0] - sx, 0, sx - q[2]) < RAIO && Math.max(q[1] - sy, 0, sy - q[3]) < RAIO;
+    const NF = ALLFIX.filter(f => perto(f.q)), NP = PTS.map((p, j) => [p, j]).filter(([p, j]) => j !== ri && Math.abs(p[0] - sx) < 2*RAIO && Math.abs(p[1] - sy) < 2*RAIO);
+    void 0;                                        // gera até o afastamento máximo; quem decide o quanto usar é a busca
     const g = groupRects(r), [nx0, ny0] = iconXY(r);
     const blkR = g.solid, blkL = g.solid.map((q, k) => k ? [-q[2], q[1], -q[0], q[3]] : q), blkB = g.sob ? [g.solid[0], g.sob] : null;   // temperaturas à direita ou à esquerda
     const I = g.solid[0];
@@ -438,13 +443,13 @@ function layoutSede(){
       q.out = q.R.reduce((t, s) => t + rectOut(...s), 0);
       if (q.out && !q.fix) continue;                                                      // ícone fora de Minas: descartado
       // não pode encostar em ponto ou nome de outro município (partes fixas)
-      if (!q.fix && ALLFIX.some(f => f.ri !== ri && q.R.some(s => hitM(s, f.q)))) continue;
+      if (!q.fix && NF.some(f => f.ri !== ri && q.R.some(s => hitM(s, f.q)))) continue;
       // linha até o ícone (mesma regra do desenho): não pode cruzar nome/ponto de ninguém nem as próprias temperaturas
       { const I0 = q.R[0]; q.L = q.stack ? null : linhaIcone(sx, sy, q.x, q.y, (I0[2] - I0[0])/0.98, (I0[3] - I0[1])/0.98); }
       // todo ícone fica um pouquinho afastado do ponto, com um tracinho mostrando de onde ele é
       if (!q.fix && (!q.L || Math.hypot(q.L[2] - q.L[0], q.L[3] - q.L[1]) < TRACO_MIN)) continue;
       // com folga (o contorno branco dos textos é largo): nada de linha encostando em nome, ponto ou temperatura
-      if (q.L && !q.fix && (ALLFIX.some(f => (f.ri !== ri || f.q !== pt) && segHit(q.L, f.q, 0.6)) || q.R.slice(1).some(s => segHit(q.L, s, 0.9)))) continue;
+      if (q.L && !q.fix && (NF.some(f => (f.ri !== ri || f.q !== pt) && segHit(q.L, f.q, 0.6)) || q.R.slice(1).some(s => segHit(q.L, s, 0.9)))) continue;
       const J = q.R[0], gx = Math.max(J[0] - sx, 0, sx - J[2]), gy = Math.max(J[1] - sy, 0, sy - J[3]);
       q.ex = Math.max(0, Math.hypot(gx, gy) - PT_R - 0.35);
       if (q.stack) q.ex = 0;                                                  // empilhado sob o nome: fica junto, sem linha
@@ -454,11 +459,11 @@ function layoutSede(){
       q.bb = [x1, y1, x2, y2];
       // o ícone tem de ficar claramente mais perto do próprio ponto do que de qualquer outro município
       if (!q.fix && q.ex <= EX_PERTO){ const cx = (x1 + x2)/2, cy = (y1 + y2)/2, d0 = Math.hypot(cx - sx, cy - sy);   // afastado com linha: a linha já mostra de quem é
-        if (PTS.some((p, j) => j !== ri && Math.hypot(cx - p[0], cy - p[1]) < d0 + 2)) continue; }
+        if (NP.some(([p]) => Math.hypot(cx - p[0], cy - p[1]) < d0 + 2)) continue; }
       // clareza: quanto mais o ícone fica perto do ponto de OUTRO município (comparado ao próprio), mais caro —
       // empurra os afastados para o lado livre, longe dos vizinhos (espalha de forma mais homogênea)
       if (!q.fix){ const ix = (x1 + x2)/2, iy = (y1 + y2)/2, dO = Math.hypot(q.x - sx, q.y - sy); let dm = Infinity;
-        for (let j = 0; j < PTS.length; j++) if (j !== ri){ const d = Math.min(Math.hypot(q.x - PTS[j][0], q.y - PTS[j][1]), Math.hypot(ix - PTS[j][0], iy - PTS[j][1])); if (d < dm) dm = d; }
+        for (const [P] of NP){ const d = Math.min(Math.hypot(q.x - P[0], q.y - P[1]), Math.hypot(ix - P[0], iy - P[1])); if (d < dm) dm = d; }
         q.cost += 1.6*Math.max(0, dO - dm + 4); }
       out.push(q);
     }
@@ -483,7 +488,11 @@ function layoutSede(){
   // se não houver arranjo sem encostar, só os municípios do aperto ganham um degrau a mais de afastamento
   // (com linha), e assim por diante — no fim, cada um volta para a posição livre mais próxima que houver.
   const items = S.rows.map((r, ri) => ({r, ri, step: 0, geo: 0, all: [], cands: [], sel: null, cap: EX_PERTO, minEx: 0}));
-  for (const it of items){ ROW_K.delete(it.r.id); if (!vazio(it.r)){ it.all = gen(it.r, it.ri); it.minEx = it.all.reduce((m, q) => Math.min(m, q.fix ? 0 : q.ex), Infinity); if (!isFinite(it.minEx)) it.minEx = 0; } }
+  // posições candidatas guardadas: dependem só do próprio município (ícone, temperaturas) e do que é fixo no
+  // mapa, então ao trocar um ícone só ele é recalculado (deixa a edição leve)
+  const baseGen = JSON.stringify([S.rows.map(r => r.id + "|" + r.name), S.opts.ptSede]);
+  const chaveGen = it => baseGen + JSON.stringify([iconK(), it.r.id, it.r.tempo, shownTemps(it.r), S.opts.temps, S.opts.names, S.opts.nameSize, auto, isPinned(it.r), it.r.dx, it.r.dy]);
+  for (const it of items){ ROW_K.delete(it.r.id); if (!vazio(it.r)){ const ck = chaveGen(it); it.all = GEN_CACHE.get(ck); if (!it.all){ it.all = gen(it.r, it.ri); if (GEN_CACHE.size > 600) GEN_CACHE.clear(); GEN_CACHE.set(ck, it.all); } it.minEx = it.all.reduce((m, q) => Math.min(m, q.fix ? 0 : q.ex), Infinity); if (!isFinite(it.minEx)) it.minEx = 0; } }
   const filtra = it => { const lim = Math.max(it.cap, it.minEx + 1); it.cands = it.all.filter(q => q.fix || q.ex <= lim); };
   const nb = items.map(it => items.filter(o => o !== it && Math.abs(FIXED[o.ri][0][0] - FIXED[it.ri][0][0]) < 95 && Math.abs(FIXED[o.ri][0][1] - FIXED[it.ri][0][1]) < 95));
   const free = (it, q) => nb[it.ri].every(o => !o.sel || !clash(q, o.sel));

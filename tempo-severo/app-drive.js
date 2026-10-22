@@ -47,7 +47,7 @@ map.fitBounds(mesoDisplay.getBounds(),{padding:[25,25]});
 map.createPane('lmCidades').style.zIndex=450;   // cidades sempre por cima das áreas desenhadas
 L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'lmCidades',interactive:false,radius:1.9,color:'#1f2328',weight:0.9,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP;l.bindTooltip(n,{permanent:true,direction:'bottom',offset:[0,1],className:'lm-cidade'});}}).addTo(map);
 const microPriorityLayer={clearLayers(){},addData(){}}; // microrregiões ficam somente para cálculo textual
-function styleFor(lv){return {stroke:false,color:lv.stroke,weight:0,fillColor:lv.fill,fillOpacity:lv.opacity};}   // só preenchimento, sem contorno
+function styleFor(lv){return {color:lv.stroke,weight:2,fillColor:lv.fill,fillOpacity:lv.opacity};}
 function levelById(id){return LEVELS.find(x=>x.id===id)||LEVELS[0];}
 // v1.15: bordas suaves — curva que PASSA pelos pontos clicados (spline cardinal fechada, tensão baixa):
 // arredonda de leve, sem cortar a área nem estufar o desenho. O desenho original continua guardado para edição.
@@ -183,7 +183,7 @@ function criarEditorAreas(o){
     poly.fire('revert-edited',{layer:poly});   // faz o Leaflet.draw reler os vértices atuais
     poly.editing.enable();
   }
-  function estiloEdicao(nivel){return {...o.estilo(nivel),stroke:true,fillOpacity:.45,dashArray:'6 4',weight:2.5};}   // contorno tracejado só enquanto edita
+  function estiloEdicao(nivel){return {...o.estilo(nivel),fillOpacity:.45,dashArray:'6 4',weight:2.5};}
   function iniciar(layer){
     if(ed||o.desenhoAtivo())return;
     const antes=retrato();
@@ -357,8 +357,23 @@ function toca(item,i,mf){
   if(!item.key)item.key=JSON.stringify(item.pf.geometry);
   let m=memoToque.get(item.key);if(!m){if(memoToque.size>300)memoToque.clear();m=new Map();memoToque.set(item.key,m);}
   if(m.has(i))return m.get(i);
-  let v=false;try{v=turf.booleanIntersects(mf,item.pf);}catch(e){}
+  let v=false;try{v=tocaRapido(mf,i,item);}catch(e){try{v=turf.booleanIntersects(mf,item.pf);}catch(e2){}}
   m.set(i,v);return v;
+}
+// teste rápido: primeiro vértices de um dentro do outro (resolve quase todos os casos); só no resto compara
+// os contornos, com versões simplificadas (~200 m) para não pesar
+const microSimples=[];
+function vertices(g,max){const out=[];const add=c=>out.push(c);const t=g.type;
+  if(t==='Polygon')g.coordinates.forEach(r=>r.forEach(add));else if(t==='MultiPolygon')g.coordinates.forEach(p=>p.forEach(r=>r.forEach(add)));
+  if(out.length<=max)return out;const st=out.length/max,r=[];for(let k=0;k<max;k++)r.push(out[Math.floor(k*st)]);return r;}
+function tocaRapido(mf,i,item){
+  if(!item.vs)item.vs=vertices(item.pf.geometry,40);
+  for(const c of item.vs)if(turf.booleanPointInPolygon(c,mf))return true;
+  if(!microSimples[i])microSimples[i]=turf.simplify(mf,{tolerance:0.002,highQuality:false});
+  const ms=microSimples[i];
+  for(const c of vertices(ms.geometry,40))if(turf.booleanPointInPolygon(c,item.pf))return true;
+  if(!item.simp)item.simp=turf.simplify(item.pf,{tolerance:0.002,highQuality:false});
+  return turf.booleanIntersects(ms,item.simp);
 }
 async function computeAssignments(){
  const data=await ensureMicroLoaded();
@@ -433,7 +448,7 @@ function opcoesMapa(){
     titulo:'Tempo Severo - '+(fd?brDate(fd):'data pendente'),
     validade:vd?{date:vd,time:(vt||'10:00').slice(0,5)}:null,
     credito:'Tempo Severo - SIMGE/IGAM, '+ano,
-    areas:fs.map(f=>{const lv=levelById(f.properties.level);return {geometry:f.geometry,fill:lv.fill,stroke:'none',opacity:lv.opacity}}),
+    areas:fs.map(f=>{const lv=levelById(f.properties.level);return {geometry:f.geometry,fill:lv.fill,stroke:lv.stroke,opacity:lv.opacity}}),
     legenda:usados.map(l=>({fill:l.fill,label:l.label,opacity:l.opacity})).concat([{fill:'#ffffff',label:'Sem Tempestades'}]),
     cidades:CIDADES.features.map(f=>({nome:f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP||'',lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1]}))
   };
