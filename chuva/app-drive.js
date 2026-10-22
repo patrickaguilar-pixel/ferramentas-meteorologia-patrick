@@ -59,7 +59,7 @@ function memo(chave,fn){if(memoRecorte.has(chave))return memoRecorte.get(chave);
 function clipFeature(f){const r=memo('c'+JSON.stringify(f.geometry),()=>{try{const sf=suavizarFeature(f);let mask=MG_MASK;try{const b=turf.bbox(sf),m=0.05;const bc=turf.bboxClip(MG_MASK,[b[0]-m,b[1]-m,b[2]+m,b[3]+m]);if(bc&&bc.geometry&&bc.geometry.coordinates&&bc.geometry.coordinates.length)mask=bc;}catch(e){}return turf.intersect(turf.featureCollection([sf,mask]))}catch(e){return null}});return r?{...r,properties:{...(r.properties||{})}}:null;}
 function addFeature(f,id){const cl=clipFeature(f);if(!cl)return [];const lv=levelById(id),added=[];const orig=JSON.parse(JSON.stringify(f));orig.properties={...(orig.properties||{}),level:id};L.geoJSON(cl,{style:styleFor(lv),onEachFeature:(ff,l)=>{l._level=id;l._orig=orig;drawnItems.addLayer(l);editorAreas.ligar(l);added.push(l);}});refreshZ();return added}
 window.delLayer=id=>{drawnItems.eachLayer(l=>{if(L.Util.stamp(l)===id)drawnItems.removeLayer(l)});refreshZ()}
-function refreshZ(){LEVELS.forEach(lv=>drawnItems.eachLayer(l=>{if(l._level===lv.id&&l.bringToFront)l.bringToFront()}))}
+function refreshZ(){LEVELS.forEach(lv=>drawnItems.eachLayer(l=>{if(l._level===lv.id&&l.bringToFront)l.bringToFront()}));if(window.recorteAreas)recorteAreas.agendar();}
 /* ===================== Editor de áreas (2026.10.06.1) =====================
    Comum ao Tempo Severo e à Chuva/Tendência (o mesmo código nos dois app-drive.js).
    - Clique numa área pronta: entra em edição (arrastar vértices; arrastar o ponto do meio
@@ -286,6 +286,79 @@ const editorAreas=criarEditorAreas({
 let drawControl;document.getElementById('drawBtn').onclick=()=>{drawControl=new L.Draw.Polygon(map,{allowIntersection:false,showArea:false,shapeOptions:styleFor(selected)});drawControl.enable();setStatus('Desenhando '+selected.label+'...')};
 map.on(L.Draw.Event.CREATED,e=>{const f=e.layer.toGeoJSON();editorAreas.empilhar();const n=addFeature(f,selected.id);setStatus(n.length?'Área criada. Clique nela para editar; Ctrl+Z desfaz.':'O desenho ficou fora de Minas Gerais e não foi adicionado.')});
 function features(){const a=[];editorAreas.cadaCamada(l=>{const f=l._orig?JSON.parse(JSON.stringify(l._orig)):l.toGeoJSON();f.properties={level:l._level};a.push(f)});return a}
+/* ===== Recorte de sobreposições (2026.10.22) =====
+   Comum ao Tempo Severo e à Chuva/Tendência (o mesmo código nos dois app-drive.js).
+   Com transparência, áreas sobrepostas misturam as cores. Com o recorte autorizado, a área de nível maior
+   (mais severa) recorta a de nível menor; entre áreas do mesmo nível, a mais antiga fica e a nova é recortada.
+   O desenho original de cada área é mantido (editar, mover ou apagar a de cima devolve o formato da de baixo). */
+function criarRecorte(o){
+  let decisao=null;try{decisao=localStorage.getItem(o.chave);}catch(e){}
+  let timer=0,banner=null,ctrl=null,temSobre=false;
+  const memoD=new Map();
+  const bboxOk=(a,b)=>!(a[2]<b[0]||a[0]>b[2]||a[3]<b[1]||a[1]>b[3]);
+  function itens(){const a=[];let i=0;o.grupo.eachLayer(l=>{const f=o.orig(l);if(!f)return;const g=o.clip(f);if(!g)return;a.push({l,i:i++,r:o.rank(l),g,bb:turf.bbox(g),k:JSON.stringify(g.geometry).length+':'+JSON.stringify(f.geometry)});});return a;}
+  function calcular(){
+    const xs=itens(),res=new Map();let sobre=false;
+    for(const x of xs){
+      const acima=xs.filter(y=>y!==x&&(y.r>x.r||(y.r===x.r&&y.i<x.i))&&bboxOk(x.bb,y.bb));
+      if(!acima.length){res.set(x.l,x.g);continue;}
+      const ck=x.k+'|'+acima.map(y=>y.k).join('|');
+      let v=memoD.get(ck);
+      if(v===undefined){
+        let g=x.g,cortou=false;
+        for(const y of acima){if(!g)break;try{const d=turf.difference(turf.featureCollection([g,y.g]));if(!d){g=null;cortou=true;break;}if(Math.abs(turf.area(d)-turf.area(g))>1e5)cortou=true;g=d;}catch(e){}}
+        v={g,cortou};if(memoD.size>400)memoD.clear();memoD.set(ck,v);
+      }
+      if(v.cortou)sobre=true;
+      res.set(x.l,v.g);
+    }
+    return {res,sobre,xs};
+  }
+  function setGeom(l,g){
+    if(!l.setLatLngs)return;
+    if(!g){l.setLatLngs([]);return;}
+    const G=g.geometry;l.setLatLngs(L.GeoJSON.coordsToLatLngs(G.coordinates,G.type==='Polygon'?1:2));
+  }
+  function aplicar(){
+    const {res,sobre,xs}=calcular();temSobre=sobre;
+    for(const x of xs)setGeom(x.l,decisao==='sim'?res.get(x.l):x.g);
+    mostrarBanner(sobre&&decisao===null);mostrarCtrl(sobre||decisao==='sim');
+    if(o.aoMudar)o.aoMudar();
+  }
+  function decidir(v){decisao=v;try{localStorage.setItem(o.chave,v);}catch(e){}aplicar();}
+  function mostrarBanner(on){
+    const box=o.map.getContainer();
+    if(!on){if(banner){banner.remove();banner=null;}return;}
+    if(banner)return;
+    banner=document.createElement('div');banner.className='rc-banner';
+    banner.innerHTML='<b>Há áreas sobrepostas.</b> Com a transparência, as cores se misturam. Autoriza a área de <b>nível maior</b> recortar a de nível menor (a mais severa fica por cima, inteira)?<div class="rc-bts"><button type="button" class="rc-sim">Recortar</button><button type="button" class="rc-nao">Manter sobreposição</button></div>';
+    L.DomEvent.disableClickPropagation(banner);L.DomEvent.disableScrollPropagation(banner);
+    banner.querySelector('.rc-sim').onclick=()=>decidir('sim');banner.querySelector('.rc-nao').onclick=()=>decidir('nao');
+    box.appendChild(banner);
+  }
+  function mostrarCtrl(on){
+    const box=o.map.getContainer();
+    if(!on){if(ctrl){ctrl.remove();ctrl=null;}return;}
+    if(!ctrl){ctrl=document.createElement('label');ctrl.className='rc-ctrl';ctrl.title='Área de nível maior recorta a de nível menor onde se sobrepõem';
+      ctrl.innerHTML='<input type="checkbox"> Recortar sobreposições';L.DomEvent.disableClickPropagation(ctrl);
+      ctrl.querySelector('input').onchange=e=>decidir(e.target.checked?'sim':'nao');box.appendChild(ctrl);}
+    ctrl.querySelector('input').checked=decisao==='sim';
+  }
+  if(!document.getElementById('rc-css')){const st=document.createElement('style');st.id='rc-css';st.textContent=
+    '.rc-banner{position:absolute;z-index:1000;left:50%;top:12px;transform:translateX(-50%);max-width:min(520px,90%);background:#fff;color:#16243a;border:1px solid #f0a020;border-left:5px solid #f0a020;border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.4;box-shadow:0 4px 16px rgba(9,43,106,.22)}'+
+    '.rc-bts{display:flex;gap:8px;margin-top:8px}.rc-bts button{border:0;border-radius:6px;padding:6px 12px;font-weight:600;cursor:pointer;font-size:13px}'+
+    '.rc-sim{background:#0b63c5;color:#fff}.rc-nao{background:#e9eef5;color:#16243a}'+
+    '.rc-ctrl{position:absolute;z-index:900;left:12px;bottom:14px;background:#fff;color:#111;border-radius:8px;padding:6px 9px;font-size:12px;box-shadow:0 1px 7px rgba(9,43,106,.2);display:flex;align-items:center;gap:6px;cursor:pointer}';
+    document.head.appendChild(st);}
+  return {
+    agendar(){clearTimeout(timer);timer=setTimeout(aplicar,60);},
+    decisao:()=>decisao,
+    // áreas como saem no mapa final/arquivos: recortadas se autorizado, senão como desenhadas (já recortadas em Minas)
+    finais(){const {res,xs}=calcular();return xs.map(x=>{const g=decisao==='sim'?res.get(x.l):x.g;if(!g)return null;const f={type:'Feature',geometry:g.geometry,properties:{...(o.orig(x.l).properties||{})}};return f;}).filter(Boolean);}
+  };
+}
+window.recorteAreas=criarRecorte({map,grupo:drawnItems,chave:'simge-chuva-recorte',orig:l=>l._orig,clip:f=>clipFeature(f),rank:l=>levelById(l._level).rank});
+recorteAreas.agendar();
 document.getElementById('clearBtn').onclick=()=>{if(confirm('Apagar todas as áreas deste produto?')){editorAreas.cancelar();editorAreas.empilhar();drawnItems.clearLayers();localStorage.removeItem('simge-chuva-tend-v02-'+product);setStatus('Áreas apagadas (Ctrl+Z desfaz).')}};
 document.getElementById('saveBtn').onclick=()=>{localStorage.setItem('simge-chuva-tend-v02-'+product,JSON.stringify(features()));setStatus('Produto salvo neste navegador.')};
 function loadProduct(){if(typeof editorAreas!=='undefined'){editorAreas.cancelar();editorAreas.zerarHistorico();}drawnItems.clearLayers();try{const arr=JSON.parse(localStorage.getItem('simge-chuva-tend-v02-'+product)||'[]');arr.forEach(f=>addFeature(f,f.properties.level));}catch(e){}}
@@ -297,7 +370,7 @@ function somaDias(v,n){const d=new Date(v+'T12:00:00');d.setDate(d.getDate()+n);
 function initDates(){const h=hojeMG();forecastDate.value=h;trendDate1.value=somaDias(h,1);trendDate2.value=somaDias(h,2);validUntil.value=`${somaDias(h,1)}T10:00`}initDates();loadProduct();
 function brDate(v){if(!v)return '';const [y,m,d]=v.split('-');return `${d}/${m}/${y}`}
 function union(fs){if(!fs.length)return null;if(fs.length===1)return fs[0];try{return turf.union(turf.featureCollection(fs))}catch(e){return fs[0]}}
-function visibleFeatures(){const src=features().map(f=>{const c=clipFeature(f);if(c)c.properties=f.properties;return c}).filter(Boolean),out=[];let high=null;for(const lv of LEVELS.slice().sort((a,b)=>b.rank-a.rank)){const same=src.filter(f=>f.properties.level===lv.id);for(const f of same){let v=f;if(high){try{v=turf.difference(turf.featureCollection([f,high]))}catch(e){}}if(v){v.properties={level:lv.id};out.push(v)}}const m=union(same);if(m)high=high?union([high,m]):m}return out.sort((a,b)=>levelById(a.properties.level).rank-levelById(b.properties.level).rank)}
+function visibleFeatures(){if(window.recorteAreas&&recorteAreas.decisao()==='nao')return recorteAreas.finais().sort((a,b)=>levelById(a.properties.level).rank-levelById(b.properties.level).rank);const src=features().map(f=>{const c=clipFeature(f);if(c)c.properties=f.properties;return c}).filter(Boolean),out=[];let high=null;for(const lv of LEVELS.slice().sort((a,b)=>b.rank-a.rank)){const same=src.filter(f=>f.properties.level===lv.id);for(const f of same){let v=f;if(high){try{v=turf.difference(turf.featureCollection([f,high]))}catch(e){}}if(v){v.properties={level:lv.id};out.push(v)}}const m=union(same);if(m)high=high?union([high,m]):m}return out.sort((a,b)=>levelById(a.properties.level).rank-levelById(b.properties.level).rank)}
 /* ===== mapa final no layout da Previsão diária (assets/layout-mapa.js) ===== */
 function addDaysIso(v,n){if(!v)return '';const d=new Date(v+'T12:00:00');d.setDate(d.getDate()+n);return iso(d)}
 function horaValidade(){return ((validUntil.value||'').split('T')[1]||'').slice(0,5)||'10:00'}
@@ -368,7 +441,7 @@ garantirLayoutMapa().then(()=>{
   if(LayoutMapa.fundoNoEditor)LayoutMapa.fundoNoEditor(map,{mg:MG_MASK,aoMudar:()=>atualizarAmostraSem()});
   if(LayoutMapa.editorExtras)LayoutMapa.editorExtras(map,{suavizarAnel,corDesenho:()=>selected.stroke||selected.fill,mg:MG_MASK,estados:BRASIL_ESTADOS,desenharEstados:false});
   if(LayoutMapa.painelAoVivo)LayoutMapa.painelAoVivo(document.querySelector('section.panel.preview'),opcoesMapa,'Mapa final — Chuva e Tendência',
-    ()=>JSON.stringify([features(),product,forecastDate.value,validUntil.value,(window.trendDate1||{}).value,(window.trendDate2||{}).value,LEVELS.map(l=>l.label)]));
+    ()=>JSON.stringify([features(),product,forecastDate.value,validUntil.value,(window.trendDate1||{}).value,(window.trendDate2||{}).value,LEVELS.map(l=>l.label),window.recorteAreas&&recorteAreas.decisao()]));
 }).catch(()=>{});
 // legenda da tela: "Sem Previsão de Chuvas" mostra como Minas aparece (recorte do mapa base ou o tom claro de Minas)
 let amostraPedido=0;

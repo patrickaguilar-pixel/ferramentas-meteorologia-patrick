@@ -100,6 +100,7 @@ function refreshZOrder(){
     drawnItems.eachLayer(l=>{if(l._severity===lv.id&&l.bringToFront)l.bringToFront();});
   });
   if(mesoDisplay.bringToFront)mesoDisplay.bringToFront();
+  if(window.recorteAreas)recorteAreas.agendar();
 }
 function addClippedFeatureToMap(feature,levelId){
   const clipped=clipFeatureToMG(feature);if(!clipped)return [];
@@ -343,6 +344,79 @@ map.on(L.Draw.Event.CREATED,e=>{
   setStatus(added.length?'Área de '+selected.label+' criada. Clique nela para editar; Ctrl+Z desfaz.':'O desenho ficou fora de Minas Gerais e não foi adicionado.');
 });
 map.on(L.Draw.Event.EDITED,()=>{reclipAllLayers();recalc();});
+/* ===== Recorte de sobreposições (2026.10.22) =====
+   Comum ao Tempo Severo e à Chuva/Tendência (o mesmo código nos dois app-drive.js).
+   Com transparência, áreas sobrepostas misturam as cores. Com o recorte autorizado, a área de nível maior
+   (mais severa) recorta a de nível menor; entre áreas do mesmo nível, a mais antiga fica e a nova é recortada.
+   O desenho original de cada área é mantido (editar, mover ou apagar a de cima devolve o formato da de baixo). */
+function criarRecorte(o){
+  let decisao=null;try{decisao=localStorage.getItem(o.chave);}catch(e){}
+  let timer=0,banner=null,ctrl=null,temSobre=false;
+  const memoD=new Map();
+  const bboxOk=(a,b)=>!(a[2]<b[0]||a[0]>b[2]||a[3]<b[1]||a[1]>b[3]);
+  function itens(){const a=[];let i=0;o.grupo.eachLayer(l=>{const f=o.orig(l);if(!f)return;const g=o.clip(f);if(!g)return;a.push({l,i:i++,r:o.rank(l),g,bb:turf.bbox(g),k:JSON.stringify(g.geometry).length+':'+JSON.stringify(f.geometry)});});return a;}
+  function calcular(){
+    const xs=itens(),res=new Map();let sobre=false;
+    for(const x of xs){
+      const acima=xs.filter(y=>y!==x&&(y.r>x.r||(y.r===x.r&&y.i<x.i))&&bboxOk(x.bb,y.bb));
+      if(!acima.length){res.set(x.l,x.g);continue;}
+      const ck=x.k+'|'+acima.map(y=>y.k).join('|');
+      let v=memoD.get(ck);
+      if(v===undefined){
+        let g=x.g,cortou=false;
+        for(const y of acima){if(!g)break;try{const d=turf.difference(turf.featureCollection([g,y.g]));if(!d){g=null;cortou=true;break;}if(Math.abs(turf.area(d)-turf.area(g))>1e5)cortou=true;g=d;}catch(e){}}
+        v={g,cortou};if(memoD.size>400)memoD.clear();memoD.set(ck,v);
+      }
+      if(v.cortou)sobre=true;
+      res.set(x.l,v.g);
+    }
+    return {res,sobre,xs};
+  }
+  function setGeom(l,g){
+    if(!l.setLatLngs)return;
+    if(!g){l.setLatLngs([]);return;}
+    const G=g.geometry;l.setLatLngs(L.GeoJSON.coordsToLatLngs(G.coordinates,G.type==='Polygon'?1:2));
+  }
+  function aplicar(){
+    const {res,sobre,xs}=calcular();temSobre=sobre;
+    for(const x of xs)setGeom(x.l,decisao==='sim'?res.get(x.l):x.g);
+    mostrarBanner(sobre&&decisao===null);mostrarCtrl(sobre||decisao==='sim');
+    if(o.aoMudar)o.aoMudar();
+  }
+  function decidir(v){decisao=v;try{localStorage.setItem(o.chave,v);}catch(e){}aplicar();}
+  function mostrarBanner(on){
+    const box=o.map.getContainer();
+    if(!on){if(banner){banner.remove();banner=null;}return;}
+    if(banner)return;
+    banner=document.createElement('div');banner.className='rc-banner';
+    banner.innerHTML='<b>Há áreas sobrepostas.</b> Com a transparência, as cores se misturam. Autoriza a área de <b>nível maior</b> recortar a de nível menor (a mais severa fica por cima, inteira)?<div class="rc-bts"><button type="button" class="rc-sim">Recortar</button><button type="button" class="rc-nao">Manter sobreposição</button></div>';
+    L.DomEvent.disableClickPropagation(banner);L.DomEvent.disableScrollPropagation(banner);
+    banner.querySelector('.rc-sim').onclick=()=>decidir('sim');banner.querySelector('.rc-nao').onclick=()=>decidir('nao');
+    box.appendChild(banner);
+  }
+  function mostrarCtrl(on){
+    const box=o.map.getContainer();
+    if(!on){if(ctrl){ctrl.remove();ctrl=null;}return;}
+    if(!ctrl){ctrl=document.createElement('label');ctrl.className='rc-ctrl';ctrl.title='Área de nível maior recorta a de nível menor onde se sobrepõem';
+      ctrl.innerHTML='<input type="checkbox"> Recortar sobreposições';L.DomEvent.disableClickPropagation(ctrl);
+      ctrl.querySelector('input').onchange=e=>decidir(e.target.checked?'sim':'nao');box.appendChild(ctrl);}
+    ctrl.querySelector('input').checked=decisao==='sim';
+  }
+  if(!document.getElementById('rc-css')){const st=document.createElement('style');st.id='rc-css';st.textContent=
+    '.rc-banner{position:absolute;z-index:1000;left:50%;top:12px;transform:translateX(-50%);max-width:min(520px,90%);background:#fff;color:#16243a;border:1px solid #f0a020;border-left:5px solid #f0a020;border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.4;box-shadow:0 4px 16px rgba(9,43,106,.22)}'+
+    '.rc-bts{display:flex;gap:8px;margin-top:8px}.rc-bts button{border:0;border-radius:6px;padding:6px 12px;font-weight:600;cursor:pointer;font-size:13px}'+
+    '.rc-sim{background:#0b63c5;color:#fff}.rc-nao{background:#e9eef5;color:#16243a}'+
+    '.rc-ctrl{position:absolute;z-index:900;left:12px;bottom:14px;background:#fff;color:#111;border-radius:8px;padding:6px 9px;font-size:12px;box-shadow:0 1px 7px rgba(9,43,106,.2);display:flex;align-items:center;gap:6px;cursor:pointer}';
+    document.head.appendChild(st);}
+  return {
+    agendar(){clearTimeout(timer);timer=setTimeout(aplicar,60);},
+    decisao:()=>decisao,
+    // áreas como saem no mapa final/arquivos: recortadas se autorizado, senão como desenhadas (já recortadas em Minas)
+    finais(){const {res,xs}=calcular();return xs.map(x=>{const g=decisao==='sim'?res.get(x.l):x.g;if(!g)return null;const f={type:'Feature',geometry:g.geometry,properties:{...(o.orig(x.l).properties||{})}};return f;}).filter(Boolean);}
+  };
+}
+window.recorteAreas=criarRecorte({map,grupo:drawnItems,chave:'simge-ts-recorte',orig:l=>l._orig,clip:f=>clipFeatureToMG(f),rank:l=>levelById(l._severity).rank});
+recorteAreas.agendar();
 function reclipAllLayers(){
   const fs=drawnFeatures();drawnItems.clearLayers();
   fs.forEach(f=>addClippedFeatureToMap(f,f.properties.level));
@@ -441,7 +515,7 @@ function brDateTime(v){if(!v)return '';const dt=new Date(v);return dt.toLocaleSt
 /* ===== mapa final no layout da Previsão diária (assets/layout-mapa.js) ===== */
 function opcoesMapa(){
   const fd=document.getElementById('forecastDate').value,ano=(fd||isoToday()).slice(0,4);
-  const fs=clippedDrawnFeatures().sort((a,b)=>levelById(a.properties.level).rank-levelById(b.properties.level).rank);
+  const fs=recorteAreas.finais().sort((a,b)=>levelById(a.properties.level).rank-levelById(b.properties.level).rank);
   const usados=LEVELS.filter(l=>fs.some(f=>f.properties.level===l.id)).sort((a,b)=>b.rank-a.rank);
   const [vd,vt]=(document.getElementById('validUntil').value||'').split('T');
   return {
@@ -563,5 +637,5 @@ garantirLayoutMapa().then(()=>{
   if(LayoutMapa.fundoNoEditor)LayoutMapa.fundoNoEditor(map,{mg:MG_MASK,aoMudar:null});
   if(LayoutMapa.editorExtras)LayoutMapa.editorExtras(map,{suavizarAnel,corDesenho:()=>selected.stroke||selected.fill,mg:MG_MASK,estados:window.BRASIL_ESTADOS});
   if(LayoutMapa.painelAoVivo)LayoutMapa.painelAoVivo(document.querySelector('section.panel.preview'),opcoesMapa,'Mapa final — Tempo Severo',
-    ()=>JSON.stringify([drawnFeatures(),document.getElementById('forecastDate').value,document.getElementById('validUntil').value]));
+    ()=>JSON.stringify([drawnFeatures(),document.getElementById('forecastDate').value,document.getElementById('validUntil').value,recorteAreas.decisao()]));
 }).catch(()=>{});
