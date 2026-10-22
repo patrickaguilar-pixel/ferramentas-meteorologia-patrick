@@ -359,7 +359,7 @@ function blockInMG(r, cx, cy){ return groupRects(r).solid.every(q => rectOut(cx+
    quanto mais longe disso, maior o custo. Ícones arrastados à mão ficam onde foram deixados. */
 // afastamento máximo aceitável (linha de ~1,5 cm); além disso o tamanho não cabe
 const GEN_CACHE = new Map();
-const EX_PERTO = 6, CAP_MAX = 14, TRACO_MIN = 1.8; let EX_MAX = EX_PERTO;   // TRACO_MIN: tamanho mínimo do tracinho (mm)
+const EX_PERTO = 5, CAP_MAX = 14; let EX_MAX = EX_PERTO;
 // Linha de indicação: sai do ponto apontando para o CENTRO do ícone e para na borda do desenho (não "raspa"
 // de lado nem termina no vazio). Retorna [x1, y1, x2, y2] ou null quando o ícone já está colado no ponto.
 function linhaIcone(sx, sy, x, y, w, h){
@@ -446,8 +446,6 @@ function layoutSede(){
       if (!q.fix && NF.some(f => f.ri !== ri && q.R.some(s => hitM(s, f.q)))) continue;
       // linha até o ícone (mesma regra do desenho): não pode cruzar nome/ponto de ninguém nem as próprias temperaturas
       { const I0 = q.R[0]; q.L = q.stack ? null : linhaIcone(sx, sy, q.x, q.y, (I0[2] - I0[0])/0.98, (I0[3] - I0[1])/0.98); }
-      // todo ícone fica um pouquinho afastado do ponto, com um tracinho mostrando de onde ele é
-      if (!q.fix && (!q.L || Math.hypot(q.L[2] - q.L[0], q.L[3] - q.L[1]) < TRACO_MIN)) continue;
       // com folga (o contorno branco dos textos é largo): nada de linha encostando em nome, ponto ou temperatura
       if (q.L && !q.fix && (NF.some(f => (f.ri !== ri || f.q !== pt) && segHit(q.L, f.q, 0.6)) || q.R.slice(1).some(s => segHit(q.L, s, 0.9)))) continue;
       const J = q.R[0], gx = Math.max(J[0] - sx, 0, sx - J[2]), gy = Math.max(J[1] - sy, 0, sy - J[3]);
