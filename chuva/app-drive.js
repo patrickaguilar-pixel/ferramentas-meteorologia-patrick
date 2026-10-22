@@ -105,8 +105,11 @@ function criarEditorAreas(o){
     '<button data-a="cancelar" title="Esc">Cancelar</button>'+
     '<button data-a="excluir" class="ea-perigo">Excluir área</button>');
   const btnDesfazer=document.createElement('button');
-  btnDesfazer.className='ea-desfazer';btnDesfazer.textContent='↶ Desfazer';btnDesfazer.title='Desfazer a última ação (Ctrl+Z)';
-  btnDesfazer.disabled=true;cont.appendChild(btnDesfazer);L.DomEvent.disableClickPropagation(btnDesfazer);
+  btnDesfazer.title='Desfazer a última ação (Ctrl+Z)';btnDesfazer.type='button';btnDesfazer.disabled=true;
+  // botão no cabeçalho do mapa (como na Previsão); sem cabeçalho, fica flutuando no canto do mapa
+  const cabMapa=document.getElementById('hMap')&&document.getElementById('hMap').closest('header');
+  if(cabMapa){btnDesfazer.className='btn small ea-desfazer-cab';btnDesfazer.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>Desfazer';cabMapa.appendChild(btnDesfazer);}
+  else{btnDesfazer.className='ea-desfazer';btnDesfazer.textContent='↶ Desfazer';cont.appendChild(btnDesfazer);L.DomEvent.disableClickPropagation(btnDesfazer);}
   const q=(b,a)=>b.querySelector(`[data-a="${a}"]`);
   const sel=q(barraEdicao,'nivel');
   sel.innerHTML=o.niveis().map(n=>`<option value="${n.id}">${n.label}</option>`).join('');
@@ -292,7 +295,7 @@ function features(){const a=[];editorAreas.cadaCamada(l=>{const f=l._orig?JSON.p
    (mais severa) recorta a de nível menor; entre áreas do mesmo nível, a mais antiga fica e a nova é recortada.
    O desenho original de cada área é mantido (editar, mover ou apagar a de cima devolve o formato da de baixo). */
 function criarRecorte(o){
-  let decisao=null;try{decisao=localStorage.getItem(o.chave);}catch(e){}
+  let decisao='sim';   // sempre recorta (a mensagem de autorização foi retirada a pedido)
   let timer=0,banner=null,ctrl=null,temSobre=false;
   const memoD=new Map();
   const bboxOk=(a,b)=>!(a[2]<b[0]||a[0]>b[2]||a[3]<b[1]||a[1]>b[3]);
@@ -322,7 +325,6 @@ function criarRecorte(o){
   function aplicar(){
     const {res,sobre,xs}=calcular();temSobre=sobre;
     for(const x of xs)setGeom(x.l,decisao==='sim'?res.get(x.l):x.g);
-    mostrarBanner(sobre&&decisao===null);mostrarCtrl(sobre||decisao==='sim');
     if(o.aoMudar)o.aoMudar();
   }
   function decidir(v){decisao=v;try{localStorage.setItem(o.chave,v);}catch(e){}aplicar();}
