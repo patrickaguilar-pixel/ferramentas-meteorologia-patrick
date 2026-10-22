@@ -8,11 +8,13 @@
    Ctrl+Z / Desfazer e a área guarda o desenho original (recorte em MG só para mostrar). */
 
 const LEVELS=[
-{id:'nao_significativa',rank:0,fill:'#BFEAF2',stroke:'#8FCBD6',label:'Chuva Não Significativa'},
-{id:'baixo',rank:1,fill:'#28E3F0',stroke:'#20B7C0',label:'20–40 mm'},
-{id:'medio',rank:2,fill:'#21ADF3',stroke:'#178BC4',label:'40–60 mm'},
-{id:'alto',rank:3,fill:'#0E6DFA',stroke:'#0B57C8',label:'60–80 mm'},
-{id:'muitoalto',rank:4,fill:'#191EB4',stroke:'#111579',label:'Acima de 80 mm'}];
+{id:'nao_significativa',rank:0,fill:'#BFEAF2',stroke:'#8FCBD6',label:'Chuva Não Significativa',pct:50},
+{id:'baixo',rank:1,fill:'#28E3F0',stroke:'#20B7C0',label:'20–40 mm',pct:60},
+{id:'medio',rank:2,fill:'#21ADF3',stroke:'#178BC4',label:'40–60 mm',pct:70},
+{id:'alto',rank:3,fill:'#0E6DFA',stroke:'#0B57C8',label:'60–80 mm',pct:80},
+{id:'muitoalto',rank:4,fill:'#191EB4',stroke:'#111579',label:'Acima de 80 mm',pct:90}];
+// porcentagem de cada nível, mostrada na legenda (tela e mapa final)
+const pctTxt=l=>(l.pct!=null&&l.pct!=='')?`${l.pct}%`:'';
 let selected=LEVELS[0], product='chuva';
 const MG_MASK=((window.BRASIL_ESTADOS&&BRASIL_ESTADOS.features)||[]).find(f=>f.properties.UF==='MG')||turf.union(turf.featureCollection(MESO.features));
 const map=L.map('map',{zoomControl:true,attributionControl:false,minZoom:5,maxZoom:12});
@@ -26,8 +28,8 @@ map.createPane('lmCidades').style.zIndex=450;   // cidades sempre por cima das �
 L.geoJSON(CIDADES,{pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'lmCidades',interactive:false,radius:1.9,color:'#1f2328',weight:0.9,fillColor:'#fff',fillOpacity:1}),onEachFeature:(f,l)=>{const n=f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP||f.properties.nome||'';l.bindTooltip(n,{permanent:true,direction:'bottom',offset:[0,1],className:'lm-cidade'});}}).addTo(map);
 function levelById(id){return LEVELS.find(x=>x.id===id)||LEVELS[0]} function styleFor(l){return {color:l.stroke,weight:1.5,fillColor:l.fill,fillOpacity:1}}
 function renderLevels(){const el=document.getElementById('levels');el.innerHTML='';LEVELS.forEach(l=>{const b=document.createElement('button');b.className='level'+(l.id===selected.id?' active':'');b.innerHTML=`<span class="swatch" style="background:${l.fill}"></span>${l.label}`;b.onclick=()=>{selected=l;document.getElementById('currentLabel').textContent=l.label;renderLevels()};el.appendChild(b)});renderLegend();}
-function renderLegend(){document.getElementById('legend').innerHTML=LEVELS.slice().reverse().map(l=>`<div><span class="swatch" style="background:${l.fill}"></span>${l.label}</div>`).join('')+'<div><span class="swatch lm-sem" style="background:#ecf4f5"></span>Sem Previsão de Chuvas</div>';try{atualizarAmostraSem();}catch(e){}}
-function renderLabelEditor(){const el=document.getElementById('labelEditor');el.innerHTML='';LEVELS.forEach(l=>{const r=document.createElement('div');r.className='labelrow';r.innerHTML=`<span class="swatch" style="background:${l.fill}"></span><input value="${l.label}" data-id="${l.id}">`;r.querySelector('input').oninput=e=>{l.label=e.target.value; if(selected.id===l.id)document.getElementById('currentLabel').textContent=l.label;renderLevels()};el.appendChild(r)})}
+function renderLegend(){document.getElementById('legend').innerHTML=LEVELS.slice().reverse().map(l=>`<div><span class="swatch" style="background:${l.fill}"></span>${l.label}${pctTxt(l)?` <b class="lm-pct">${pctTxt(l)}</b>`:''}</div>`).join('')+'<div><span class="swatch lm-sem" style="background:#ecf4f5"></span>Sem Previsão de Chuvas</div>';try{atualizarAmostraSem();}catch(e){}}
+function renderLabelEditor(){const el=document.getElementById('labelEditor');el.innerHTML='';LEVELS.forEach(l=>{const r=document.createElement('div');r.className='labelrow';r.innerHTML=`<span class="swatch" style="background:${l.fill}"></span><input value="${l.label}" data-id="${l.id}"><input class="lm-pctin" type="number" min="0" max="100" step="1" value="${l.pct??''}" title="Porcentagem na legenda" aria-label="Porcentagem de ${l.label}">`;r.querySelector('.lm-pctin').oninput=e=>{l.pct=e.target.value===''?null:+e.target.value;renderLevels()};r.querySelector('input').oninput=e=>{l.label=e.target.value; if(selected.id===l.id)document.getElementById('currentLabel').textContent=l.label;renderLevels()};el.appendChild(r)})}
 renderLabelEditor();renderLevels();
 function setStatus(s){document.getElementById('status').textContent=s}
 // v1.15: bordas suaves — curva que PASSA pelos pontos clicados (spline cardinal fechada, tensão baixa):
@@ -330,7 +332,7 @@ function opcoesMapa(){
     validade:vd?{date:vd,time:(vt||'10:00').slice(0,5)}:null,
     credito:nome+' - SIMGE/IGAM, '+ano,
     areas:fs.map(f=>{const lv=levelById(f.properties.level);return {geometry:f.geometry,fill:lv.fill,stroke:lv.stroke}}),
-    legenda:usados.map(l=>({fill:l.fill,label:l.label})).concat([{fill:'#ffffff',label:'Sem Previsão de Chuvas'}]),
+    legenda:usados.map(l=>({fill:l.fill,label:l.label,pct:pctTxt(l)})).concat([{fill:'#ffffff',label:'Sem Previsão de Chuvas'}]),
     cidades:CIDADES.features.map(f=>({nome:f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP||f.properties.nome||'',lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1]}))
   };
 }
@@ -366,7 +368,7 @@ garantirLayoutMapa().then(()=>{
   if(LayoutMapa.fundoNoEditor)LayoutMapa.fundoNoEditor(map,{mg:MG_MASK,aoMudar:()=>atualizarAmostraSem()});
   if(LayoutMapa.editorExtras)LayoutMapa.editorExtras(map,{suavizarAnel,corDesenho:()=>selected.stroke||selected.fill,mg:MG_MASK,estados:BRASIL_ESTADOS,desenharEstados:false});
   if(LayoutMapa.painelAoVivo)LayoutMapa.painelAoVivo(document.querySelector('section.panel.preview'),opcoesMapa,'Mapa final — Chuva e Tendência',
-    ()=>JSON.stringify([features(),product,forecastDate.value,validUntil.value,(window.trendDate1||{}).value,(window.trendDate2||{}).value,LEVELS.map(l=>l.label)]));
+    ()=>JSON.stringify([features(),product,forecastDate.value,validUntil.value,(window.trendDate1||{}).value,(window.trendDate2||{}).value,LEVELS.map(l=>l.label+'|'+(l.pct??''))]));
 }).catch(()=>{});
 // legenda da tela: "Sem Previsão de Chuvas" mostra como Minas aparece (recorte do mapa base ou o tom claro de Minas)
 let amostraPedido=0;

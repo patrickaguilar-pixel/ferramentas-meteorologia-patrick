@@ -8,11 +8,11 @@
    impedia clicar nelas para editar). */
 
 const LEVELS=[
- {id:'Nivel0',label:'Tempestades não severas',rank:0,fill:'#D2F7CB',opacity:1,stroke:'#5BCB59'},
- {id:'Nivel1',label:'Nível 1',rank:1,fill:'#FFFF00',opacity:1,stroke:'#b8b800'},
- {id:'Nivel2',label:'Nível 2',rank:2,fill:'#FFA500',opacity:1,stroke:'#e39000'},
- {id:'Nivel3',label:'Nível 3',rank:3,fill:'#EE0000',opacity:1,stroke:'#c60000'},
- {id:'Nivel4',label:'Nível 4',rank:4,fill:'#FF00FF',opacity:1,stroke:'#b400b4'}
+ {id:'Nivel0',label:'Tempestades não severas',pct:33,rank:0,fill:'#D2F7CB',opacity:1,stroke:'#5BCB59'},
+ {id:'Nivel1',label:'Nível 1',pct:60,rank:1,fill:'#FFFF00',opacity:1,stroke:'#b8b800'},
+ {id:'Nivel2',label:'Nível 2',pct:70,rank:2,fill:'#FFA500',opacity:1,stroke:'#e39000'},
+ {id:'Nivel3',label:'Nível 3',pct:80,rank:3,fill:'#EE0000',opacity:1,stroke:'#c60000'},
+ {id:'Nivel4',label:'Nível 4',pct:90,rank:4,fill:'#FF00FF',opacity:1,stroke:'#b400b4'}
 ];
 let selected=LEVELS[0];
 const map=L.map('map',{zoomControl:true,attributionControl:false,minZoom:5,maxZoom:12});
@@ -108,7 +108,7 @@ function addClippedFeatureToMap(feature,levelId){
   L.geoJSON(clipped,{style:styleFor(lv),onEachFeature:(f,l)=>{l._severity=lv.id;l._orig=orig;drawnItems.addLayer(l);attachPopup(l);added.push(l);}});
   refreshZOrder();return added;
 }
-function renderLevels(){const el=document.getElementById('levels');el.innerHTML='';LEVELS.forEach(lv=>{const b=document.createElement('button');b.className='level'+(lv.id===selected.id?' active':'');b.innerHTML=`<span class="swatch" style="background:${lv.fill}"></span>${lv.label}`;b.onclick=()=>{selected=lv;document.getElementById('currentLabel').textContent=lv.label;renderLevels();};el.appendChild(b)});document.getElementById('legend').innerHTML=LEVELS.map(l=>`<div><span class="swatch" style="background:${l.fill}"></span>${l.label}</div>`).join('');}
+function renderLevels(){const el=document.getElementById('levels');el.innerHTML='';LEVELS.forEach(lv=>{const b=document.createElement('button');b.className='level'+(lv.id===selected.id?' active':'');b.innerHTML=`<span class="swatch" style="background:${lv.fill}"></span>${lv.label}`;b.onclick=()=>{selected=lv;document.getElementById('currentLabel').textContent=lv.label;renderLevels();};el.appendChild(b)});document.getElementById('legend').innerHTML=LEVELS.map(l=>`<div><span class="swatch" style="background:${l.fill}"></span>${l.label}${l.pct!=null?` <b class="lm-pct">${l.pct}%</b>`:''}</div>`).join('');}
 renderLevels();
 /* ===================== Editor de áreas (2026.10.06.1) =====================
    Comum ao Tempo Severo e à Chuva/Tendência (o mesmo código nos dois app-drive.js).
@@ -434,7 +434,7 @@ function opcoesMapa(){
     validade:vd?{date:vd,time:(vt||'10:00').slice(0,5)}:null,
     credito:'Tempo Severo - SIMGE/IGAM, '+ano,
     areas:fs.map(f=>{const lv=levelById(f.properties.level);return {geometry:f.geometry,fill:lv.fill,stroke:lv.stroke}}),
-    legenda:usados.map(l=>({fill:l.fill,label:l.label})).concat([{fill:'#ffffff',label:'Sem Tempestades'}]),
+    legenda:usados.map(l=>({fill:l.fill,label:l.label,pct:l.pct!=null?l.pct+'%':''})).concat([{fill:'#ffffff',label:'Sem Tempestades'}]),
     cidades:CIDADES.features.map(f=>({nome:f.properties.NM_LOCAL_1||f.properties.NM_MUNICIP||'',lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1]}))
   };
 }

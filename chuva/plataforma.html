@@ -203,7 +203,8 @@ main.tool{grid-template-columns:minmax(360px,440px) 1fr}
 .list-card{border:1px solid var(--line);border-radius:9px;padding:9px 10px}
 .list-card b{display:flex;align-items:center;margin-bottom:4px}
 .list-card p{margin:0;line-height:1.45;color:var(--ink-2)}
-.labelrow{display:grid;grid-template-columns:20px 1fr;align-items:center;gap:6px;margin-bottom:6px}
+.lm-pct{margin-left:auto;padding-left:8px;font-variant-numeric:tabular-nums}
+.labelrow{display:grid;grid-template-columns:20px 1fr 64px;align-items:center;gap:6px;margin-bottom:6px}
 .labelrow input{width:100%;border:1px solid var(--line);background:var(--card);border-radius:7px;padding:6px 9px;min-height:34px}
 .secbody .hint{padding:0}
 .secbody input[type=date].field,.secbody input[type=datetime-local].field{width:100%}
@@ -212,7 +213,7 @@ main.tool{grid-template-columns:minmax(360px,440px) 1fr}
 .mapbox #map,.map-wrap{height:100%;width:100%}
 .mapbox .toolbar{position:absolute;z-index:1000;top:10px;left:55px;right:60px;width:max-content;max-width:calc(100% - 115px);background:var(--card);color:var(--ink);padding:7px 11px;border-radius:8px;box-shadow:0 1px 7px rgba(9,43,106,.2);font-size:13.5px}
 .mapbox .legend{position:absolute;z-index:900;right:12px;bottom:14px;background:#fff;color:#111;padding:9px;border-radius:8px;box-shadow:0 1px 7px rgba(9,43,106,.2);font-size:12px}
-.mapbox .legend div{margin:3px 0}
+.mapbox .legend div{margin:3px 0;display:flex;align-items:center;gap:4px}
 .city-label{background:transparent;border:none;box-shadow:none;color:#111;font-weight:700;font-size:10px;text-shadow:1px 1px 0 #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff}
 .leaflet-tooltip.city-label:before{display:none}
 .micro-highlight{pointer-events:none}
@@ -302,15 +303,15 @@ main.tool{grid-template-columns:minmax(360px,440px) 1fr}
         <div class="legend" id="legend"></div>
       </div>
     </div>
-    <div class="vbar">Chuva + Tendência v0.3 · mapa no layout da Previsão · 1.15l-20261021</div>
+    <div class="vbar">Chuva + Tendência v0.3 · mapa no layout da Previsão · 1.15m-20261022</div>
   </section>
 </main>
 
 <script src="../assets/lib/leaflet-1.9.4/leaflet.js"></script><script src="../assets/lib/leaflet.draw-1.0.4/leaflet.draw.js"></script><script src="../assets/lib/turf-7.4.0/turf.min.js"></script><script src="../chuva/data/meso.js"></script><script src="../chuva/data/cidades.js"></script><script src="../chuva/data/brasil_estados.js"></script>
 <script>window.BASE_DADOS='../';window.FERRAMENTA='chuva';window.PONTE_SELO='PNG é salvo no Drive';</script>
-<script src="../previsao/data/geo.js?v=1.15l-20261021"></script>
-<script src="../assets/layout-mapa.js?v=1.15l-20261021"></script>
-<script src="../chuva/app-drive.js?v=1.15l-20261021"></script>
-<script src="../assets/ponte-drive.js?v=1.15l-20261021"></script>
+<script src="../previsao/data/geo.js?v=1.15m-20261022"></script>
+<script src="../assets/layout-mapa.js?v=1.15m-20261022"></script>
+<script src="../chuva/app-drive.js?v=1.15m-20261022"></script>
+<script src="../assets/ponte-drive.js?v=1.15m-20261022"></script>
 </body>
 </html>

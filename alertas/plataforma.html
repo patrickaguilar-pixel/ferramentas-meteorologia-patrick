@@ -401,7 +401,7 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
       <span><i style="background:#f29f54"></i>perto de vencer</span>
       <span><i style="background:#d9534f"></i>prazo vencido</span>
       <span><i class="ln"></i>limite de mesorregião</span>
-      <span class="ver">Versão 1.15l-20261021</span>
+      <span class="ver">Versão 1.15m-20261022</span>
     </div>
   </section>
 </main>
@@ -491,7 +491,7 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
     </header>
     <div class="msg" id="relMsg" hidden role="status" aria-live="polite"></div>
     <div class="pages" id="relPages"></div>
-    <div class="vbar">Versão 1.15l-20261021</div>
+    <div class="vbar">Versão 1.15m-20261022</div>
   </section>
 </main>
 
@@ -568,14 +568,14 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
     info.innerHTML='<b>Minas Gerais</b> • carregando '+falta.map(function(k){return nomes[k];}).join(' e ')+'… ('+s+' s)'+
       (s>=20?'<br><span style="color:#b3261e">Está demorando. Confira a internet e recarregue com Ctrl+F5. Arquivo: '+BASE+'alertas/data/'+falta[0]+'.js</span>':'');
   },1000);
-  window.BASE_DADOS=BASE;window.VERSAO_APP='1.15l-20261021';
+  window.BASE_DADOS=BASE;window.VERSAO_APP='1.15m-20261022';
   window.alertasDados=Promise.all([
     carregar(BASE+'alertas/data/municipios.js').then(function(){pendentes.municipios=false;}),
     carregar(BASE+'alertas/data/mesorregioes.js').then(function(){pendentes.mesorregioes=false;},function(){pendentes.mesorregioes=false;}),  // opcional
-    carregar(BASE+'alertas/app-drive.js?v=1.15l-20261021')     // código da página (GitHub Pages)
+    carregar(BASE+'alertas/app-drive.js?v=1.15m-20261022')     // código da página (GitHub Pages)
   ]);
   // jsPDF só é usado no relatório: carrega depois, sem atrasar o mapa
-  window.alertasJsPdf=window.alertasDados.catch(function(){}).then(function(){return carregar(BASE+'previsao/lib/jspdf.umd.min.js?v=1.15l-20261021');});
+  window.alertasJsPdf=window.alertasDados.catch(function(){}).then(function(){return carregar(BASE+'previsao/lib/jspdf.umd.min.js?v=1.15m-20261022');});
 })();
 </script>
 </body>
