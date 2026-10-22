@@ -1,6 +1,10 @@
-/* Alertas e passagem de plantão — código da página (v3.8, 21/10/2026).
+/* Alertas e passagem de plantão — código da página (v3.9, 22/10/2026).
+   v3.9: botão Desfazer no cabeçalho do mapa (e Ctrl+Z) para a seleção de municípios; sugestões de
+   municípios enquanto digita em "Localizar município" (sem diferenciar acentos/maiúsculas).
    v3.8: o mapa do relatório passa a ser desenhado no layout da Previsão diária (assets/layout-mapa.js):
-   297 × 210 mm, cabeçalho, legenda, rodapé com logos, as 25 cidades de referência e os mesmos mapas base.
+   297 × 210 mm, cabeçalho, legenda, rodapé com logos, as 25 cidades de referência e os mesmos mapas base;
+   na tela, mapa base por baixo dos municípios, estados vizinhos, as 25 cidades e "Centralizar Minas".
+   v3.7.1: camadas RealEarth baixadas antes em segundo plano, com até 3 tentativas e aviso por camada.
    v3.7: intervalo/revezamento no turno (início, fim e observações) e horários de publicação das duas
    previsões diárias (cada linha: Manhã/Tarde + horário). Vão para o relatório em PDF, o rascunho e a
    planilha (colunas novas no fim da aba Plantoes, criadas pelo Codigo.gs 2026.10.20.1).
@@ -196,13 +200,30 @@ function aplicarFundoTela(id){
   }).catch(()=>{});
 }
 
-/* ---------------- camadas meteorológicas (RealEarth / SSEC) ---------------- */
+/* ---------------- camadas meteorológicas (RealEarth / SSEC) ----------------
+   v3.7.1: cada camada é baixada antes em segundo plano (new Image) e só vai para o mapa
+   se chegar inteira. Assim a falha é identificada por camada, com nome, e não gera a faixa
+   vermelha "[object SVGAnimatedString]". Até 3 tentativas por camada; se todas falharem,
+   a camada some do mapa, o botão fica marcado e aparece um aviso discreto. */
 const WX={
   irBase:'https://realearth.ssec.wisc.edu/cgi-bin/mapserv?map=G19-ABI-FD-BAND13-GRAD.map&version=1.3',
   visBase:'https://realearth.ssec.wisc.edu/cgi-bin/mapserv?map=G19-ABI-FD-BAND01.map&version=1.3',
   glmBase:'https://realearth.ssec.wisc.edu/cgi-bin/mapserv?map=glmgroupdensity.map&version=1.3',
   irOn:false,visOn:false,glmOn:false,satOpacity:.78,glmOpacity:.68
 };
+const WX_NOMES={ir:'Infravermelho (canal 13)',vis:'Visível (canal 1)',glm:'Densidade de raios (GLM)'};
+const WX_EL={ir:irLayer,vis:visLayer,glm:glmLayer};
+const WX_BTN={ir:'toggleIR',vis:'toggleVIS',glm:'toggleGLM'};
+const WX_TENTATIVAS=3,WX_TEMPO=45000,WX_ESPERA=8000;
+const wxGer={ir:0,vis:0,glm:0},wxFalhas=new Set();
+(function estiloWx(){
+  const st=document.createElement('style');
+  st.textContent='.wx-off{position:relative;text-decoration:line-through;opacity:.75}'+
+    '.wx-off::after{content:"!";position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;'+
+    'background:#b45309;color:#fff;font-size:11px;line-height:16px;text-align:center;font-weight:700}'+
+    '.wx-load{opacity:.6;cursor:progress}';
+  document.head.appendChild(st);
+})();
 function imageBox(){const tl=xy(BOUNDS.minx,BOUNDS.maxy),br=xy(BOUNDS.maxx,BOUNDS.miny);return {x:tl[0],y:tl[1],w:br[0]-tl[0],h:br[1]-tl[1]};}
 function setImagePlacement(el){const b=imageBox();el.setAttribute('x',b.x);el.setAttribute('y',b.y);el.setAttribute('width',b.w);el.setAttribute('height',b.h);}
 function buildWmsUrl(base){
@@ -210,13 +231,48 @@ function buildWmsUrl(base){
   return base+'&service=WMS&request=GetMap&version=1.3.0&layers=latest&styles=default'+
     '&format=image/png&transparent=true&crs=EPSG:4326&width=1600&height=1200&bbox='+encodeURIComponent(bbox)+'&_t='+Date.now();
 }
-function setLayer(el,on,base){
-  if(on){const u=buildWmsUrl(base);el.setAttributeNS('http://www.w3.org/1999/xlink','href',u);el.setAttribute('href',u);el.style.display='';}
-  else el.style.display='none';
+function marcarBotaoWx(k,estado,dica){
+  const b=$(WX_BTN[k]);if(!b)return;
+  b.classList.toggle('wx-off',estado==='falha');b.classList.toggle('wx-load',estado==='carregando');
+  b.title=dica||'';
+}
+function avisarWx(){
+  if(!wxFalhas.size)return;
+  const nomes=[...wxFalhas].map(k=>WX_NOMES[k]);
+  aviso('<b>'+(nomes.length>1?'Camadas indisponíveis':'Camada indisponível')+' no momento:</b> '+esc(textList(nomes))+'.<br>'+
+    'O servidor RealEarth (SSEC/Universidade de Wisconsin) não respondeu. O mapa de alertas funciona normalmente; '+
+    'nova tentativa na próxima atualização automática (10 min) ou no botão abaixo.',false,[['Tentar de novo agora',refreshWeatherLayers]]);
+}
+function carregarCamada(k,base,tent){
+  tent=tent||1;
+  const g=++wxGer[k],el=WX_EL[k],u=buildWmsUrl(base),img=new Image();
+  let fim=false,tm=0;
+  marcarBotaoWx(k,'carregando','Carregando '+WX_NOMES[k]+(tent>1?' (tentativa '+tent+' de '+WX_TENTATIVAS+')':'')+'…');
+  const acabar=ok=>{
+    if(fim)return;fim=true;clearTimeout(tm);img.onload=img.onerror=null;
+    if(g!==wxGer[k]||!WX[k+'On'])return;   // camada desligada ou pedido substituído por um mais novo
+    if(ok){
+      el.setAttributeNS('http://www.w3.org/1999/xlink','href',u);el.setAttribute('href',u);el.style.display='';
+      wxFalhas.delete(k);marcarBotaoWx(k,'ok','');return;
+    }
+    if(tent<WX_TENTATIVAS){setTimeout(()=>{if(g===wxGer[k]&&WX[k+'On'])carregarCamada(k,base,tent+1);},WX_ESPERA);return;}
+    el.style.display='none';   // não deixa uma imagem antiga parecer atual
+    wxFalhas.add(k);
+    marcarBotaoWx(k,'falha',WX_NOMES[k]+' indisponível: o RealEarth não respondeu ('+WX_TENTATIVAS+' tentativas). Use “Atualizar” para tentar de novo.');
+    avisarWx();
+  };
+  tm=setTimeout(()=>{img.src='';acabar(false);},WX_TEMPO);
+  img.onload=()=>acabar(img.naturalWidth>0);
+  img.onerror=()=>acabar(false);
+  img.src=u;
+}
+function setLayer(k,base){
+  if(WX[k+'On'])carregarCamada(k,base);
+  else{wxGer[k]++;WX_EL[k].style.display='none';wxFalhas.delete(k);marcarBotaoWx(k,'ok','');}
 }
 function refreshWeatherLayers(){
   [irLayer,visLayer,glmLayer].forEach(setImagePlacement);
-  setLayer(irLayer,WX.irOn,WX.irBase);setLayer(visLayer,WX.visOn,WX.visBase);setLayer(glmLayer,WX.glmOn,WX.glmBase);
+  setLayer('ir',WX.irBase);setLayer('vis',WX.visBase);setLayer('glm',WX.glmBase);
   irLayer.style.opacity=WX.satOpacity;visLayer.style.opacity=WX.satOpacity;glmLayer.style.opacity=WX.glmOpacity;
   $('toggleIR').classList.toggle('active',WX.irOn);$('toggleVIS').classList.toggle('active',WX.visOn);$('toggleGLM').classList.toggle('active',WX.glmOn);
 }
