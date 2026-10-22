@@ -392,12 +392,8 @@
       var rh = Math.min(10, (bottom - top) / itens.length);
       var sw = 9, sh = Math.min(6, rh - 1.6), gap = 2.6;
       var labels = itens.map(function (i) { return i.label; });
-      // porcentagem de cada nível (quando houver): coluna alinhada à direita, em negrito
-      var pcts = itens.map(function (i) { return i.pct ? String(i.pct) : ''; }), temPct = pcts.some(function (p) { return p; }), gap2 = 3;
-      var pctW0 = temPct ? Math.max.apply(null, pcts.map(function (p) { return p ? textW(p, 10 * PT, 700) : 0; })) : 0;
-      var fs = fitSize(labels, 10 * PT, maxW - sw - gap - (temPct ? gap2 + pctW0 : 0), 400);
-      var pctW = temPct ? Math.max.apply(null, pcts.map(function (p) { return p ? textW(p, fs, 700) : 0; })) : 0;
-      var blockW = sw + gap + Math.max.apply(null, labels.map(function (l) { return textW(l, fs); })) + (temPct ? gap2 + pctW : 0);
+      var fs = fitSize(labels, 10 * PT, maxW - sw - gap, 400);
+      var blockW = sw + gap + Math.max.apply(null, labels.map(function (l) { return textW(l, fs); }));
       var x0 = cx - blockW / 2, tx0 = x0 + sw + gap, y = top;
       itens.forEach(function (it) {
         var cy = y + rh / 2;
@@ -408,9 +404,11 @@
             o.push('<rect x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" fill="' + (F.cor || '#f2efe9') + '" stroke="#555" stroke-width="0.2"/>');
           } else o.push('<rect x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" fill="' + MG_FILL + '" stroke="#555" stroke-width="0.2"/>');
         } else
-        o.push('<rect x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" fill="' + it.fill + '" stroke="#555" stroke-width="0.2"/>');
+        {   // com transparência: a cor sobre o "chão" de Minas, como aparece no mapa
+          if (it.opacity != null && it.opacity < 1) o.push('<rect x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" fill="' + (F ? (F.cor || '#f2efe9') : MG_FILL) + '"/>');
+          o.push('<rect x="' + f2(x0) + '" y="' + f2(cy - sh / 2) + '" width="' + sw + '" height="' + f2(sh) + '" fill="' + it.fill + '"' + (it.opacity != null && it.opacity < 1 ? ' fill-opacity="' + it.opacity + '"' : '') + ' stroke="#555" stroke-width="0.2"/>');
+        }
         o.push('<text x="' + f2(tx0) + '" y="' + f2(cy + (ASC - DESC) / 2 * fs) + '" font-family="' + FONT + '" font-size="' + f2(fs) + '" fill="#000" stroke="#fff" stroke-width="' + f2(fs * 0.25) + '" stroke-linejoin="round" paint-order="stroke">' + esc(it.label) + '</text>');
-        if (it.pct) o.push('<text x="' + f2(x0 + blockW) + '" y="' + f2(cy + (ASC - DESC) / 2 * fs) + '" text-anchor="end" font-family="' + FONT + '" font-size="' + f2(fs) + '" font-weight="700" fill="#000" stroke="#fff" stroke-width="' + f2(fs * 0.25) + '" stroke-linejoin="round" paint-order="stroke">' + esc(String(it.pct)) + '</text>');
         y += rh;
       });
     })();
