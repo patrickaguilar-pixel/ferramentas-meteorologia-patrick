@@ -49,13 +49,18 @@ th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left}
 th{background:#f7f9fc;position:sticky;top:0}
 .scroll{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:10px}
 .small{font-size:12px;color:var(--muted);line-height:1.4}
+.cpcRow{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.cpcCtl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cpcCtl select{width:auto}
+.cpcList{margin:6px 0 0;padding-left:18px}
+.warn{color:#9a5b00;font-weight:700}
 @media(max-width:1100px){.grid{grid-template-columns:1fr}.dual,.triple,.kpi,.row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <header><div class="wrap"><div class="top">
 <div><h1>SIMGE/IGAM | Reservatórios / Tendência</h1><div class="muted">Protótipo único para <strong>Reservatórios</strong>, <strong>Tendência semanal</strong> e <strong>Acumulados 24h / 3 dias / 5 dias</strong>, mantendo a metodologia por imagem do CPC.</div></div>
-<span class="badge">Versão integrada · imagem CPC</span>
+<span class="badge">v0.09 · imagens CPC automáticas</span>
 </div>
 <div class="tabs">
 <button class="tab active" data-tab="reserv">Reservatórios · Week 1</button>
@@ -63,7 +68,12 @@ th{background:#f7f9fc;position:sticky;top:0}
 <button class="tab" data-tab="accum">Acumulados · 24h / 3 dias / 5 dias</button>
 </div></div></header>
 <main>
-<div class="notice"><strong>Fluxo desta versão:</strong> os produtos são gerados a partir do <strong>upload manual das imagens do CPC</strong>, mantendo o procedimento por imagem já utilizado operacionalmente. A busca automática no site do CPC fica prevista como melhoria futura para implementação pelo geoprocessamento.</div>
+<div class="notice"><strong>Fluxo desta versão:</strong> as imagens do CPC são <strong>baixadas automaticamente</strong> do site do CPC/NOAA (a cada 2 horas) e o processamento por imagem continua o mesmo. Escolha o ciclo e clique em <strong>Buscar imagens do CPC</strong>. O upload manual continua disponível em cada aba, caso precise usar outra imagem.</div>
+<div class="card" style="margin-bottom:14px">
+<div class="cpcRow"><div><h2 style="margin:0 0 4px">Imagens do CPC</h2><div class="small">Carrega as imagens Week 1, Week 2, probabilidade &gt;100 mm, 24 h, 3 dias e 5 dias do ciclo escolhido e gera todos os mapas.</div></div>
+<div class="cpcCtl"><label for="cpcCycle" style="margin:0">Ciclo</label><select id="cpcCycle"><option value="00">00Z</option><option value="06">06Z</option></select><button id="cpcLoad" class="primary">Buscar imagens do CPC</button></div></div>
+<div id="cpcStatus" class="status">Nenhuma imagem carregada ainda.</div>
+</div>
 
 <section id="reserv" class="panel active">
 <div class="grid">
@@ -278,7 +288,7 @@ function renderMesoStats(proc, bodyId){ const stats=mesoStats(proc); document.ge
 function rainiestNames(stats){ if(!stats.length) return '—'; const best=stats[0].mode; const chosen=stats.filter(s=>s.mode===best).slice(0,5).map(s=>s.name); return `${chosen.join(', ')} (${CLASS_LABELS[best]} predominante)`; }
 
 async function generateWeekly(){ if(!APP.weekly.w1 || !APP.weekly.w2){ setStatus('wkStatus','Carregue as imagens Week 1 e Week 2 do CPC.'); return; } const ds1=fmtDate(document.getElementById('wk1Start').value), de1=fmtDate(document.getElementById('wk1End').value), ds2=fmtDate(document.getElementById('wk2Start').value), de2=fmtDate(document.getElementById('wk2End').value); APP.weekly.proc1=buildClassGrid(APP.weekly.w1); APP.weekly.proc2=buildClassGrid(APP.weekly.w2); await renderProcessedMap(document.getElementById('wk1Canvas'), APP.weekly.proc1, {periodText:`${ds1} a ${de1}`, showMeso:true, showCities:true, showReservoirs:false, showLegend:true, showLogos:true, collectReservoirRows:false}); await renderProcessedMap(document.getElementById('wk2Canvas'), APP.weekly.proc2, {periodText:`${ds2} a ${de2}`, showMeso:true, showCities:true, showReservoirs:false, showLegend:true, showLogos:true, collectReservoirRows:false}); document.getElementById('wk1Png').disabled=false; document.getElementById('wk2Png').disabled=false; const m1=renderMesoStats(APP.weekly.proc1,'mesoW1Body'); const m2=renderMesoStats(APP.weekly.proc2,'mesoW2Body'); document.getElementById('mesoRainSummary').innerHTML=`<strong>Mesorregiões com maiores faixas predominantes:</strong><br>Week 1: ${rainiestNames(m1)}<br>Week 2: ${rainiestNames(m2)}<br><span class="small">A tabela usa a faixa predominante dentro de cada mesorregião e mostra também a maior faixa local encontrada.</span>`; setStatus('wkStatus','<strong>Week 1 e Week 2 geradas.</strong> As faixas por mesorregião foram calculadas automaticamente abaixo.'); }
-async function generateAccum(){ const cfgs=[['a24','24 h'],['a72','3 dias'],['a120','5 dias']]; let any=false; for(const [field,label] of cfgs){ const src=APP.accum[field]; if(!src) continue; any=true; const proc=buildClassGrid(src); APP.accum['p'+field.slice(1)] = proc; const ds=fmtDate(document.getElementById(field+'Start').value), de=fmtDate(document.getElementById(field+'End').value); await renderProcessedMap(document.getElementById(field+'Canvas'), proc, {periodText:(ds&&de)?`${ds} a ${de}`:label, showMeso:true, showCities:true, showReservoirs:false, showLegend:true, showLogos:true, collectReservoirRows:false}); document.getElementById(field+'Png').disabled=false; } if(!any){ setStatus('accStatus','Carregue pelo menos uma imagem do CPC (24h, 3 dias ou 5 dias).'); return; } setStatus('accStatus','<strong>Mapas gerados.</strong> Esta base já fica pronta para o geoprocessamento ajustar depois os detalhes finais dos produtos diários.'); }
+async function generateAccum(){ const cfgs=[['a24','24 h'],['a72','3 dias'],['a120','5 dias']]; let any=false; for(const [field,label] of cfgs){ const src=APP.accum[field]; if(!src) continue; any=true; const proc=buildClassGrid(src); APP.accum['p'+field.slice(1)] = proc; const ds=fmtDate(document.getElementById(field+'Start').value), de=fmtDate(document.getElementById(field+'End').value); await renderProcessedMap(document.getElementById(field+'Canvas'), proc, {periodText:(ds&&de)?(ds===de?ds:`${ds} a ${de}`):label, showMeso:true, showCities:true, showReservoirs:false, showLegend:true, showLogos:true, collectReservoirRows:false}); document.getElementById(field+'Png').disabled=false; } if(!any){ setStatus('accStatus','Carregue pelo menos uma imagem do CPC (24h, 3 dias ou 5 dias).'); return; } setStatus('accStatus','<strong>Mapas gerados.</strong> Esta base já fica pronta para o geoprocessamento ajustar depois os detalhes finais dos produtos diários.'); }
 ['resFile'].forEach(id=>document.getElementById(id).addEventListener('change',()=>handleFileInput(id,'reserv','source','resPreview','resStatus')));
 document.getElementById('resGenerate').addEventListener('click',generateReserv);
 document.getElementById('resPng').addEventListener('click',()=>downloadCanvas('resCanvas',`Reservatorios_CPC_${document.getElementById('resStart').value||'sem_data'}_${document.getElementById('resEnd').value||'sem_data'}.png`));
@@ -296,6 +306,57 @@ document.getElementById('a24Png').addEventListener('click',()=>downloadCanvas('a
 document.getElementById('a72Png').addEventListener('click',()=>downloadCanvas('a72Canvas','CPC_3dias.png'));
 document.getElementById('a120Png').addEventListener('click',()=>downloadCanvas('a120Canvas','CPC_5dias.png'));
 
+const CPC_DIR='cpc/';
+const CPC_ITENS=[['week1','reserv','source','resPreview'],['week1','weekly','w1','wk1Preview'],['week2','weekly','w2','wk2Preview'],['prob100_week1','weekly','p1','prob1Preview'],['prob100_week2','weekly','p2','prob2Preview'],['24h','accum','a24','a24Preview'],['day3','accum','a72','a72Preview'],['day5','accum','a120','a120Preview']];
+const CPC_NOMES={week1:'GFS Week 1',week2:'GFS Week 2',prob100_week1:'Prob. >100 mm Week 1',prob100_week2:'Prob. >100 mm Week 2','24h':'GFS 24 h',day3:'GFS 3 dias',day5:'GFS 5 dias'};
+function isoMaisDias(base,n){ const d=new Date(base.getTime()+n*86400000); return d.toISOString().slice(0,10); }
+function preencherDatas(dataCiclo){
+  const D=new Date(dataCiclo+'T00:00:00Z');
+  const set=(id,n)=>{ document.getElementById(id).value=isoMaisDias(D,n); };
+  set('resStart',0); set('resEnd',6);
+  set('wk1Start',0); set('wk1End',6); set('wk2Start',7); set('wk2End',13);
+  set('a24Start',0); set('a24End',0); set('a72Start',0); set('a72End',2); set('a120Start',0); set('a120End',4);
+  document.getElementById('resPeriodKpi').textContent=`${fmtDate(document.getElementById('resStart').value)} a ${fmtDate(document.getElementById('resEnd').value)}`;
+}
+function fmtDataHora(iso){ if(!iso) return '—'; const d=new Date(iso); if(isNaN(d)) return '—'; return d.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+async function loadCpc(){
+  const c=document.getElementById('cpcCycle').value, btn=document.getElementById('cpcLoad');
+  btn.disabled=true; setStatus('cpcStatus',`Buscando as imagens do ciclo <strong>${c}Z</strong>…`);
+  try{
+    const r=await fetch(`${CPC_DIR}${c}/manifest.json`,{cache:'no-store'});
+    if(!r.ok) throw new Error(`ainda não há imagens baixadas para o ciclo ${c}Z`);
+    const man=await r.json(), arquivos={}, linhas=[];
+    for(const [key,sec,field,prev] of CPC_ITENS){
+      const it=(man.produtos||{})[key];
+      if(!it || !it.arquivo){ APP[sec][field]=null; document.getElementById(prev).removeAttribute('src'); continue; }
+      if(!arquivos[key]){
+        const rr=await fetch(`${CPC_DIR}${c}/${it.arquivo}?v=${(it.sha256||'').slice(0,12)}`);
+        if(!rr.ok) throw new Error(`falha ao abrir ${it.arquivo} (HTTP ${rr.status})`);
+        const blob=await rr.blob();
+        arquivos[key]=new File([blob],`CPC_${c}Z_${it.arquivo}`,{type:it.arquivo.endsWith('.png')?'image/png':'image/gif'});
+      }
+      APP[sec][field]=await sourceFromFile(arquivos[key],prev);
+    }
+    for(const key of Object.keys(CPC_NOMES)){
+      const it=(man.produtos||{})[key];
+      if(!it || !it.arquivo){ linhas.push(`<li><strong>${CPC_NOMES[key]}:</strong> <span class="warn">indisponível${it&&it.erro?' ('+it.erro+')':''}</span></li>`); continue; }
+      const ref=it.atualizado_no_cpc||it.baixado_em, velha=ref && (Date.now()-new Date(ref).getTime())>36*3600*1000;
+      linhas.push(`<li><strong>${CPC_NOMES[key]}:</strong> atualizada no CPC em ${fmtDataHora(it.atualizado_no_cpc)} · baixada em ${fmtDataHora(it.baixado_em)}${velha?' <span class="warn">· atenção: imagem com mais de 36 h</span>':''}${it.erro?' <span class="warn">· última tentativa falhou, mantida a imagem anterior</span>':''}</li>`);
+    }
+    const refCiclo=(man.produtos||{}).week1||(man.produtos||{})['24h']||{};
+    const dataCiclo=(refCiclo.atualizado_no_cpc||refCiclo.baixado_em||'').slice(0,10);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(dataCiclo)) preencherDatas(dataCiclo);
+    ['resCycle','wkCycle','accCycle'].forEach(id=>document.getElementById(id).value=`${c}Z`);
+    document.getElementById('resInputKpi').textContent=`GFS Week 1 · ${c}Z`;
+    if(APP.reserv.source) await generateReserv();
+    if(APP.weekly.w1 && APP.weekly.w2) await generateWeekly();
+    if(APP.accum.a24 || APP.accum.a72 || APP.accum.a120) await generateAccum();
+    setStatus('cpcStatus',`<strong>Imagens do ciclo ${c}Z de ${dataCiclo?fmtDate(dataCiclo):'—'} carregadas e mapas gerados.</strong> As datas dos períodos foram preenchidas a partir da data do ciclo; confira em cada aba antes de exportar.<ul class="cpcList">${linhas.join('')}</ul>`);
+  }catch(err){
+    setStatus('cpcStatus',`<span class="warn">Não foi possível carregar as imagens do CPC:</span> ${err.message}. Use o upload manual em cada aba.`);
+  }finally{ btn.disabled=false; }
+}
+document.getElementById('cpcLoad').addEventListener('click',loadCpc);
 
 tabInit();
 document.getElementById('resPeriodKpi').textContent=`${fmtDate(document.getElementById('resStart').value)} a ${fmtDate(document.getElementById('resEnd').value)}`;
