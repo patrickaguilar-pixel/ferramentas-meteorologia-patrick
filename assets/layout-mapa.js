@@ -15,7 +15,10 @@
  *   LayoutMapa.previa(op)     -> abre a prévia na tela (idem)
  *   op = { titulo, validade:{date:'AAAA-MM-DD', time:'HH:MM'}, credito,
  *          areas:[{geometry, fill, stroke}], legenda:[{fill, label}],
- *          cidades:[{nome, lon, lat}], municipios:false, fundo:'osm'|'osmfr'|'osmde'|'ofm'|'' }
+ *          cidades:[{nome, lon, lat}], municipios:false, fundo:'osm'|'osmfr'|'osmde'|'ofm'|'',
+ *          (cada cidade pode ter posicao:'acima'|'direita'; sem ela, o nome fica abaixo, como na Previsão)
+ *          pontos:[{lon, lat, rotulo, cor, lado:'esquerda'|'acima'}] (opcional: ponto com rótulo ao lado, ex.: reservatórios),
+ *          textoValidade:'texto livre no lugar da validade' (opcional) }
  *   Sem op.fundo, vale a escolha do seletor "Mapa de fundo" que este arquivo coloca ao lado do botão
  *   "Prévia do mapa" (lembrada neste navegador).
  */
@@ -355,9 +358,23 @@
       if (!isFinite(c.lon) || !isFinite(c.lat)) return;
       var p = proj(c.lon, c.lat), x = p[0] - MAP.x, y = p[1] - MAP.y;
       pts.push('<circle cx="' + f2(x) + '" cy="' + f2(y) + '" r="' + PT_R + '" fill="#ffffff" stroke="#1f2328" stroke-width="0.25"/>');
-      nomes.push('<text x="' + f2(x) + '" y="' + f2(y + PT_R + 0.35 + ASC * ns) + '" font-family="' + FONT + '" font-size="' + f2(ns) + '" font-weight="700" fill="' + navy + '" text-anchor="middle" stroke="#fff" stroke-width="' + f2(ns * 0.3) + '" stroke-linejoin="round" paint-order="stroke">' + esc(c.nome) + '</text>');
+      // posição do nome: abaixo (padrão, como na Previsão), 'acima' ou 'direita' (para desviar de outros rótulos)
+      var tx = x, ty = y + PT_R + 0.35 + ASC * ns, ta = 'middle';
+      if (c.posicao === 'acima') ty = y - PT_R - 0.35 - DESC * ns;
+      else if (c.posicao === 'direita') { tx = x + PT_R + 0.8; ty = y + (ASC - DESC) / 2 * ns; ta = 'start'; }
+      nomes.push('<text x="' + f2(tx) + '" y="' + f2(ty) + '" font-family="' + FONT + '" font-size="' + f2(ns) + '" font-weight="700" fill="' + navy + '" text-anchor="' + ta + '" stroke="#fff" stroke-width="' + f2(ns * 0.3) + '" stroke-linejoin="round" paint-order="stroke">' + esc(c.nome) + '</text>');
     });
     o.push(pts.join(''), nomes.join(''));
+    // pontos com rótulo ao lado (opcional; usado pelos reservatórios): op.pontos = [{lon, lat, rotulo, cor}]
+    (op.pontos || []).forEach(function (pt) {
+      if (!isFinite(pt.lon) || !isFinite(pt.lat)) return;
+      var p = proj(pt.lon, pt.lat), x = p[0] - MAP.x, y = p[1] - MAP.y, rs = 3.2;
+      o.push('<circle cx="' + f2(x) + '" cy="' + f2(y) + '" r="0.85" fill="' + (pt.cor || '#e60000') + '" stroke="#fff" stroke-width="0.25"/>');
+      var lx = x + 1.3, ly = y + (ASC - DESC) / 2 * rs, la = 'start';
+      if (pt.lado === 'esquerda') { lx = x - 1.3; la = 'end'; }
+      else if (pt.lado === 'acima') { lx = x; ly = y - 1.2 - DESC * rs; la = 'middle'; }
+      if (pt.rotulo) o.push('<text x="' + f2(lx) + '" y="' + f2(ly) + '" font-family="' + FONT + '" font-size="' + rs + '" font-weight="700" fill="#000" text-anchor="' + la + '" stroke="#fff" stroke-width="' + f2(rs * 0.3) + '" stroke-linejoin="round" paint-order="stroke">' + esc(pt.rotulo) + '</text>');
+    });
     o.push('</g>');
     o.push('<rect width="' + MAP.w + '" height="' + MAP.h + '" fill="none" stroke="rgb(86,123,154)" stroke-width="0.307666"/>');
     o.push('</g>');
