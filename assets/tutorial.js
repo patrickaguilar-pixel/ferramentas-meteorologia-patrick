@@ -97,6 +97,7 @@
       { s: '#grpInter', t: 'Intercorrências', d: 'Obrigatório. Se não houve: "Sem intercorrências".' },
       { s: '#grpFerr', t: 'Ferramentas utilizadas', d: 'Obrigatório.' },
       { s: '#pPassagem', t: 'Passagem de plantão', d: 'Áreas suscetíveis e pendências.' },
+      { s: '#pProdOutros', t: 'Outros produtos', d: 'Nome e horário de cada produto entregue.' },
       { s: '#pMapaPrev', t: 'Imagem obrigatória', d: 'Anexe o arquivo ou cole um print com Ctrl+V.' },
       { s: '#pOutras', t: 'Outras imagens', d: 'Opcional. Ctrl+V cola um print.' },
       { s: '#salvarPlantao', t: 'Salvar passagem e gerar relatório', d: 'Encerra o plantão: o relatório vai para o Drive e para o PC. Depois, confirme o e-mail.' },

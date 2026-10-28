@@ -34,7 +34,7 @@
    (definidos no Alertas.html), municipios.js e mesorregioes.js. */
 /* 2026.10.28: salvamento padrão (assets/ponte-drive.js): um clique salva no PC e no Drive; resultado em verde, laranja ou vermelho */
 if(!window.FERRAMENTA)window.FERRAMENTA='alertas';
-(function(){if(window.SalvarMaterial)return;var s=document.createElement('script');s.src=(window.BASE_DADOS||'../')+'assets/ponte-drive.js?v=sm14-20261028';document.head.appendChild(s);})();
+(function(){if(window.SalvarMaterial)return;var s=document.createElement('script');s.src=(window.BASE_DADOS||'../')+'assets/ponte-drive.js?v=sm15-20261028';document.head.appendChild(s);})();
 window.alertasDados.then(iniciarAlertas,function(e){
   document.getElementById('topinfo').innerHTML='<b>Não foi possível carregar os municípios.</b> Verifique se alertas/data/municipios.js está publicado no GitHub Pages e recarregue (Ctrl+F5).';
   window.diagFaixa(e.message);

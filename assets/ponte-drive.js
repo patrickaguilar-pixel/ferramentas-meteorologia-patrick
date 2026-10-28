@@ -479,7 +479,7 @@
   function carregarTutorial() {
     if (window.TutorialFerramentas || document.getElementById('tuScript')) return;
     var t = document.createElement('script'); t.id = 'tuScript';
-    t.src = (window.BASE_DADOS || '../') + 'assets/tutorial.js?v=tu1-20261028';
+    t.src = (window.BASE_DADOS || '../') + 'assets/tutorial.js?v=tu2-20261028';
     document.head.appendChild(t);
   }
   function iniciar() {
