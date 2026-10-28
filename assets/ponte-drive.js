@@ -86,17 +86,26 @@
     '#smJanela .prev figcaption{font:600 12.5px "Barlow",Arial,sans-serif;color:#5f7393;margin-top:6px}',
     '#smJanela .it.novo{animation:smPisca 1.6s ease-out}',
     '@keyframes smPisca{from{background:#e3f1fb}to{background:transparent}}',
-    '#smBotao{position:fixed;right:20px;bottom:20px;z-index:99980;display:inline-flex;align-items:center;gap:9px;border:0;border-radius:12px;background:#092b6a;color:#fff;padding:13px 18px;font:700 14.5px/1 "Barlow",Arial,"Liberation Sans",sans-serif;letter-spacing:.06em;cursor:pointer;box-shadow:0 8px 24px rgba(9,43,106,.35)}',
-    '#smBotao:hover{background:#006cbf}',
-    '#smBotao:focus-visible{outline:3px solid #a9e0f4;outline-offset:2px}',
-    '#smBotao svg{width:19px;height:19px;flex:none}',
-    '#smBotao .n{min-width:20px;height:20px;border-radius:10px;background:#f5a623;color:#092b6a;font-size:12px;display:inline-grid;place-items:center;padding:0 5px;letter-spacing:0}',
+    '#smBotao{position:fixed;right:22px;bottom:22px;z-index:99980;display:inline-flex;align-items:center;gap:12px;border:3px solid #fff;border-radius:16px;background:#ffb703;color:#092b6a;padding:12px 20px 12px 14px;font:800 16px/1.1 "Barlow",Arial,"Liberation Sans",sans-serif;letter-spacing:.04em;cursor:pointer;text-align:left;box-shadow:0 0 0 2px #092b6a,0 10px 28px rgba(0,0,0,.35);transition:transform .15s,box-shadow .15s}',
+    '#smBotao:hover{transform:translateY(-2px);background:#ffc93c;box-shadow:0 0 0 2px #092b6a,0 14px 34px rgba(0,0,0,.4)}',
+    '#smBotao:focus-visible{outline:3px solid #006cbf;outline-offset:3px}',
+    '#smBotao .ico{flex:none;width:40px;height:40px;border-radius:11px;background:#092b6a;color:#fff;display:grid;place-items:center}',
+    '#smBotao .ico svg{width:23px;height:23px}',
+    '#smBotao .tx small{display:block;font:600 12.5px/1.2 "Barlow",Arial,sans-serif;letter-spacing:0;margin-top:3px;color:#3d3000}',
+    '#smBotao .n{position:absolute;top:-10px;right:-10px;min-width:24px;height:24px;border-radius:12px;background:#d62828;color:#fff;border:2px solid #fff;font:800 12.5px/1 Arial,sans-serif;display:grid;place-items:center;padding:0 6px;letter-spacing:0}',
     '#smBotao .n[hidden]{display:none}',
-    '#smAviso{position:fixed;right:20px;bottom:78px;z-index:99981;max-width:340px;background:#092b6a;color:#fff;border-radius:10px;padding:10px 14px;font:500 14px/1.4 "Barlow",Arial,sans-serif;box-shadow:0 8px 24px rgba(9,43,106,.3);display:none}',
+    '#smBotao.pend{animation:smPulso 1.8s ease-in-out infinite}',
+    '@keyframes smPulso{0%,100%{box-shadow:0 0 0 2px #092b6a,0 10px 28px rgba(0,0,0,.35)}50%{box-shadow:0 0 0 2px #092b6a,0 0 0 10px rgba(255,183,3,.35),0 10px 28px rgba(0,0,0,.35)}}',
+    '#smDica{position:fixed;right:22px;bottom:104px;z-index:99981;max-width:300px;background:#092b6a;color:#fff;border-radius:12px;padding:12px 38px 12px 14px;font:500 14.5px/1.4 "Barlow",Arial,sans-serif;box-shadow:0 10px 28px rgba(0,0,0,.3)}',
+    '#smDica::after{content:"";position:absolute;right:44px;bottom:-8px;border:8px solid transparent;border-bottom:0;border-top-color:#092b6a}',
+    '#smDica b{color:#ffb703}',
+    '#smDica button{position:absolute;right:6px;top:6px;border:0;background:transparent;color:#fff;font-size:18px;cursor:pointer;width:26px;height:26px;border-radius:6px}',
+    '@media (prefers-reduced-motion:reduce){#smBotao.pend{animation:none}#smBotao{transition:none}}',
+    '#smAviso{position:fixed;right:22px;bottom:104px;z-index:99981;max-width:340px;background:#092b6a;color:#fff;border-radius:10px;padding:10px 14px;font:500 14px/1.4 "Barlow",Arial,sans-serif;box-shadow:0 8px 24px rgba(9,43,106,.3);display:none}',
     '#smAviso.on{display:block}',
     '.sm-oculto{display:none!important}',
-    'body{padding-bottom:76px}',
-    '@media print{#smBotao,#smAviso{display:none!important}}',
+    'body{padding-bottom:100px}',
+    '@media print{#smBotao,#smAviso,#smDica{display:none!important}}',
     '@keyframes smGira{to{transform:rotate(360deg)}}',
     '@media (prefers-reduced-motion:reduce){#smJanela .st .and .ic{animation:none}}'
   ].join('');
@@ -357,6 +366,7 @@
     if (!contador) return;
     var n = itens.filter(pendente).length;
     contador.textContent = n; contador.hidden = !n;
+    botao.classList.toggle('pend', n > 0);
     botao.title = n ? n + ' arquivo(s) gerado(s) ainda não salvo(s) em lugar nenhum' : 'Gerar e salvar materiais (Drive ou PC)';
   }
   function textoResumo(it) {
@@ -437,6 +447,23 @@
   }
 
   /* ---------------- botão fixo "OPÇÕES DE SALVAMENTO" (sempre no canto inferior direito) ---------------- */
+  var IC_BAIXAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v3h16v-3"/></svg>';
+  // dica ao abrir a ferramenta, até a pessoa usar o botão 3 vezes neste navegador
+  var CHAVE_DICA = 'smDicaUsos', dica;
+  function usos() { try { return +localStorage.getItem(CHAVE_DICA) || 0; } catch (e) { return 0; } }
+  function mostrarDica() {
+    if (usos() >= 3) return;
+    dica = document.createElement('div');
+    dica.id = 'smDica'; dica.setAttribute('role', 'note');
+    dica.innerHTML = 'Para <b>salvar o mapa</b> (PNG, PDF, KML…) <b>no Drive ou no PC</b>, use este botão.<button type="button" aria-label="Fechar dica">&times;</button>';
+    dica.querySelector('button').onclick = function () { tirarDica(false); };
+    document.body.appendChild(dica);
+    setTimeout(function () { tirarDica(false); }, 12000);
+  }
+  function tirarDica(usou) {
+    if (dica) { dica.remove(); dica = null; }
+    if (usou) { try { localStorage.setItem(CHAVE_DICA, String(usos() + 1)); } catch (e) { } }
+  }
   function iniciar() {
     esconderBotoes();
     padronizarNavegador();
@@ -444,14 +471,15 @@
     if (!document.getElementById('smBotao')) {
       botao = document.createElement('button');
       botao.type = 'button'; botao.id = 'smBotao';
-      botao.innerHTML = IC_SALVAR + '<span>OPÇÕES DE SALVAMENTO</span><span class="n" hidden>0</span>';
-      botao.onclick = abrirPainel;
+      botao.innerHTML = '<span class="ico">' + IC_BAIXAR + '</span><span class="tx">OPÇÕES DE SALVAMENTO<small>Salvar mapas e arquivos · Drive ou PC</small></span><span class="n" hidden>0</span>';
+      botao.onclick = function () { tirarDica(true); abrirPainel(); };
       contador = botao.querySelector('.n');
       document.body.appendChild(botao);
       aviso = document.createElement('div');
       aviso.id = 'smAviso'; aviso.setAttribute('role', 'status');
       document.body.appendChild(aviso);
       contar();
+      mostrarDica();
     }
     // botões que a ferramenta cria ou recria depois: esconde de novo
     try { new MutationObserver(esconderBotoes).observe(document.body, { childList: true, subtree: true }); } catch (e) { }
