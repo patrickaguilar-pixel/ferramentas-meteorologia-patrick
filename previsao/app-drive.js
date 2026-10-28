@@ -2065,7 +2065,7 @@ function cidPng(c){
 }
 const cHex = h => [1,3,5].map(i => parseInt(h.slice(i, i+2), 16));
 function baixarLocal(filename, blob){
-  if (window.SalvarMaterial) return window.SalvarMaterial.abrir({nome: filename, blob});   // janela padrão: Drive ou PC
+  if (window.SalvarMaterial) return window.SalvarMaterial.abrir({nome: filename, blob});   // salva no PC e no Drive (assets/ponte-drive.js)
   if (typeof window.ponteBaixarNoPc === "function") return window.ponteBaixarNoPc(filename, blob);
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; a.setAttribute("data-local", "1");
   document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
@@ -2094,7 +2094,7 @@ C$("#btnCidPdf").addEventListener("click", e => busy(e.currentTarget, async () =
     }
     pdf.setProperties({title:`Previsão por cidade - ${cidDate()}`, author:"SIMGE/IGAM", creator:"Previsão diária MG 1.15"});
     baixarLocal(`previsao_cidades_${S.date}.pdf`, pdf.output("blob"));
-    showCMsg("ok", window.SalvarMaterial ? `PDF de ${fmtDateBR(S.date)} pronto (${pages.length} página${pages.length>1?"s":""}). Escolha na janela: salvar no Drive ou no PC.` : `PDF de ${fmtDateBR(S.date)} baixado no seu computador (${pages.length} página${pages.length>1?"s":""}).`);
+    showCMsg("ok", window.SalvarMaterial ? `PDF de ${fmtDateBR(S.date)} pronto (${pages.length} página${pages.length>1?"s":""}). Salvando no PC e no Drive.` : `PDF de ${fmtDateBR(S.date)} baixado no seu computador (${pages.length} página${pages.length>1?"s":""}).`);
   } catch(err){ showCMsg("err", "Não foi possível gerar o PDF. Tente novamente."); }
 }));
 

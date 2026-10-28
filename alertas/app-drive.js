@@ -32,9 +32,9 @@
    o Apps Script altera código JavaScript longo escrito dentro do HTML e quebrava a página.
    Depende de: window.BASE_DADOS, window.VERSAO_APP, window.alertasDados e window.alertasJsPdf
    (definidos no Alertas.html), municipios.js e mesorregioes.js. */
-/* 2026.10.28: janela padrão "Salvar material" (Drive ou PC), a mesma das outras ferramentas (assets/ponte-drive.js) */
+/* 2026.10.28: salvamento padrão (assets/ponte-drive.js): um clique salva no PC e no Drive; resultado em verde, laranja ou vermelho */
 if(!window.FERRAMENTA)window.FERRAMENTA='alertas';
-(function(){if(window.SalvarMaterial)return;var s=document.createElement('script');s.src=(window.BASE_DADOS||'../')+'assets/ponte-drive.js?v=sm11-20261028';document.head.appendChild(s);})();
+(function(){if(window.SalvarMaterial)return;var s=document.createElement('script');s.src=(window.BASE_DADOS||'../')+'assets/ponte-drive.js?v=sm13-20261028';document.head.appendChild(s);})();
 window.alertasDados.then(iniciarAlertas,function(e){
   document.getElementById('topinfo').innerHTML='<b>Não foi possível carregar os municípios.</b> Verifique se alertas/data/municipios.js está publicado no GitHub Pages e recarregue (Ctrl+F5).';
   window.diagFaixa(e.message);
@@ -66,7 +66,7 @@ const CHAVE_PC='ferramentas-meteorologia:baixar-no-pc';
 function querPc(){try{const v=localStorage.getItem(CHAVE_PC+':alertas');return v===null?true:v==='1';}catch(e){return true;}}   // padrão nos Alertas: ligado (cópia local do KML, como antes)
 $('baixarPc').checked=querPc();
 $('baixarPc').onchange=()=>{try{localStorage.setItem(CHAVE_PC+':alertas',$('baixarPc').checked?'1':'0');}catch(e){}};
-function salvarMaterial(nome,blob,opc){   // janela padrão: Drive ou PC (sem ela, baixa no PC como antes)
+function salvarMaterial(nome,blob,opc){   // salva no PC e no Drive (assets/ponte-drive.js); sem a ponte, baixa no PC como antes
   if(window.SalvarMaterial)return window.SalvarMaterial.abrir(Object.assign({nome,blob},opc||{}));
   baixarLocal(nome,blob);
 }
@@ -595,8 +595,8 @@ $('emit').onclick=()=>{
       const date=dateBr();
       cities.forEach(city=>state.dailyRows.push({alertId:a.id,date,time:a.start,duration:a.duration,city}));
       $('pAlertas').value=($('pAlertas').value.trim()?$('pAlertas').value.trim()+'\n':'')+a.linha;
-      // 2026.10.28: o KML já foi salvo no Drive na emissão; a janela padrão mostra isso e oferece salvar no PC
-      if(window.SalvarMaterial)salvarMaterial(folder+'.kml',kmlBlob(cities,folder),{driveFeito:{url:a.kmlUrl,nome:folder+'.kml',texto:'(salvo ao emitir o alerta)'},nota:'Alerta registrado na planilha. O KML já está no Drive.'});
+      // 2026.10.28: o KML já foi salvo no Drive na emissão; a ponte baixa no PC (se "baixar no PC" estiver marcado) e mostra o resultado em cores
+      if(window.SalvarMaterial)salvarMaterial(folder+'.kml',kmlBlob(cities,folder),{driveFeito:{url:a.kmlUrl,nome:folder+'.kml',texto:'(ao emitir o alerta)'},semPc:!querPc()});
       else if(querPc())baixarKml(cities,folder);
       state.selected.clear();drawLine.style.display='none';HIST_SEL.length=0;atualizarDesfazer();
       desenharAlertas();updateSelection();salvarRascunho();
@@ -1207,7 +1207,7 @@ $('baixarRel').onclick=async()=>{
     await Promise.race([window.alertasJsPdf,new Promise(ok=>setTimeout(ok,15000))]).catch(()=>{});
     const r=gerarPdf(d);
     salvarMaterial(carimbo(d.geradoEm)+'_relatorio_plantao_'+(d.id||'previa')+'.pdf',r.blob,{nota:'Prévia: não encerra o plantão. O relatório final vai para o Drive ao salvar a passagem.'});
-    relMsg('ok','PDF da prévia pronto ('+r.paginas+' página'+(r.paginas>1?'s':'')+'). Escolha na janela onde salvar. A prévia <b>não</b> encerra o plantão.');
+    relMsg('ok','PDF da prévia pronto ('+r.paginas+' página'+(r.paginas>1?'s':'')+'). A prévia <b>não</b> encerra o plantão.');
   }catch(e){relMsg('err','Não foi possível gerar o PDF: '+esc(e&&e.message||e));}
   finally{btn.classList.remove('busy');}
 };
@@ -1231,7 +1231,6 @@ async function relatorioFinal(snap,nomesLocais){
   const nome=nomeRelatorio(snap);
   ultimoRelatorio={nome,blob:r.blob};
   const pc=()=>baixarLocal(nome,r.blob);
-  if(!window.SalvarMaterial)pc();   // sem a janela padrão: baixa no PC como antes
   const b64=await new Promise((ok,no)=>{const fr=new FileReader();fr.onload=()=>ok(String(fr.result).split(',')[1]||'');fr.onerror=no;fr.readAsDataURL(r.blob);});
   const t=snap.turno||turnoPeloRelogio();
   // 1) Drive: salva sempre (em segundo plano, enquanto a pergunta do e-mail está na tela)
@@ -1249,20 +1248,21 @@ async function relatorioFinal(snap,nomesLocais){
     }
   }else lembrarEmailPlantao(snap.id);   // servidor ainda sem o Email.gs: mantém o lembrete antigo
   const d=await drive;
-  // 2026.10.28: janela padrão — o Drive já foi feito (ou falhou) pela passagem; o PC fica à escolha
+  if(!window.SalvarMaterial)pc();
+  // 2026.10.28: salvamento padrão — baixa no PC e mostra em cores o resultado do Drive (feito pela passagem)
   const janela=()=>salvarMaterial(nome,r.blob,{
     nota:'Relatório do plantão '+snap.id+'. Vai para o Drive sozinho ao salvar a passagem.',
     drivePromessa:d.ok?Promise.resolve({url:d.s&&d.s.url,nome:(d.s&&d.s.nome)||nome,texto:'(pasta do plantão)'}):Promise.reject(d.e),
     salvarDrive:(blob,b64)=>new Promise((ok,no)=>google.script.run.withSuccessHandler(s=>ok({url:s&&s.url,nome:(s&&s.nome)||nome,texto:'(pasta do plantão)'})).withFailureHandler(no)
       [temFuncao('salvarRelatorioPlantaoTurno')?'salvarRelatorioPlantaoTurno':'salvarRelatorioPlantao'](snap.id,nome,b64,'',t.data||'',t.turno||''))
   });
-  const salvarAcao=window.SalvarMaterial?['Salvar material',janela]:['Baixar de novo',pc];
+  const salvarAcao=['Baixar de novo no PC',pc];
   const partes=[];let erro=false;const acoes=[salvarAcao];
   if(d.ok){
     const url=/^https:\/\//.test(d.s&&d.s.url)?d.s.url:'#';
     partes.push('Relatório salvo no Drive: <a href="'+esc(url)+'" target="_blank" rel="noopener">'+esc(d.s&&d.s.nome||nome)+'</a>'+(snap.mapa?'':' (sem a imagem do mapa)'));
   }else{erro=true;partes.push('O relatório <b>não</b> foi para o Drive ('+esc(d.e&&d.e.message?d.e.message:d.e)+').');}
-  partes.push(window.SalvarMaterial?'Para salvar no PC, use a janela <b>Salvar material</b>.':'PDF baixado no PC — confira a pasta Downloads.');
+  partes.push('PDF baixado no PC — confira a pasta Downloads.');
   if(envio&&envio.ok)partes.push('E-mail enviado para <b>'+esc(NOMES_EMAIL_PLANTAO)+'</b>'+(envio.x&&envio.x.cc?' (cópia para você)':'')+'.');
   else if(envio){
     erro=true;
@@ -1275,7 +1275,7 @@ async function relatorioFinal(snap,nomesLocais){
     }]);
   }else if(temFuncao('enviarRelatorioPorEmail'))partes.push('E-mail não enviado (você escolheu "Não").');
   aviso(partes.join('<br>'),erro,acoes);
-  if(window.SalvarMaterial)janela();
+  if(window.SalvarMaterial)janela();   // PC + resultado do Drive em cores
 }
 
 /* ---- v3.4: envio do relatório por e-mail (função enviarRelatorioPorEmail do Email.gs) ---- */

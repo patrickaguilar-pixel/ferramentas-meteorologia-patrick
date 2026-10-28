@@ -1,28 +1,30 @@
 /*
- * Ponte para o Drive — v5 (2026.10.28): botão único "OPÇÕES DE SALVAMENTO".
+ * Ponte para o Drive — v6 (2026.10.28): botão "OPÇÕES DE SALVAMENTO" — salva no PC e no Drive ao mesmo tempo.
  * Usada por Previsão diária, Tempo Severo, Chuva e Tendência, Alertas e Reservatórios.
  *
  * Os botões de exportar das ferramentas saem do layout (ficam escondidos, só para a ponte acioná-los).
- * Em todas as ferramentas aparece o mesmo botão, sempre no canto superior direito do cabeçalho (sobre a faixa azul):
- * "OPÇÕES DE SALVAMENTO". Ele abre um painel com todo o controle:
- *   1. Materiais da ferramenta (mapa PNG, PDF, SVG, KML, CSV, TXT…): um clique gera o arquivo;
- *   2. Arquivos gerados nesta sessão, cada um com "Salvar no Drive" e "Salvar no PC", dizendo
- *      o que já foi salvo e onde, e avisando onde AINDA NÃO foi salvo.
- * Nada é salvo sem o meteorologista escolher (exceto o que a ferramenta já salvava sozinha no Drive,
- * como o KML na emissão do alerta e o relatório final do plantão — o painel mostra o resultado).
+ * Em todas as ferramentas aparece o mesmo botão amarelo, no canto superior direito do cabeçalho:
+ * "OPÇÕES DE SALVAMENTO". Ele abre um painel com a prévia do mapa da aba aberta e os materiais dessa aba
+ * (mapa PNG, PDF, SVG, KML, CSV, TXT…). Cada material tem um botão "Salvar no PC e no Drive":
+ * um clique gera o arquivo, baixa no PC e salva no Drive. O resultado aparece em cores:
+ *   verde    = salvo no PC e no Drive (com link para o arquivo no Drive);
+ *   laranja  = salvo só em um dos dois (diz qual faltou e por quê; "Tentar o Drive de novo");
+ *   vermelho = não foi salvo.
+ * O que a ferramenta já salva sozinha no Drive (KML na emissão do alerta, relatório final do plantão)
+ * também baixa no PC e mostra o resultado em cores, num aviso no canto da tela.
  *
  * Como chega aqui:
- *   - automático: a ferramenta cria um link de download e chama .click(); a ponte intercepta e abre a janela
+ *   - automático: a ferramenta cria um link de download e chama .click(); a ponte intercepta e salva
  *     (um link com data-local="1" nunca é interceptado: download direto, uso interno da ponte);
  *   - direto: window.SalvarMaterial.abrir({nome, blob, ...}) — usado pelos Alertas e pela Previsão por cidade.
- *     Opções: driveFeito {url, nome} (já salvo no Drive pela própria ferramenta, ex.: KML na emissão do alerta);
+ *     Opções: driveFeito {url, nome, texto} (já salvo no Drive pela própria ferramenta);
  *     drivePromessa (Promise que resolve {url, nome} ou rejeita — salvamento no Drive já em andamento);
- *     salvarDrive (função própria que recebe (blob, base64) e devolve Promise {url, nome}); nota (texto curto).
+ *     salvarDrive (função própria que recebe (blob, base64) e devolve Promise {url, nome}); semPc (não baixar no PC).
  *
  * Drive: usa a MESMA função do Apps Script de antes, google.script.run.salvarArquivo(ferramenta, nome, tipo, base64).
  * Os arquivos do Apps Script (Codigo.gs, SalvarArquivo.gs) não mudam.
- * Fora do Apps Script (painel de testes / GitHub Pages) o botão "Salvar no Drive" aparece, mas avisa que
- * esta plataforma não está ligada ao Drive. NA PLATAFORMA OFICIAL ELE SALVA NO DRIVE.
+ * Fora do Apps Script (painel de testes / GitHub Pages) o arquivo é salvo no PC e o aviso fica laranja:
+ * "esta plataforma de teste não está ligada ao Drive". NA PLATAFORMA OFICIAL ELE SALVA NO DRIVE.
  *
  * Depende de window.FERRAMENTA ('previsao', 'tempo-severo', 'chuva', 'alertas', 'reservatorios').
  */
@@ -41,12 +43,8 @@
     '#smJanela .cab h2{margin:0;font:700 19px/1.2 "Barlow",Arial,sans-serif;color:#092b6a;flex:1}',
     '#smJanela .cab svg.rs{position:absolute;right:0;top:0;height:100%;width:120px;pointer-events:none}',
     '#smJanela .cab h2{margin-right:110px}',
-    '#smJanela .itens{padding:6px 18px}',
-    '#smJanela .it{padding:14px 0;border-top:1px solid #eef3f8}',
-    '#smJanela .it:first-child{border-top:0}',
     '#smJanela .nome{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;word-break:break-all}',
     '#smJanela .tipo{flex:none;font:700 11.5px/1 "Barlow Semi Condensed","Barlow",Arial,sans-serif;letter-spacing:.05em;color:#fff;background:#092b6a;border-radius:5px;padding:4px 6px}',
-    '#smJanela .nota{margin:4px 0 0;color:#5f7393;font-size:13.5px}',
     '#smJanela .bts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}',
     '#smJanela .bt{display:inline-flex;align-items:center;gap:8px;border:1px solid #c9dbee;background:#fff;color:#092b6a;border-radius:9px;padding:9px 14px;font:700 15px "Barlow",Arial,sans-serif;cursor:pointer;min-height:40px}',
     '#smJanela .bt:hover{border-color:#006cbf}',
@@ -54,28 +52,29 @@
     '#smJanela .bt.pri:hover{background:#00559a}',
     '#smJanela .bt[disabled]{opacity:.55;cursor:default}',
     '#smJanela .bt svg{width:17px;height:17px;flex:none}',
-    '#smJanela .st{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:4px;font-size:14.5px}',
-    '#smJanela .st li{display:flex;gap:8px;align-items:flex-start}',
-    '#smJanela .st .ic{flex:none;width:18px;height:18px;border-radius:50%;margin-top:1px;display:inline-grid;place-items:center;font:700 12px/1 Arial,sans-serif}',
-    '#smJanela .st .ok .ic{background:#1d7a46;color:#fff}',
-    '#smJanela .st .pend .ic{border:2px solid #9fb2c8}',
-    '#smJanela .st .and .ic{border:2px solid #006cbf;border-right-color:transparent;animation:smGira .8s linear infinite}',
-    '#smJanela .st .err .ic{background:#b3261e;color:#fff}',
-    '#smJanela .st .ok{color:#1d5c37}#smJanela .st .err{color:#8a2025}#smJanela .st .pend{color:#5f7393}',
-    '#smJanela .st a{color:#00559a;font-weight:700}',
     '#smJanela .rod{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 18px 16px;border-top:1px solid #e1ebf4;background:#f6fafd;border-radius:0 0 14px 14px}',
-    '#smJanela .resumo{font-size:14px;color:#3d5a8a;flex:1;min-width:220px}',
-    '#smJanela .resumo b{color:#092b6a}',
     '#smJanela .sec{padding:12px 18px 4px}',
     '#smJanela .sec h3{margin:0 0 8px;font:700 13px/1.2 "Barlow Semi Condensed","Barlow",Arial,sans-serif;letter-spacing:.07em;text-transform:uppercase;color:#3d5a8a}',
-    '#smJanela .mats{display:grid;gap:8px}',
-    '#smJanela .mat{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid #c9dbee;background:#fff;color:#092b6a;border-radius:10px;padding:10px 12px;cursor:pointer;font:600 15px/1.3 "Barlow",Arial,sans-serif}',
-    '#smJanela .mat:hover{border-color:#006cbf;background:#f3f8fd}',
-    '#smJanela .mat[disabled]{cursor:default;background:#f6f8fb;color:#7d8fab;border-style:dashed}',
-    '#smJanela .mat .tx{flex:1}',
+    '#smJanela .mats{display:grid;gap:10px}',
+    '#smJanela .mat{border:1px solid #c9dbee;border-radius:12px;background:#fff;padding:10px 12px}',
+    '#smJanela .mat.off{background:#f6f8fb;border-style:dashed;color:#7d8fab}',
+    '#smJanela .mat.off .tipo{background:#9fb2c8}',
+    '#smJanela .mat .lin{display:flex;align-items:center;gap:10px;flex-wrap:wrap}',
+    '#smJanela .mat .tx{flex:1;min-width:150px;font:600 15px/1.3 "Barlow",Arial,sans-serif}',
     '#smJanela .mat small{display:block;font-weight:400;font-size:13px;color:#5f7393}',
-    '#smJanela .mat .ger{flex:none;font:700 13px "Barlow",Arial,sans-serif;color:#006cbf}',
-    '#smJanela .mat[disabled] .tipo{background:#9fb2c8}',
+    '#smJanela .mat .salvar{padding:8px 14px;gap:6px}',
+    '#smJanela .mat .salvar svg+svg{margin-left:-2px}',
+    '#smJanela .res,#smAviso.ok,#smAviso.parcial,#smAviso.erro,#smAviso.and{font:500 14px/1.4 "Barlow",Arial,sans-serif}',
+    '#smJanela .res{margin-top:10px;border-radius:9px;padding:9px 12px;border:1px solid}',
+    '.res.ok,#smJanela .resumo.ok,#smAviso.ok{background:#e7f6ec!important;border-color:#2e8b57!important;color:#14532d!important}',
+    '.res.parcial,#smJanela .resumo.parcial,#smAviso.parcial{background:#fff3e0!important;border-color:#e07b00!important;color:#7a3e00!important}',
+    '.res.erro,#smJanela .resumo.erro,#smAviso.erro{background:#fdecec!important;border-color:#c62828!important;color:#7f1d1d!important}',
+    '.res.and,#smJanela .resumo.and,#smAviso.and{background:#eaf3fb!important;border-color:#7fb3e0!important;color:#0b3a75!important}',
+    '#smJanela .res a,#smAviso a{color:inherit;font-weight:700;text-decoration:underline}',
+    '#smJanela .mini,#smAviso .mini{margin-left:6px;border:1px solid currentColor;background:#fff;color:inherit;border-radius:7px;padding:3px 9px;font:700 13px "Barlow",Arial,sans-serif;cursor:pointer}',
+    '#smJanela .resumo{font-size:14px;color:#3d5a8a;flex:1;min-width:220px;border:1px solid transparent;border-radius:9px;padding:7px 10px}',
+    '#smAviso{border:1px solid transparent}',
+    '#smAviso .x{float:right;margin-left:10px;border:0;background:none;color:inherit;font-size:18px;line-height:1;cursor:pointer}',
     '#smJanela .vazio{margin:0;color:#5f7393;font-size:14px}',
     '#smJanela .sec h3 .aqui{text-transform:none;letter-spacing:0;font-weight:600;color:#7d8fab}',
     '#smJanela .prev{display:grid;gap:10px;margin:0 0 10px}',
@@ -84,8 +83,6 @@
     '#smJanela .prev figure{margin:0;border:1px solid #d3e4f2;border-radius:10px;background:#f6fafd;padding:8px;overflow:hidden}',
     '#smJanela .prev svg,#smJanela .prev img{display:block;width:100%;height:auto;max-height:260px;object-fit:contain;background:#fff;pointer-events:none}',
     '#smJanela .prev figcaption{font:600 12.5px "Barlow",Arial,sans-serif;color:#5f7393;margin-top:6px}',
-    '#smJanela .it.novo{animation:smPisca 1.6s ease-out}',
-    '@keyframes smPisca{from{background:#e3f1fb}to{background:transparent}}',
     '#smBotao{position:fixed;right:22px;bottom:22px;z-index:99980;display:inline-flex;align-items:center;gap:12px;border:3px solid #fff;border-radius:16px;background:#ffb703;color:#092b6a;padding:12px 20px 12px 14px;font:800 16px/1.1 "Barlow",Arial,"Liberation Sans",sans-serif;letter-spacing:.04em;cursor:pointer;text-align:left;box-shadow:0 0 0 2px #092b6a,0 10px 28px rgba(0,0,0,.35);transition:transform .15s,box-shadow .15s}',
     '#smBotao:hover{transform:translateY(-2px);background:#ffc93c;box-shadow:0 0 0 2px #092b6a,0 14px 34px rgba(0,0,0,.4)}',
     '#smBotao:focus-visible{outline:3px solid #006cbf;outline-offset:3px}',
@@ -116,7 +113,7 @@
     '#smDica.topo{position:absolute;bottom:auto}',
     '#smDica.topo::after{bottom:auto;top:-8px;border-top:0;border-bottom:8px solid #092b6a;border-left-color:transparent;border-right-color:transparent}',
     '#smAviso.topo{bottom:auto;top:76px}',
-    '#smAviso{position:fixed;right:22px;bottom:104px;z-index:99981;max-width:340px;background:#092b6a;color:#fff;border-radius:10px;padding:10px 14px;font:500 14px/1.4 "Barlow",Arial,sans-serif;box-shadow:0 8px 24px rgba(9,43,106,.3);display:none}',
+    '#smAviso{position:fixed;right:22px;bottom:104px;z-index:99981;max-width:440px;background:#092b6a;color:#fff;border-radius:10px;padding:10px 14px;font:500 14px/1.4 "Barlow",Arial,sans-serif;box-shadow:0 8px 24px rgba(9,43,106,.3);display:none}',
     '#smAviso.on{display:block}',
     '.sm-oculto{display:none!important}',
     'body.smFlutua{padding-bottom:100px}',
@@ -277,7 +274,9 @@
   }
 
   /* ---------------- painel ---------------- */
-  var fundo, janela, lista, mats, resumo, botao, contador, aviso, itens = [], esperando = null;
+  // Um clique em "Salvar no PC e no Drive" gera o material e salva nos dois lugares ao mesmo tempo.
+  // Resultado: verde = salvo no PC e no Drive; laranja = salvo só em um dos dois; vermelho = não foi salvo.
+  var fundo, janela, mats, resumo, botao, aviso, esperando = null, RES = {};
   var IC_SALVAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></svg>';
   function montar() {
     if (fundo) return;
@@ -286,12 +285,10 @@
     fundo.innerHTML = '<div id="smJanela" role="dialog" aria-modal="true" aria-labelledby="smTitulo">' +
       '<div class="cab"><h2 id="smTitulo">Opções de salvamento<span class="mapa"></span></h2>' +
       '<svg class="rs" viewBox="0 0 218 64" preserveAspectRatio="none" aria-hidden="true"><path d="M42 0H218V64H0Z" fill="#006cbf"/><path d="M42 0H83L40 64H0Z" fill="#a9e0f4"/><path d="M83 0H121L78 64H40Z" fill="#078fd2"/></svg></div>' +
-      '<div class="sec"><h3>1. Gerar material <span class="aqui">· desta aba</span></h3><div class="prev" hidden></div><div class="mats"></div></div>' +
-      '<div class="sec"><h3>2. Salvar no Drive ou no PC</h3><div class="itens"></div></div>' +
+      '<div class="sec"><div class="prev" hidden></div><div class="mats"></div></div>' +
       '<div class="rod"><div class="resumo" aria-live="polite"></div><button type="button" class="bt fechar">Fechar</button></div></div>';
     document.body.appendChild(fundo);
     janela = fundo.querySelector('#smJanela');
-    lista = fundo.querySelector('.itens');
     mats = fundo.querySelector('.mats');
     resumo = fundo.querySelector('.resumo');
     fundo.querySelector('.fechar').onclick = fechar;
@@ -299,13 +296,17 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && fundo.classList.contains('on')) fechar(); });
   }
   function fechar() { fundo.classList.remove('on'); if (botao) botao.focus(); }
-  function tipoDe(nome) { var m = /\.([a-z0-9]+)$/i.exec(nome || ''); return m ? m[1].toUpperCase() : 'ARQ'; }
+  function aberto() { return !!(fundo && fundo.classList.contains('on')); }
 
   var NOMES = { 'previsao': 'Previsão diária', 'tempo-severo': 'Tempo Severo', 'chuva': 'Chuva e Tendência', 'alertas': 'Alertas', 'reservatorios': 'Reservatórios e Tendência' };
   function nomeDoMapa() {   // ferramenta · aba aberta (ex.: "Previsão diária · Boletim em PDF")
     var aba = document.querySelector('[role=tab][aria-selected=true], .tab.active');
     var t = aba ? aba.textContent.replace(/\s+/g, ' ').trim() : '';
     return (NOMES[FERRAMENTA()] || '') + (t ? ' · ' + t : '');
+  }
+  function chave(m) { return m.id || (m.nome + '|' + m.tipo); }
+  function htmlRes(r) {
+    return '<div class="res ' + r.estado + '" role="status">' + r.html + '</div>';
   }
   function desenharMateriais() {
     fundo.querySelector('.cab .mapa').textContent = nomeDoMapa();
@@ -314,130 +315,109 @@
     var lst = materiais().filter(function (m) { return !situacao(m).fora; });
     if (!lst.length) { mats.innerHTML = '<p class="vazio">Nesta aba não há material para salvar. Os materiais aparecem de acordo com a aba aberta.</p>'; return; }
     lst.forEach(function (m) {
-      var s = situacao(m);
-      var b = document.createElement('button');
-      b.type = 'button'; b.className = 'mat'; b.disabled = !s.ok;
-      b.innerHTML = '<span class="tipo">' + esc(m.tipo) + '</span><span class="tx">' + esc(m.nome) +
-        '<small>' + esc(!s.ok ? s.motivo : (m.desc || '')) + '</small></span>' + (s.ok ? '<span class="ger">Gerar</span>' : '');
-      b.onclick = function () { gerar(m); };
-      mats.appendChild(b);
+      var s = situacao(m), r = RES[chave(m)], andando = r && r.estado === 'and';
+      var el = document.createElement('div');
+      el.className = 'mat' + (s.ok ? '' : ' off');
+      el.innerHTML = '<div class="lin"><span class="tipo">' + esc(m.tipo) + '</span><span class="tx">' + esc(m.nome) +
+        '<small>' + esc(!s.ok ? s.motivo : (m.desc || '')) + '</small></span>' +
+        (s.ok ? '<button type="button" class="bt pri salvar"' + (andando ? ' disabled' : '') + '>' + IC_PC + IC_DRIVE + (andando ? 'Salvando…' : 'Salvar no PC e no Drive') + '</button>' : '') + '</div>' +
+        (r ? htmlRes(r) : '');
+      var b = el.querySelector('.salvar');
+      if (b) b.onclick = function () { gerar(m); };
+      ligarAcoes(el, r);
+      mats.appendChild(el);
     });
+  }
+  function ligarAcoes(el, r) {
+    var t = el.querySelector('[data-a=drive2]');
+    if (t && r && r.it) t.onclick = function () { salvarAmbos(r.it, r.k, true); };
   }
   function gerar(m) {
     var s = situacao(m); if (!s.ok) { desenharMateriais(); return; }
-    disparar(m, s.b);
-  }
-  function disparar(m, b) {
-    // fecha o painel enquanto a ferramenta gera (avisos de validação aparecem na própria página);
-    // quando o arquivo fica pronto, o painel reabre sozinho com ele na lista.
-    fundo.classList.remove('on');
-    avisar('Gerando ' + m.nome + ' (' + m.tipo + ')…');
-    var meu = esperando = { m: m };
+    var k = chave(m), meu = esperando = { m: m, k: k };
+    RES[k] = { estado: 'and', html: 'Gerando o arquivo e salvando no PC e no Drive…' };
+    desenharMateriais();
+    setTimeout(function () {   // aviso de validação da ferramenta fica na página, atrás do painel
+      if (esperando === meu) { RES[k] = { estado: 'and', html: 'Ainda gerando… Se nada acontecer, feche este painel e confira o aviso na página.' }; desenharMateriais(); }
+    }, 8000);
     setTimeout(function () {
-      if (esperando === meu) { esperando = null; avisar('Nenhum arquivo foi gerado. Confira o aviso na página (pode faltar preencher algo) e tente de novo.', 7000); }
-    }, 12000);
-    b.click();
-  }
-  var tAviso;
-  function avisar(t, ms) {
-    if (!aviso) return;
-    aviso.textContent = t; aviso.classList.add('on');
-    clearTimeout(tAviso);
-    if (ms) tAviso = setTimeout(function () { aviso.classList.remove('on'); }, ms);
+      if (esperando === meu) {
+        esperando = null;
+        RES[k] = { estado: 'erro', html: '<b>Não foi salvo:</b> nenhum arquivo foi gerado. Feche este painel, confira o aviso na página (pode faltar preencher algo) e tente de novo.' };
+        desenharMateriais();
+      }
+    }, 60000);
+    s.b.click();
   }
 
-  function linhaDrive(it) {
-    var d = it.drive;
-    if (d.estado === 'ok') {
-      var u = urlOk(d.url);
-      return '<li class="ok"><span class="ic">✓</span><span><b>Drive:</b> salvo' + (u ? ' — <a href="' + esc(u) + '" target="_blank" rel="noopener">abrir ' + esc(d.nome || it.nome) + '</a>' : '') + (d.texto ? ' ' + esc(d.texto) : '') + '</span></li>';
-    }
-    if (d.estado === 'and') return '<li class="and"><span class="ic"></span><span><b>Drive:</b> salvando…</span></li>';
-    if (d.estado === 'err') return '<li class="err"><span class="ic">!</span><span><b>Drive:</b> não foi salvo (' + esc(d.erro) + '). Tente de novo.</span></li>';
-    if (d.estado === 'semdrive') return '<li class="err"><span class="ic">!</span><span><b>Drive:</b> esta plataforma de teste não está ligada ao Drive. Na plataforma oficial, este botão salva no Drive da equipe.</span></li>';
-    return '<li class="pend"><span class="ic"></span><span><b>Drive:</b> ainda não foi salvo no Drive.</span></li>';
+  var tAviso;
+  function avisar(html, estado, ms) {   // aviso fora do painel (ex.: KML salvo ao emitir o alerta)
+    if (!aviso) return;
+    aviso.className = (aviso.classList.contains('topo') ? 'topo ' : '') + 'on ' + (estado || '');
+    aviso.innerHTML = '<button type="button" class="x" aria-label="Fechar aviso">&times;</button>' + html;
+    aviso.querySelector('.x').onclick = function () { aviso.classList.remove('on'); };
+    clearTimeout(tAviso);
+    if (ms) tAviso = setTimeout(function () { aviso.classList.remove('on'); }, ms);
+    return aviso;
   }
-  function linhaPc(it) {
-    if (it.pc) return '<li class="ok"><span class="ic">✓</span><span><b>PC:</b> salvo no computador (pasta Downloads, ou a que o navegador pedir).</span></li>';
-    return '<li class="pend"><span class="ic"></span><span><b>PC:</b> ainda não foi salvo no PC.</span></li>';
+  function mostrarResumo() {
+    if (resumo) resumo.innerHTML = 'Um clique salva no <b>PC</b> (pasta Downloads) e no <b>Drive</b> ao mesmo tempo.';
   }
-  function desenhar(novo) {
-    if (!fundo) return;
-    lista.innerHTML = '';
-    if (!itens.length) lista.innerHTML = '<p class="vazio">Nenhum arquivo gerado ainda. Escolha um material acima.</p>';
-    itens.slice().reverse().forEach(function (it) {
-      var el = document.createElement('div');
-      el.className = 'it' + (it === novo ? ' novo' : '');
-      var andando = it.drive.estado === 'and', driveFeito = it.drive.estado === 'ok';
-      el.innerHTML = '<div class="nome"><span class="tipo">' + esc(tipoDe(it.nome)) + '</span><span>' + esc(it.nome) + '</span></div>' +
-        (it.nota ? '<p class="nota">' + esc(it.nota) + '</p>' : '') +
-        '<div class="bts"><button type="button" class="bt pri" data-a="drive"' + (andando || driveFeito ? ' disabled' : '') + '>' + IC_DRIVE + (driveFeito ? 'Salvo no Drive' : 'Salvar no Drive') + '</button>' +
-        '<button type="button" class="bt pri" data-a="pc">' + IC_PC + (it.pc ? 'Salvar no PC de novo' : 'Salvar no PC') + '</button></div>' +
-        '<ul class="st">' + linhaDrive(it) + linhaPc(it) + '</ul>';
-      el.querySelector('[data-a=drive]').onclick = function () { salvarDrive(it); };
-      el.querySelector('[data-a=pc]').onclick = function () { baixarNoPc(it.nome, it.blob); it.pc = true; desenhar(); };
-      lista.appendChild(el);
-    });
-    resumo.innerHTML = itens.length ? itens.slice().reverse().map(textoResumo).join('<br>') : 'Nada salvo ainda nesta sessão.';
-    contar();
-  }
-  function pendente(it) { return it.drive.estado !== 'ok' && !it.pc; }   // gerado, mas ainda não salvo em lugar nenhum
-  function contar() {
-    if (!contador) return;
-    var n = itens.filter(pendente).length;
-    contador.textContent = n; contador.hidden = !n;
-    botao.classList.toggle('pend', n > 0);
-    botao.title = n ? n + ' arquivo(s) gerado(s) ainda não salvo(s) em lugar nenhum' : 'Gerar e salvar materiais (Drive ou PC)';
-  }
-  function textoResumo(it) {
-    var n = '<b>' + esc(it.nome) + '</b>', d = it.drive.estado === 'ok', p = it.pc;
-    if (d && p) return n + ': salvo no Drive e no PC.';
-    if (d) return n + ': salvo no Drive. <b>Ainda não foi salvo no PC.</b>';
-    if (p) return n + ': salvo no PC. <b>Ainda não foi salvo no Drive.</b>';
-    if (it.drive.estado === 'and') return n + ': salvando no Drive…';
-    return n + ': <b>ainda não foi salvo</b> no Drive nem no PC.';
-  }
-  function salvarDrive(it) {
-    if (!it.salvarDrive && !temAppsScript()) { it.drive = { estado: 'semdrive' }; desenhar(); return; }
-    it.drive = { estado: 'and' }; desenhar();
-    var p = it.salvarDrive ? paraBase64(it.blob).then(function (b64) { return it.salvarDrive(it.blob, b64); }) : salvarArquivoNoDrive(it.nome, it.blob);
-    acompanhar(it, p);
-  }
-  function acompanhar(it, p) {
-    Promise.resolve(p).then(function (r) {
-      it.drive = { estado: 'ok', url: r && r.url, nome: (r && r.nome) || it.nome, texto: r && r.texto };
-      if (itens.indexOf(it) >= 0) desenhar();
+
+  // salva o arquivo gerado no PC e no Drive ao mesmo tempo e mostra o resultado em cores
+  function salvarAmbos(it, k, soDrive) {
+    var pc = soDrive ? it.pcOk : false;
+    if (!soDrive && !it.semPc) { try { baixarNoPc(it.nome, it.blob); pc = true; } catch (e) { pc = false; } }
+    it.pcOk = pc;
+    var r = RES[k] = { estado: 'and', html: 'Salvando <b>' + esc(it.nome) + '</b> no Drive…', it: it, k: k };
+    atualizar(r);
+    var p;
+    if (it.driveFeito && !soDrive) p = Promise.resolve(it.driveFeito);
+    else if (it.drivePromessa && !soDrive) p = it.drivePromessa;
+    else if (it.salvarDrive) p = paraBase64(it.blob).then(function (b64) { return it.salvarDrive(it.blob, b64); });
+    else if (temAppsScript()) p = salvarArquivoNoDrive(it.nome, it.blob);
+    else p = Promise.reject({ semDrive: true });
+    Promise.resolve(p).then(function (d) {
+      var u = urlOk(d && d.url), lk = u ? ' — <a href="' + esc(u) + '" target="_blank" rel="noopener">abrir no Drive</a>' : '';
+      if (pc) fim(k, it, 'ok', '✓ <b>' + esc(it.nome) + '</b> salvo no PC (pasta Downloads) e no Drive' + (d && d.texto ? ' ' + esc(d.texto) : '') + lk + '.');
+      else if (it.semPc) fim(k, it, 'ok', '✓ <b>' + esc(it.nome) + '</b> salvo no Drive' + (d && d.texto ? ' ' + esc(d.texto) : '') + lk + '.');
+      else fim(k, it, 'parcial', '<b>' + esc(it.nome) + '</b>: salvo no Drive' + lk + ', mas <b>não foi salvo no PC</b>.');
     }, function (e) {
-      it.drive = { estado: 'err', erro: (e && e.message) ? e.message : String(e || 'erro') };
-      if (itens.indexOf(it) >= 0) desenhar();
+      var motivo = e && e.semDrive ? 'esta plataforma de teste não está ligada ao Drive (na plataforma oficial, salva no Drive da equipe)'
+        : ((e && e.message) ? e.message : String(e || 'erro'));
+      var tentar = e && e.semDrive ? '' : ' <button type="button" class="mini" data-a="drive2">Tentar o Drive de novo</button>';
+      if (pc) fim(k, it, 'parcial', '<b>' + esc(it.nome) + '</b>: salvo no PC (pasta Downloads), mas <b>não foi salvo no Drive</b>: ' + esc(motivo) + '.' + tentar);
+      else fim(k, it, 'erro', '<b>' + esc(it.nome) + ' não foi salvo</b> (Drive: ' + esc(motivo) + ').' + tentar);
     });
+  }
+  function fim(k, it, estado, html) { atualizar(RES[k] = { estado: estado, html: html, it: it, k: k }); }
+  function atualizar(r) {
+    var naLista = materiais().some(function (m) { return chave(m) === r.k && !situacao(m).fora; });
+    if (aberto() && naLista) desenharMateriais();   // mensagem embaixo do material
+    else {   // painel fechado ou arquivo salvo direto pela ferramenta: aviso no canto da tela
+      var a = avisar(r.html, r.estado, r.estado === 'ok' ? 9000 : 0);
+      if (a) ligarAcoes(a, r);
+    }
   }
 
   function abrirPainel() {
     montar();
     desenharMateriais();
-    desenhar();
+    mostrarResumo();
     fundo.classList.add('on');
-    var b = mats.querySelector('.mat:not([disabled])') || fundo.querySelector('.fechar');
+    var b = mats.querySelector('.salvar:not([disabled])') || fundo.querySelector('.fechar');
     if (b) b.focus();
   }
-  // chamado quando um arquivo fica pronto (pelo painel, pela ferramenta ou pelos Alertas)
+  // chamado quando a ferramenta gera um arquivo (pelo painel, pela própria ferramenta ou pelos Alertas)
+  // opções: driveFeito {url,nome,texto} (a ferramenta já salvou no Drive), drivePromessa, salvarDrive(blob,b64),
+  // semPc (não baixar no PC — ex.: emissão do alerta com "baixar no PC" desligado).
   function abrir(o) {
     if (!o || !o.blob) return;
     montar();
+    var k = esperando ? esperando.k : 'auto:' + (o.nome || 'arquivo');
     esperando = null;
-    if (aviso) aviso.classList.remove('on');
-    var it = { nome: o.nome || 'arquivo', blob: o.blob, nota: o.nota || '', pc: false, salvarDrive: o.salvarDrive || null, drive: { estado: 'pend' } };
-    if (o.driveFeito) it.drive = { estado: 'ok', url: o.driveFeito.url, nome: o.driveFeito.nome || it.nome, texto: o.driveFeito.texto };
-    itens = itens.filter(function (x) { return x.nome !== it.nome; });
-    itens.push(it);
-    if (itens.length > 12) itens = itens.slice(-12);
-    if (o.drivePromessa) { it.drive = { estado: 'and' }; acompanhar(it, o.drivePromessa); }
-    desenharMateriais();
-    desenhar(it);
-    fundo.classList.add('on');
-    var b = lista.querySelector('.it [data-a=' + (it.drive.estado === 'ok' ? 'pc' : 'drive') + ']');
-    if (b && !b.disabled) b.focus();
+    var it = { nome: o.nome || 'arquivo', blob: o.blob, salvarDrive: o.salvarDrive || null, driveFeito: o.driveFeito || null, drivePromessa: o.drivePromessa || null, semPc: !!o.semPc };
+    salvarAmbos(it, k);
     return it;
   }
 
@@ -460,7 +440,7 @@
         b.type = 'button'; b.className = 'btn'; b.id = 'smNavegador';
         b.innerHTML = IC_SALVAR + ' Salvar neste navegador';
         b.title = 'Guarda o plantão (alertas e campos do relatório) neste navegador (não gera arquivo)';
-        b.onclick = function () { window.salvarNoNavegador(); avisar('Plantão guardado neste navegador.', 3500); };
+        b.onclick = function () { window.salvarNoNavegador(); avisar('✓ Plantão guardado neste navegador.', 'ok', 3500); };
         ref.parentElement.insertBefore(b, ref);
       }
     }
@@ -480,7 +460,7 @@
     if (usos() >= 3) return;
     dica = document.createElement('div');
     dica.id = 'smDica'; dica.setAttribute('role', 'note');
-    dica.innerHTML = 'Para <b>salvar o mapa</b> (PNG, PDF, KML…) <b>no Drive ou no PC</b>, use este botão.<button type="button" aria-label="Fechar dica">&times;</button>';
+    dica.innerHTML = 'Para <b>salvar o mapa</b> (PNG, PDF, KML…) <b>no PC e no Drive</b>, use este botão.<button type="button" aria-label="Fechar dica">&times;</button>';
     dica.querySelector('button').onclick = function () { tirarDica(false); };
     document.body.appendChild(dica);
     if (botao.classList.contains('topo')) {   // balão logo abaixo do botão, apontando para ele
@@ -502,10 +482,10 @@
     if (!document.getElementById('smBotao')) {
       botao = document.createElement('button');
       botao.type = 'button'; botao.id = 'smBotao';
-      botao.innerHTML = '<span class="ico">' + IC_BAIXAR + '</span><span class="tx">OPÇÕES DE<br>SALVAMENTO<small>Salvar mapas e arquivos · Drive ou PC</small></span><span class="n" hidden>0</span>';
-      botao.setAttribute('aria-label', 'Opções de salvamento: salvar mapas e arquivos no Drive ou no PC');
+      botao.innerHTML = '<span class="ico">' + IC_BAIXAR + '</span><span class="tx">OPÇÕES DE<br>SALVAMENTO<small>Salvar mapas e arquivos no PC e no Drive</small></span>';
+      botao.setAttribute('aria-label', 'Opções de salvamento: salvar mapas e arquivos no PC e no Drive');
+      botao.title = 'Salvar mapas e arquivos no PC e no Drive';
       botao.onclick = function () { tirarDica(true); abrirPainel(); };
-      contador = botao.querySelector('.n');
       var lugar = lugarDoBotao();
       if (lugar) { botao.classList.add('topo'); lugar.appendChild(botao); document.body.classList.add('smTopo'); }
       else { document.body.appendChild(botao); document.body.classList.add('smFlutua'); }   // sem cabeçalho: canto inferior direito
@@ -513,7 +493,6 @@
       aviso.id = 'smAviso'; aviso.setAttribute('role', 'status');
       if (lugar) aviso.classList.add('topo');
       document.body.appendChild(aviso);
-      contar();
       mostrarDica();
     }
     // botões que a ferramenta cria ou recria depois: esconde de novo
@@ -521,7 +500,7 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
 
-  window.SalvarMaterial = { abrir: abrir, abrirPainel: abrirPainel, baixarNoPc: baixarNoPc, materiais: MATERIAIS };
+  window.SalvarMaterial = { abrir: abrir, abrirPainel: abrirPainel, baixarNoPc: baixarNoPc, materiais: MATERIAIS, avisar: avisar };
 
   /* ---------------- intercepta os downloads das ferramentas ---------------- */
   HTMLAnchorElement.prototype.click = function () {
