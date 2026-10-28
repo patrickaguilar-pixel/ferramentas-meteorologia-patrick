@@ -475,7 +475,15 @@
     if (dica) { dica.remove(); dica = null; }
     if (usou) { try { localStorage.setItem(CHAVE_DICA, String(usos() + 1)); } catch (e) { } }
   }
+  // botão de tutorial ("?", canto inferior direito; desligado por padrão) — assets/tutorial.js
+  function carregarTutorial() {
+    if (window.TutorialFerramentas || document.getElementById('tuScript')) return;
+    var t = document.createElement('script'); t.id = 'tuScript';
+    t.src = (window.BASE_DADOS || '../') + 'assets/tutorial.js?v=tu1-20261028';
+    document.head.appendChild(t);
+  }
   function iniciar() {
+    carregarTutorial();
     esconderBotoes();
     padronizarNavegador();
     [1500, 4000, 9000].forEach(function (t) { setTimeout(padronizarNavegador, t); });   // Alertas termina de iniciar depois
