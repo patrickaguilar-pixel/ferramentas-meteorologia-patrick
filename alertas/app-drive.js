@@ -34,7 +34,7 @@
    (definidos no Alertas.html), municipios.js e mesorregioes.js. */
 /* 2026.10.28: janela padrão "Salvar material" (Drive ou PC), a mesma das outras ferramentas (assets/ponte-drive.js) */
 if(!window.FERRAMENTA)window.FERRAMENTA='alertas';
-(function(){if(window.SalvarMaterial)return;var s=document.createElement('script');s.src=(window.BASE_DADOS||'../')+'assets/ponte-drive.js?v=sm-20261028';document.head.appendChild(s);})();
+(function(){if(window.SalvarMaterial)return;var s=document.createElement('script');s.src=(window.BASE_DADOS||'../')+'assets/ponte-drive.js?v=sm6-20261028';document.head.appendChild(s);})();
 window.alertasDados.then(iniciarAlertas,function(e){
   document.getElementById('topinfo').innerHTML='<b>Não foi possível carregar os municípios.</b> Verifique se alertas/data/municipios.js está publicado no GitHub Pages e recarregue (Ctrl+F5).';
   window.diagFaixa(e.message);
@@ -524,10 +524,10 @@ function montarKml(cities,folder){
   return `${PI}xml version="1.0" encoding="utf-8" ${String.fromCharCode(63)}><kml xmlns="http://www.opengis.net/kml/2.2"><Document><Folder><name>${folder}</name>${placemarks}</Folder></Document></kml>`;
 }
 function kmlBlob(cities,folder){return new Blob([montarKml(cities,folder)],{type:'application/vnd.google-earth.kml+xml'});}
-function baixarKml(cities,folder){
+function baixarKml(cities,folder,opc){
   folder=folder||kmlStamp();
   const blob=kmlBlob(cities,folder);
-  salvarMaterial(folder+'.kml',blob);
+  salvarMaterial(folder+'.kml',blob,opc);
   return blob.size;
 }
 $('downloadKml').onclick=()=>{
@@ -624,7 +624,7 @@ function desenharAlertas(){
       `<div>${a.cities.length} município(s): ${esc(a.cities.join(', '))}</div>`+
       (/^https:\/\//.test(a.kmlUrl||'')?`<div><a href="${esc(a.kmlUrl)}" target="_blank" rel="noopener">Abrir KML no Drive</a></div>`:'')+
       `<div class="r"><button type="button" class="btn small download-kml">Baixar KML no PC</button>`+(meu?`<button type="button" class="btn small ghost delete-alert" style="color:var(--err)">Excluir alerta</button>`:'')+`</div>`;
-    card.querySelector('.download-kml').onclick=()=>baixarKml(a.cities,a.folder);
+    card.querySelector('.download-kml').onclick=()=>baixarKml(a.cities,a.folder,/^https:\/\//.test(a.kmlUrl||'')?{driveFeito:{url:a.kmlUrl,nome:a.folder+'.kml',texto:'(salvo ao emitir o alerta)'}}:null);   // 2026.10.28: KML da emissão já está no Drive
     if(meu)card.querySelector('.delete-alert').onclick=()=>{if(confirmarExclusao(a))deleteAlert(a);};
     a.cardEl=card;box.appendChild(card);
   });
