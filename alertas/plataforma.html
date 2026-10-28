@@ -572,7 +572,7 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
   window.alertasDados=Promise.all([
     carregar(BASE+'alertas/data/municipios.js').then(function(){pendentes.municipios=false;}),
     carregar(BASE+'alertas/data/mesorregioes.js').then(function(){pendentes.mesorregioes=false;},function(){pendentes.mesorregioes=false;}),  // opcional
-    carregar(BASE+'alertas/app-drive.js?v=1.15y-20261022')     // código da página (GitHub Pages)
+    carregar(BASE+'alertas/app-drive.js?v=sm-20261028')     // código da página (GitHub Pages)
   ]);
   // jsPDF só é usado no relatório: carrega depois, sem atrasar o mapa
   window.alertasJsPdf=window.alertasDados.catch(function(){}).then(function(){return carregar(BASE+'previsao/lib/jspdf.umd.min.js?v=1.15y-20261022');});
