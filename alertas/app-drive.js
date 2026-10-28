@@ -34,7 +34,7 @@
    (definidos no Alertas.html), municipios.js e mesorregioes.js. */
 /* 2026.10.28: janela padrão "Salvar material" (Drive ou PC), a mesma das outras ferramentas (assets/ponte-drive.js) */
 if(!window.FERRAMENTA)window.FERRAMENTA='alertas';
-(function(){if(window.SalvarMaterial)return;var s=document.createElement('script');s.src=(window.BASE_DADOS||'../')+'assets/ponte-drive.js?v=sm6-20261028';document.head.appendChild(s);})();
+(function(){if(window.SalvarMaterial)return;var s=document.createElement('script');s.src=(window.BASE_DADOS||'../')+'assets/ponte-drive.js?v=sm8-20261028';document.head.appendChild(s);})();
 window.alertasDados.then(iniciarAlertas,function(e){
   document.getElementById('topinfo').innerHTML='<b>Não foi possível carregar os municípios.</b> Verifique se alertas/data/municipios.js está publicado no GitHub Pages e recarregue (Ctrl+F5).';
   window.diagFaixa(e.message);
@@ -851,6 +851,7 @@ function padraoPublicacoes(){
   if($('pPub2Per')&&!$('pPub2Per').value)$('pPub2Per').value='Tarde';
 }
 
+window.salvarNoNavegador=()=>salvarRascunho();   // 2026.10.28: botão padrão "Salvar neste navegador" (assets/ponte-drive.js)
 function salvarRascunho(){
   try{
     const active=state.active.map(a=>{const c={...a};delete c.cardEl;return c;});

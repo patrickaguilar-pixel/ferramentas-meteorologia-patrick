@@ -77,6 +77,13 @@
     '#smJanela .mat .ger{flex:none;font:700 13px "Barlow",Arial,sans-serif;color:#006cbf}',
     '#smJanela .mat[disabled] .tipo{background:#9fb2c8}',
     '#smJanela .vazio{margin:0;color:#5f7393;font-size:14px}',
+    '#smJanela .sec h3 .aqui{text-transform:none;letter-spacing:0;font-weight:600;color:#7d8fab}',
+    '#smJanela .prev{display:grid;gap:10px;margin:0 0 10px}',
+    '#smJanela .prev.duas{grid-template-columns:1fr 1fr}',
+    '#smJanela .prev[hidden]{display:none}',
+    '#smJanela .prev figure{margin:0;border:1px solid #d3e4f2;border-radius:10px;background:#f6fafd;padding:8px;overflow:hidden}',
+    '#smJanela .prev svg,#smJanela .prev img{display:block;width:100%;height:auto;max-height:260px;object-fit:contain;background:#fff;pointer-events:none}',
+    '#smJanela .prev figcaption{font:600 12.5px "Barlow",Arial,sans-serif;color:#5f7393;margin-top:6px}',
     '#smJanela .it.novo{animation:smPisca 1.6s ease-out}',
     '@keyframes smPisca{from{background:#e3f1fb}to{background:transparent}}',
     '#smBotao{position:fixed;right:20px;bottom:20px;z-index:99980;display:inline-flex;align-items:center;gap:9px;border:0;border-radius:12px;background:#092b6a;color:#fff;padding:13px 18px;font:700 14.5px/1 "Barlow",Arial,"Liberation Sans",sans-serif;letter-spacing:.06em;cursor:pointer;box-shadow:0 8px 24px rgba(9,43,106,.35)}',
@@ -136,9 +143,9 @@
   }
 
   /* ---------------- materiais de cada ferramenta (botão original que gera o arquivo) ---------------- */
-  // id: botão da ferramenta (fica escondido); onde/aba: nome e seletor da aba em que ele funciona
-  // (o painel troca de aba sozinho); semAba: funciona de qualquer lugar; requer: outro botão que precisa
-  // estar ativo; precisa: o que fazer antes, quando o material ainda não pode ser gerado.
+  // id: botão da ferramenta (fica escondido). O painel mostra só os materiais da aba/página aberta:
+  // o botão original precisa estar na parte visível da tela (ou, com vista, essa área precisa estar visível).
+  // requer: outro botão que precisa estar ativo; precisa: o que fazer antes, quando ainda não dá para gerar.
   var MATERIAIS = {
     'previsao': [
       { id: 'btnPng', nome: 'Mapa do dia', tipo: 'PNG', desc: 'Imagem 300 dpi (3508 × 2480 px)', onde: 'Mapa do dia', aba: '#tabMap' },
@@ -155,9 +162,9 @@
       { id: 'pngBtn', nome: 'Mapa de chuva e tendência', tipo: 'PNG', desc: 'Imagem 300 dpi' }
     ],
     'alertas': [
-      { id: 'downloadKml', nome: 'Municípios selecionados', tipo: 'KML', desc: 'Contorno dos municípios selecionados no mapa', semAba: true, requer: 'create', precisa: 'Selecione os municípios no mapa' },
-      { id: 'downloadTxt', nome: 'Alertas do dia', tipo: 'TXT', desc: 'Registro do plantão', semAba: true },
-      { seletor: '.alert-card .download-kml', tipo: 'KML', nome: 'KML do alerta', semAba: true,   // um item por alerta ativo
+      { id: 'downloadKml', nome: 'Municípios selecionados', tipo: 'KML', desc: 'Contorno dos municípios selecionados no mapa', vista: '#viewMapa', requer: 'create', precisa: 'Selecione os municípios no mapa' },
+      { id: 'downloadTxt', nome: 'Alertas do dia', tipo: 'TXT', desc: 'Registro do plantão', vista: '#viewMapa' },
+      { seletor: '.alert-card .download-kml', tipo: 'KML', nome: 'KML do alerta', vista: '#viewMapa',   // um item por alerta ativo
         rotulo: function (b) { var c = b.closest('.alert-card'); var t = c && c.querySelector('b'); var h = c && c.querySelector('b + div'); return 'KML do alerta: ' + (t ? t.textContent : '') + (h ? ' · ' + h.textContent.split('•')[0].trim() : ''); } },
       { id: 'baixarRel', nome: 'Prévia do relatório do plantão', tipo: 'PDF', desc: 'Não encerra o plantão', onde: 'Plantão e relatório', aba: '#abaPlantao' }
     ],
@@ -176,7 +183,7 @@
     (MATERIAIS[FERRAMENTA()] || []).forEach(function (m) {
       if (!m.seletor) return lst.push(m);
       [].slice.call(document.querySelectorAll(m.seletor)).forEach(function (b) {
-        lst.push({ el: b, nome: m.rotulo ? m.rotulo(b) : m.nome, tipo: m.tipo, desc: m.desc, semAba: m.semAba });
+        lst.push({ el: b, nome: m.rotulo ? m.rotulo(b) : m.nome, tipo: m.tipo, desc: m.desc, vista: m.vista });
       });
     });
     return lst;
@@ -184,16 +191,62 @@
   function visivel(el) { return !!(el && el.getClientRects().length); }
   function situacao(m) {
     var b = m.el || document.getElementById(m.id);
-    if (!b) return { ok: false, motivo: 'indisponível nesta página' };
+    if (!b) return { fora: true };
+    var aqui = m.vista ? visivel(document.querySelector(m.vista)) : (!b.hidden && visivel(b.parentElement));
+    if (!aqui) return { fora: true };   // material de outra aba: não aparece
     var r = m.requer && document.getElementById(m.requer);
     if (r && r.disabled) return { ok: false, motivo: m.precisa || 'indisponível agora' };
-    var naAba = m.semAba || (!b.hidden && visivel(b.parentElement));
-    if (!naAba) {
-      if (m.aba && document.querySelector(m.aba)) return b.disabled ? { ok: false, motivo: m.precisa || 'gere o material primeiro' } : { ok: true, trocar: true, b: b };
-      return { ok: false, motivo: m.onde ? 'Abra a aba “' + m.onde + '” para salvar' : 'indisponível agora' };
-    }
     if (b.disabled) return { ok: false, motivo: m.precisa || 'gere o material primeiro' };
     return { ok: true, b: b };
+  }
+
+  /* ---------------- prévia do mapa (da aba aberta) ---------------- */
+  // seletores dos mapas/páginas que a ferramenta mostra na tela; aparece a que estiver visível.
+  var PREVIAS = {
+    'previsao': [['#paper svg', 'Mapa do dia'], ['#bPages .a4 svg', 'Boletim (página 1)'], ['#cPages .a4 svg', 'Previsão por cidade (página 1)']],
+    'tempo-severo': [['#lmPainel [data-folha]', 'Mapa final', layoutAoVivo]],
+    'chuva': [['#lmPainel [data-folha]', 'Mapa final', layoutAoVivo]],
+    'alertas': [['#mapSvg', 'Mapa de alertas'], ['#relPages .a4 svg', 'Relatório (página 1)']],
+    'reservatorios': [['#resCanvas', 'Reservatórios'], ['#wk1Canvas', 'Week 1'], ['#wk2Canvas', 'Week 2'],
+      ['#a24Canvas', '24 h'], ['#a72Canvas', '3 dias'], ['#a120Canvas', '5 dias']]
+  };
+  // Tempo Severo e Chuva: o "Mapa final" só é desenhado quando aparece na tela; se ainda não foi,
+  // a prévia é montada na hora com o mesmo layout (sem o mapa base, que demora a carregar).
+  function layoutAoVivo() {
+    try { if (window.LayoutMapa && typeof window.opcoesMapa === 'function') return LayoutMapa.svg(window.opcoesMapa()); } catch (e) { }
+    return '';
+  }
+  function copiaDaTela(el) {   // devolve o desenho (svg, img ou canvas) que está dentro de el
+    var d = /^(svg|img|canvas)$/i.test(el.tagName) ? el : el.querySelector('svg, img, canvas');
+    if (!d || !d.getClientRects().length) return null;
+    if (/canvas/i.test(d.tagName)) { var i = new Image(); try { i.src = d.toDataURL('image/png'); } catch (e) { return null; } return i; }
+    var c = d.cloneNode(true);       // cópia do que está na tela (mesmos mapas base e camadas)
+    c.removeAttribute('id');
+    if (/svg/i.test(d.tagName)) {
+      c.removeAttribute('width'); c.removeAttribute('height');
+      if (!c.getAttribute('viewBox')) { var r = d.getBoundingClientRect(); c.setAttribute('viewBox', '0 0 ' + Math.round(r.width) + ' ' + Math.round(r.height)); }
+      c.removeAttribute('style');
+    }
+    return c;
+  }
+  function desenharPrevias() {
+    var box = fundo.querySelector('.prev');
+    box.innerHTML = '';
+    var achou = 0;
+    (PREVIAS[FERRAMENTA()] || []).forEach(function (pv) {
+      var el = document.querySelector(pv[0]);
+      if (!visivel(el)) return;
+      var c = copiaDaTela(el);
+      if (!c && pv[2]) { var h = pv[2](); if (h) { var t = document.createElement('div'); t.innerHTML = h; c = t.querySelector('svg'); if (c) { c.removeAttribute('width'); c.removeAttribute('height'); } } }
+      if (!c) return;
+      c.setAttribute('aria-hidden', 'true');
+      var f = document.createElement('figure');
+      f.appendChild(c);
+      var cap = document.createElement('figcaption'); cap.textContent = pv[1]; f.appendChild(cap);
+      box.appendChild(f); achou++;
+    });
+    box.className = 'prev' + (achou > 1 ? ' duas' : '');
+    box.hidden = !achou;
   }
   function esconderBotoes() {
     materiais().forEach(function (m) { var b = m.el || document.getElementById(m.id); if (b && !b.classList.contains('sm-oculto')) b.classList.add('sm-oculto'); });
@@ -210,7 +263,7 @@
       '<div class="cab"><h2 id="smTitulo">Opções de salvamento</h2>' +
       '<button type="button" class="x" aria-label="Fechar">&times;</button>' +
       '<svg class="rs" viewBox="0 0 218 64" preserveAspectRatio="none" aria-hidden="true"><path d="M42 0H218V64H0Z" fill="#006cbf"/><path d="M42 0H83L40 64H0Z" fill="#a9e0f4"/><path d="M83 0H121L78 64H40Z" fill="#078fd2"/></svg></div>' +
-      '<div class="sec"><h3>1. Gerar material</h3><div class="mats"></div></div>' +
+      '<div class="sec"><h3>1. Gerar material <span class="aqui">· desta aba</span></h3><div class="prev" hidden></div><div class="mats"></div></div>' +
       '<div class="sec"><h3>2. Salvar no Drive ou no PC</h3><div class="itens"></div></div>' +
       '<div class="rod"><div class="resumo" aria-live="polite"></div><button type="button" class="bt fechar">Fechar</button></div></div>';
     document.body.appendChild(fundo);
@@ -228,29 +281,21 @@
 
   function desenharMateriais() {
     mats.innerHTML = '';
-    var lst = materiais();
-    if (!lst.length) { mats.innerHTML = '<p class="vazio">Esta ferramenta não tem materiais para salvar.</p>'; return; }
+    desenharPrevias();
+    var lst = materiais().filter(function (m) { return !situacao(m).fora; });
+    if (!lst.length) { mats.innerHTML = '<p class="vazio">Nesta aba não há material para salvar. Os materiais aparecem de acordo com a aba aberta.</p>'; return; }
     lst.forEach(function (m) {
       var s = situacao(m);
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'mat'; b.disabled = !s.ok;
       b.innerHTML = '<span class="tipo">' + esc(m.tipo) + '</span><span class="tx">' + esc(m.nome) +
-        '<small>' + esc(!s.ok ? s.motivo : s.trocar ? 'Na aba “' + m.onde + '” (o painel abre a aba)' : (m.desc || '')) + '</small></span>' + (s.ok ? '<span class="ger">Gerar</span>' : '');
+        '<small>' + esc(!s.ok ? s.motivo : (m.desc || '')) + '</small></span>' + (s.ok ? '<span class="ger">Gerar</span>' : '');
       b.onclick = function () { gerar(m); };
       mats.appendChild(b);
     });
   }
   function gerar(m) {
     var s = situacao(m); if (!s.ok) { desenharMateriais(); return; }
-    if (s.trocar) {   // material de outra aba: abre a aba e confere de novo
-      document.querySelector(m.aba).click();
-      setTimeout(function () {
-        var s2 = situacao(m);
-        if (s2.ok && !s2.trocar) return disparar(m, s2.b);
-        desenharMateriais();   // ainda não dá (ex.: mapa não gerado): o painel mostra o que falta
-      }, 350);
-      return;
-    }
     disparar(m, s.b);
   }
   function disparar(m, b) {
@@ -366,9 +411,36 @@
     return it;
   }
 
+  /* ---------------- "Salvar neste navegador" (mesmo nome em todas as ferramentas) ---------------- */
+  // Guarda o que foi preenchido/desenhado só neste navegador; não gera arquivo, por isso fica no layout.
+  // Alertas: o app-drive.js expõe window.salvarNoNavegador (rascunho do plantão).
+  function padronizarNavegador() {
+    ['btnSave', 'saveBtn'].forEach(function (id) {
+      var b = document.getElementById(id); if (!b || b.getAttribute('data-sm') === '1') return;
+      [].slice.call(b.childNodes).forEach(function (n) { if (n.nodeType === 3) n.remove(); });
+      b.appendChild(document.createTextNode((b.querySelector('svg') ? ' ' : '') + 'Salvar neste navegador'));
+      b.title = 'Guarda o que você preencheu/desenhou neste navegador (não gera arquivo)';
+      b.setAttribute('data-sm', '1');
+    });
+    // Alertas: o rascunho já é guardado sozinho; o botão guarda na hora e confirma
+    if (FERRAMENTA() === 'alertas' && typeof window.salvarNoNavegador === 'function' && !document.getElementById('smNavegador')) {
+      var ref = document.getElementById('novo');
+      if (ref && ref.parentElement) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'btn'; b.id = 'smNavegador';
+        b.innerHTML = IC_SALVAR + ' Salvar neste navegador';
+        b.title = 'Guarda o plantão (alertas e campos do relatório) neste navegador (não gera arquivo)';
+        b.onclick = function () { window.salvarNoNavegador(); avisar('Plantão guardado neste navegador.', 3500); };
+        ref.parentElement.insertBefore(b, ref);
+      }
+    }
+  }
+
   /* ---------------- botão fixo "OPÇÕES DE SALVAMENTO" (sempre no canto inferior direito) ---------------- */
   function iniciar() {
     esconderBotoes();
+    padronizarNavegador();
+    [1500, 4000, 9000].forEach(function (t) { setTimeout(padronizarNavegador, t); });   // Alertas termina de iniciar depois
     if (!document.getElementById('smBotao')) {
       botao = document.createElement('button');
       botao.type = 'button'; botao.id = 'smBotao';
