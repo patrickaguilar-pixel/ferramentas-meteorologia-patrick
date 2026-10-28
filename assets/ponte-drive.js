@@ -3,7 +3,7 @@
  * Usada por Previsão diária, Tempo Severo, Chuva e Tendência, Alertas e Reservatórios.
  *
  * Os botões de exportar das ferramentas saem do layout (ficam escondidos, só para a ponte acioná-los).
- * Em todas as ferramentas aparece o mesmo botão, sempre no canto inferior direito da tela:
+ * Em todas as ferramentas aparece o mesmo botão, sempre no canto superior direito do cabeçalho (sobre a faixa azul):
  * "OPÇÕES DE SALVAMENTO". Ele abre um painel com todo o controle:
  *   1. Materiais da ferramenta (mapa PNG, PDF, SVG, KML, CSV, TXT…): um clique gera o arquivo;
  *   2. Arquivos gerados nesta sessão, cada um com "Salvar no Drive" e "Salvar no PC", dizendo
@@ -40,7 +40,7 @@
     '#smJanela .cab{display:flex;align-items:center;gap:12px;padding:16px 18px 12px;border-bottom:1px solid #e1ebf4;position:relative;overflow:hidden}',
     '#smJanela .cab h2{margin:0;font:700 19px/1.2 "Barlow",Arial,sans-serif;color:#092b6a;flex:1}',
     '#smJanela .cab svg.rs{position:absolute;right:0;top:0;height:100%;width:120px;pointer-events:none}',
-    '#smJanela .cab .x{position:relative;z-index:1;border:0;background:#fff;color:#092b6a;width:32px;height:32px;border-radius:8px;font-size:20px;line-height:1;cursor:pointer;margin-right:96px}',
+    '#smJanela .cab h2{margin-right:110px}',
     '#smJanela .itens{padding:6px 18px}',
     '#smJanela .it{padding:14px 0;border-top:1px solid #eef3f8}',
     '#smJanela .it:first-child{border-top:0}',
@@ -101,10 +101,25 @@
     '#smDica b{color:#ffb703}',
     '#smDica button{position:absolute;right:6px;top:6px;border:0;background:transparent;color:#fff;font-size:18px;cursor:pointer;width:26px;height:26px;border-radius:6px}',
     '@media (prefers-reduced-motion:reduce){#smBotao.pend{animation:none}#smBotao{transition:none}}',
+    /* no canto superior direito do cabeçalho, sobre a faixa decorativa: não cobre mapa, legenda nem botões */
+    '#smBotao.topo{position:absolute;right:12px;top:50%;bottom:auto;transform:translateY(-50%);z-index:3;gap:8px;padding:5px 12px 5px 5px;border-width:2px;border-radius:12px;font-size:13px;line-height:1.1;letter-spacing:.05em;box-shadow:0 0 0 1px #092b6a,0 4px 12px rgba(9,43,106,.3)}',
+    '#smBotao.topo:hover{transform:translateY(-50%) scale(1.03);box-shadow:0 0 0 1px #092b6a,0 6px 16px rgba(9,43,106,.35)}',
+    '#smBotao.topo .ico{width:32px;height:32px;border-radius:8px}',
+    '#smBotao.topo .ico svg{width:19px;height:19px}',
+    '#smBotao.topo .tx small{display:none}',
+    '#smBotao.topo .n{top:-9px;right:-9px}',
+    '#smBotao.topo.pend{animation:smPulso2 1.8s ease-in-out infinite}',
+    '@keyframes smPulso2{0%,100%{box-shadow:0 0 0 1px #092b6a,0 4px 12px rgba(9,43,106,.3)}50%{box-shadow:0 0 0 1px #092b6a,0 0 0 8px rgba(255,183,3,.45)}}',
+    'body.smTopo .bar .actions{margin-right:196px!important}',
+    'body.smTopo header .badge{margin-right:190px}',
+    '#smJanela .cab .mapa{display:block;font:600 14px/1.3 "Barlow",Arial,sans-serif;color:#3d5a8a;margin-top:3px}',
+    '#smDica.topo{position:absolute;bottom:auto}',
+    '#smDica.topo::after{bottom:auto;top:-8px;border-top:0;border-bottom:8px solid #092b6a;border-left-color:transparent;border-right-color:transparent}',
+    '#smAviso.topo{bottom:auto;top:76px}',
     '#smAviso{position:fixed;right:22px;bottom:104px;z-index:99981;max-width:340px;background:#092b6a;color:#fff;border-radius:10px;padding:10px 14px;font:500 14px/1.4 "Barlow",Arial,sans-serif;box-shadow:0 8px 24px rgba(9,43,106,.3);display:none}',
     '#smAviso.on{display:block}',
     '.sm-oculto{display:none!important}',
-    'body{padding-bottom:100px}',
+    'body.smFlutua{padding-bottom:100px}',
     '@media print{#smBotao,#smAviso,#smDica{display:none!important}}',
     '@keyframes smGira{to{transform:rotate(360deg)}}',
     '@media (prefers-reduced-motion:reduce){#smJanela .st .and .ic{animation:none}}'
@@ -269,8 +284,7 @@
     fundo = document.createElement('div');
     fundo.id = 'smFundo';
     fundo.innerHTML = '<div id="smJanela" role="dialog" aria-modal="true" aria-labelledby="smTitulo">' +
-      '<div class="cab"><h2 id="smTitulo">Opções de salvamento</h2>' +
-      '<button type="button" class="x" aria-label="Fechar">&times;</button>' +
+      '<div class="cab"><h2 id="smTitulo">Opções de salvamento<span class="mapa"></span></h2>' +
       '<svg class="rs" viewBox="0 0 218 64" preserveAspectRatio="none" aria-hidden="true"><path d="M42 0H218V64H0Z" fill="#006cbf"/><path d="M42 0H83L40 64H0Z" fill="#a9e0f4"/><path d="M83 0H121L78 64H40Z" fill="#078fd2"/></svg></div>' +
       '<div class="sec"><h3>1. Gerar material <span class="aqui">· desta aba</span></h3><div class="prev" hidden></div><div class="mats"></div></div>' +
       '<div class="sec"><h3>2. Salvar no Drive ou no PC</h3><div class="itens"></div></div>' +
@@ -280,7 +294,6 @@
     lista = fundo.querySelector('.itens');
     mats = fundo.querySelector('.mats');
     resumo = fundo.querySelector('.resumo');
-    fundo.querySelector('.x').onclick = fechar;
     fundo.querySelector('.fechar').onclick = fechar;
     fundo.addEventListener('click', function (e) { if (e.target === fundo) fechar(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && fundo.classList.contains('on')) fechar(); });
@@ -288,7 +301,14 @@
   function fechar() { fundo.classList.remove('on'); if (botao) botao.focus(); }
   function tipoDe(nome) { var m = /\.([a-z0-9]+)$/i.exec(nome || ''); return m ? m[1].toUpperCase() : 'ARQ'; }
 
+  var NOMES = { 'previsao': 'Previsão diária', 'tempo-severo': 'Tempo Severo', 'chuva': 'Chuva e Tendência', 'alertas': 'Alertas', 'reservatorios': 'Reservatórios e Tendência' };
+  function nomeDoMapa() {   // ferramenta · aba aberta (ex.: "Previsão diária · Boletim em PDF")
+    var aba = document.querySelector('[role=tab][aria-selected=true], .tab.active');
+    var t = aba ? aba.textContent.replace(/\s+/g, ' ').trim() : '';
+    return (NOMES[FERRAMENTA()] || '') + (t ? ' · ' + t : '');
+  }
   function desenharMateriais() {
+    fundo.querySelector('.cab .mapa').textContent = nomeDoMapa();
     mats.innerHTML = '';
     desenharPrevias();
     var lst = materiais().filter(function (m) { return !situacao(m).fora; });
@@ -446,7 +466,12 @@
     }
   }
 
-  /* ---------------- botão fixo "OPÇÕES DE SALVAMENTO" (sempre no canto inferior direito) ---------------- */
+  /* ---------------- botão "OPÇÕES DE SALVAMENTO" (no cabeçalho, canto superior direito, em todas) ---------------- */
+  // Fica no canto superior direito do cabeçalho de cada ferramenta (sobre a faixa azul), para nunca cobrir mapa ou legenda.
+  function lugarDoBotao() {
+    return document.querySelector('body > .bar') ||    // Previsão, Tempo Severo, Chuva, Alertas (barra do topo)
+      document.querySelector('body > header');         // Reservatórios
+  }
   var IC_BAIXAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v3h16v-3"/></svg>';
   // dica ao abrir a ferramenta, até a pessoa usar o botão 3 vezes neste navegador
   var CHAVE_DICA = 'smDicaUsos', dica;
@@ -458,6 +483,12 @@
     dica.innerHTML = 'Para <b>salvar o mapa</b> (PNG, PDF, KML…) <b>no Drive ou no PC</b>, use este botão.<button type="button" aria-label="Fechar dica">&times;</button>';
     dica.querySelector('button').onclick = function () { tirarDica(false); };
     document.body.appendChild(dica);
+    if (botao.classList.contains('topo')) {   // balão logo abaixo do botão, apontando para ele
+      var r = botao.getBoundingClientRect();
+      dica.classList.add('topo');
+      dica.style.top = (r.bottom + window.scrollY + 12) + 'px';
+      dica.style.right = Math.max(8, document.documentElement.clientWidth - r.right) + 'px';
+    }
     setTimeout(function () { tirarDica(false); }, 12000);
   }
   function tirarDica(usou) {
@@ -471,12 +502,16 @@
     if (!document.getElementById('smBotao')) {
       botao = document.createElement('button');
       botao.type = 'button'; botao.id = 'smBotao';
-      botao.innerHTML = '<span class="ico">' + IC_BAIXAR + '</span><span class="tx">OPÇÕES DE SALVAMENTO<small>Salvar mapas e arquivos · Drive ou PC</small></span><span class="n" hidden>0</span>';
+      botao.innerHTML = '<span class="ico">' + IC_BAIXAR + '</span><span class="tx">OPÇÕES DE<br>SALVAMENTO<small>Salvar mapas e arquivos · Drive ou PC</small></span><span class="n" hidden>0</span>';
+      botao.setAttribute('aria-label', 'Opções de salvamento: salvar mapas e arquivos no Drive ou no PC');
       botao.onclick = function () { tirarDica(true); abrirPainel(); };
       contador = botao.querySelector('.n');
-      document.body.appendChild(botao);
+      var lugar = lugarDoBotao();
+      if (lugar) { botao.classList.add('topo'); lugar.appendChild(botao); document.body.classList.add('smTopo'); }
+      else { document.body.appendChild(botao); document.body.classList.add('smFlutua'); }   // sem cabeçalho: canto inferior direito
       aviso = document.createElement('div');
       aviso.id = 'smAviso'; aviso.setAttribute('role', 'status');
+      if (lugar) aviso.classList.add('topo');
       document.body.appendChild(aviso);
       contar();
       mostrarDica();
