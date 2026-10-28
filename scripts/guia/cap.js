@@ -60,13 +60,13 @@ async function shot(p,name,sels){const boxes=[];for(const s of sels){const loc=p
 {const p=await page(b);await p.goto(B+'reservatorios/');await p.waitForTimeout(800);
  await p.click('#cpcLoad');await p.waitForFunction(()=>!document.getElementById('cpcLoad').disabled,null,{timeout:120000});await p.waitForTimeout(500);
  await shot(p,'res_busca',['#cpcCycle','#cpcLoad','#cpcStatus','.tab[data-tab=reserv]']);
- await p.evaluate(()=>document.querySelector('#reserv').scrollIntoView({block:'start'}));await p.waitForTimeout(400);
+ await p.evaluate(()=>(()=>{const h=document.querySelector('body > header').offsetHeight;const t=document.querySelector('#reserv').getBoundingClientRect().top+scrollY;window.scrollTo(0,t-h-8);})());await p.waitForTimeout(400);
  await shot(p,'res_reserv',['#resStart','#resShowCities','#resGenerate','#smBotao','#resCanvas']);
- await p.click('.tab[data-tab=weekly]');await p.evaluate(()=>document.querySelector('#weekly').scrollIntoView({block:'start'}));await p.waitForTimeout(500);
+ await p.click('.tab[data-tab=weekly]');await p.evaluate(()=>(()=>{const h=document.querySelector('body > header').offsetHeight;const t=document.querySelector('#weekly').getBoundingClientRect().top+scrollY;window.scrollTo(0,t-h-8);})());await p.waitForTimeout(500);
  await shot(p,'res_weekly',['#wk1Start','#wk2Start','#wkGenerate','#smBotao','#wk1Canvas','#wk2Canvas']);
  await p.evaluate(()=>document.querySelector('#mesoRainSummary').scrollIntoView({block:'start'}));await p.waitForTimeout(400);
  await shot(p,'res_meso',['#mesoRainSummary','#mesoW1Body']);
- await p.click('.tab[data-tab=accum]');await p.evaluate(()=>document.querySelector('#accum').scrollIntoView({block:'start'}));await p.waitForTimeout(500);
+ await p.click('.tab[data-tab=accum]');await p.evaluate(()=>(()=>{const h=document.querySelector('body > header').offsetHeight;const t=document.querySelector('#accum').getBoundingClientRect().top+scrollY;window.scrollTo(0,t-h-8);})());await p.waitForTimeout(500);
  await shot(p,'res_accum',['#a24Start','#accGenerate','#smBotao','#a24Canvas']);
  console.log('errs',p.errs);}
 {const b2=b;const ctx=await b2.newContext({viewport:{width:1440,height:900},deviceScaleFactor:1.5,acceptDownloads:true});
