@@ -1,0 +1,35 @@
+name: Capturas do guia (temporário)
+on:
+  push:
+    branches: [guia-capturas-2]
+    paths: ["scripts/guia/**", ".github/workflows/guia-capturas.yml"]
+permissions:
+  contents: write
+jobs:
+  capturar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Playwright
+        run: |
+          npm i --no-save --no-package-lock playwright@1.48.2
+          npx playwright install --with-deps chromium
+      - name: Capturar
+        run: |
+          python3 -m http.server 8780 >/dev/null 2>&1 &
+          sleep 3
+          mkdir -p guia-cap
+          node scripts/guia/cap.js "$PWD/guia-cap"
+          node scripts/guia/cap2.js "$PWD/guia-cap"
+          ls -la guia-cap
+      - name: Gravar as capturas no ramo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add guia-cap
+          git commit -m "Capturas do guia com fundo OSM padrão"
+          git push origin HEAD:guia-capturas-2
