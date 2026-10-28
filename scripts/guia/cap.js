@@ -79,10 +79,14 @@ async function shot(p,name,sels){const boxes=[];for(const s of sels){const loc=p
  await p.evaluate(R=>applyData({date:'2026-10-28',rows:Object.entries(R).map(([name,[tempo,tmax,tmin]])=>({name,tempo,tmax:String(tmax),tmin:String(tmin)}))}),RW);
  await p.evaluate(()=>{const r=document.querySelector('input[name=bgsel][value="osm"]');if(r){r.click();r.dispatchEvent(new Event('change',{bubbles:true}));}window.scrollTo(0,0);});await p.waitForTimeout(15000);
  await p.click('#smBotao');await p.waitForTimeout(800);
- await p.click('#smJanela .mat >> nth=0');
- await p.waitForSelector('#smFundo.on #smJanela .it',{timeout:180000});await p.waitForTimeout(800);
- await p.click('#smJanela .it [data-a=drive]');await p.waitForTimeout(1500);
+ await p.click('#smJanela .salvar >> nth=0');
+ await p.waitForSelector('#smJanela .res.ok',{timeout:180000});await p.waitForTimeout(800);
  await p.evaluate(()=>{document.querySelector('#smJanela').scrollTop=0;});
- await shot(p,'salvar_painel',['#smBotao','#smJanela .prev','#smJanela .mat >> nth=0','#smJanela .it [data-a=drive]','#smJanela .it [data-a=pc]','#smJanela .resumo']);
+ await shot(p,'salvar_painel',['#smBotao','#smJanela .prev','#smJanela .salvar >> nth=0','#smJanela .res','#smJanela .fechar']);
+ await p.click('#smJanela .fechar');await p.waitForTimeout(500);
+ await p.click('#tuBotao');await p.waitForTimeout(1500);
+ await p.evaluate(()=>{const a=document.getElementById('tuAviso');if(a)a.remove();});
+ await p.hover('#tuCamada .tuN >> nth=2');await p.waitForTimeout(600);
+ await shot(p,'tutorial',['#tuBotao','#tuCamada .tuN >> nth=2','#tuCamada .tuBalao']);
  await ctx.close();}
 fs.writeFileSync(OUT+'/boxes.json',JSON.stringify(R,null,1));await b.close();})();
