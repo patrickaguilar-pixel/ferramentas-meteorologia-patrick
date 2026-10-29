@@ -2,7 +2,7 @@ const {chromium}=require('playwright');const fs=require('fs');
 const OUT=process.argv[2],B='http://localhost:8780/';
 const ring=a=>[...a,a[0]];const poly=(c,level)=>({type:'Feature',properties:{level},geometry:{type:'Polygon',coordinates:[ring(c)]}});
 (async()=>{const b=await chromium.launch();const ctx=await b.newContext({viewport:{width:1440,height:900},deviceScaleFactor:1.5});
-await ctx.addInitScript(()=>{try{localStorage.setItem('layoutMapa:fundo2','osm');localStorage.setItem('smDicaUsos','9')}catch(e){}});const p=await ctx.newPage();
+await ctx.addInitScript(()=>{try{localStorage.setItem('layoutMapa:fundo2','osm');localStorage.setItem('smDicaUsos','9');window.__SEM_FAIXA_TESTE=true}catch(e){}});const p=await ctx.newPage();
 await p.goto(B+'chuva/plataforma.html');await p.waitForTimeout(9000);
 const R=JSON.parse(fs.readFileSync(OUT+'/boxes.json'));
 const box=async s=>{const bb=await p.locator(s).first().boundingBox();return bb?{x:bb.x/1440,y:bb.y/900,w:bb.width/1440,h:bb.height/900}:null};

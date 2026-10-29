@@ -3,7 +3,7 @@ const OUT=process.argv[2], B='http://localhost:8780/';
 const ring=a=>[...a,a[0]];const poly=(c,level)=>({type:'Feature',properties:{level},geometry:{type:'Polygon',coordinates:[ring(c)]}});
 const R={};
 async function page(b){const ctx=await b.newContext({viewport:{width:1440,height:900},deviceScaleFactor:1.5,acceptDownloads:true});
- await ctx.addInitScript(()=>{try{localStorage.setItem('layoutMapa:fundo2','osm');localStorage.setItem('smDicaUsos','9')}catch(e){}});const p=await ctx.newPage();p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));return p;}
+ await ctx.addInitScript(()=>{try{localStorage.setItem('layoutMapa:fundo2','osm');localStorage.setItem('smDicaUsos','9');window.__SEM_FAIXA_TESTE=true}catch(e){}});const p=await ctx.newPage();p.errs=[];p.on('pageerror',e=>p.errs.push(e.message));return p;}
 async function shot(p,name,sels){const boxes=[];for(const s of sels){const loc=p.locator(s).first();let bb=null;try{bb=await loc.boundingBox({timeout:2000});}catch(e){}
  if(!bb){console.log('  sem caixa',name,s);boxes.push(null);continue;} if(bb.y+bb.height<0||bb.y>900)console.log('  fora da tela',name,s,Math.round(bb.y));
  boxes.push({x:bb.x/1440,y:bb.y/900,w:bb.width/1440,h:bb.height/900});}
@@ -70,7 +70,7 @@ async function shot(p,name,sels){const boxes=[];for(const s of sels){const loc=p
  await shot(p,'res_accum',['#a24Start','#accGenerate','#smBotao','#a24Canvas']);
  console.log('errs',p.errs);}
 {const b2=b;const ctx=await b2.newContext({viewport:{width:1440,height:900},deviceScaleFactor:1.5,acceptDownloads:true});
- await ctx.addInitScript(()=>{try{localStorage.setItem('layoutMapa:fundo2','osm');localStorage.setItem('smDicaUsos','9')}catch(e){}
+ await ctx.addInitScript(()=>{try{localStorage.setItem('layoutMapa:fundo2','osm');localStorage.setItem('smDicaUsos','9');window.__SEM_FAIXA_TESTE=true}catch(e){}
   const mk=(ok,no)=>new Proxy({},{get(t,k){if(k==='withSuccessHandler')return f=>mk(f,no);if(k==='withFailureHandler')return f=>mk(ok,f);
    return(...a)=>setTimeout(()=>{if(k==='salvarArquivo')ok&&ok({url:'https://drive.google.com/file/d/exemplo',nome:a[1]});else ok&&ok(null);},400);}});
   window.google={script:{run:mk(null,null)}};});
@@ -87,6 +87,6 @@ async function shot(p,name,sels){const boxes=[];for(const s of sels){const loc=p
  await p.click('#tuBotao');await p.waitForTimeout(1500);
  await p.evaluate(()=>{const a=document.getElementById('tuAviso');if(a)a.remove();});
  await p.hover('#tuCamada .tuN >> nth=2');await p.waitForTimeout(600);
- await shot(p,'tutorial',['#tuBotao','#tuCamada .tuN >> nth=2','#tuCamada .tuBalao']);
+ await shot(p,'tutorial',['#tuBotao','#tuCamada .tuN >> nth=0','#tuCamada .tuBalao']);
  await ctx.close();}
 fs.writeFileSync(OUT+'/boxes.json',JSON.stringify(R,null,1));await b.close();})();
