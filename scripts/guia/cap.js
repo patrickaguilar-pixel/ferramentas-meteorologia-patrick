@@ -96,4 +96,12 @@ async function shot(p,name,sels){const boxes=[];for(const s of sels){const loc=p
  await p.evaluate(()=>{const m=document.querySelector('.pln-acoes .msg');if(m)m.textContent='';});
  await shot(p,'planner',['#plannerBtn','.pln-sem','.pln-cel.agora','.pln-cel.n .pln-ent >> nth=1','.pln-leg']);
  await p.keyboard.press('Escape');}
+{const p=await page(b);await p.goto(B+'tempo-severo/plataforma.html');await p.waitForTimeout(9000);
+ const f2=poly([[-42.9,-18.75],[-41.4,-18.6],[-40.95,-19.6],[-41.3,-20.9],[-42.1,-21.75],[-43.05,-21.45],[-43.25,-20.4],[-43.1,-19.5]],'Nivel2');
+ await p.evaluate(f=>{addClippedFeatureToMap(f,f.properties.level);recalc();},f2);await p.waitForTimeout(4000);
+ const b64=await p.evaluate(async()=>{const op=opcoesMapa();const lv=levelById('Nivel2');
+   op.titulo='Aviso de Tempo Severo / Nível 2 - '+brDate(document.getElementById('forecastDate').value);
+   op.legenda=[{fill:lv.fill,label:'Nível 2',opacity:lv.opacity}];
+   const blob=await LayoutMapa.png(op);const buf=new Uint8Array(await blob.arrayBuffer());let s='';for(let i=0;i<buf.length;i+=32768)s+=String.fromCharCode.apply(null,buf.subarray(i,i+32768));return btoa(s);});
+ fs.writeFileSync(OUT+'/aviso_ts_exemplo.png',Buffer.from(b64,'base64'));console.log('aviso_ts_exemplo ok');}
 fs.writeFileSync(OUT+'/boxes.json',JSON.stringify(R,null,1));await b.close();})();
