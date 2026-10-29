@@ -11,7 +11,7 @@ async function shot(p,name,sels){const boxes=[];for(const s of sels){const loc=p
 (async()=>{const b=await chromium.launch();
 {const p=await page(b);await p.goto(B);await p.waitForTimeout(800);
  await shot(p,'painel',['a.card[href="previsao/"]','a.card[href="tempo-severo/plataforma.html"]','a.card[href="chuva/plataforma.html"]','a.card[href="alertas/plataforma.html"]','a.card[href="reservatorios/"]','a.card[href="previsao/"] .tag']);}
-{const p=await page(b);await p.goto(B+'previsao/');await p.waitForTimeout(4000);
+{const p=await page(b);await p.goto(B+'previsao/plataforma.html');await p.waitForTimeout(4000);
  const RW={"Almenara":["parcialmente nublado",35,22],"Barbacena":["tempestades à tarde",27,16],"Belo Horizonte":["tempestades à tarde",31,19],"Buritis":["chuvas isoladas à tarde",34,21],"Campos Altos":["tempestades à tarde",28,17],"Carneirinho":["nublado com chuva",30,21],"Curvelo":["chuvas isoladas à tarde",33,20],"Diamantina":["tempestades à tarde",27,16],"Divinópolis":["tempestades à tarde",31,18],"Extrema":["nublado com chuva",26,15],"Governador Valadares":["parcialmente nublado",35,22],"Ipatinga":["chuvas isoladas à tarde",34,21],"Itamonte":["nublado com chuva",24,13],"Januária":["predomínio de sol",36,22],"Juiz de Fora":["tempestades à tarde",28,17],"Manhuaçu":["chuvas isoladas à tarde",29,17],"Montes Claros":["parcialmente nublado",35,21],"Paracatu":["chuvas isoladas à tarde",33,20],"Patos de Minas":["tempestades à tarde",30,18],"Pirapora":["parcialmente nublado",36,22],"Poços de Caldas":["nublado com chuva forte",25,15],"Teófilo Otoni":["parcialmente nublado",33,20],"Uberaba":["tempestade com chuva forte",31,20],"Uberlândia":["tempestades à tarde",31,20],"Viçosa":["chuvas isoladas à tarde",29,17]};
  await p.evaluate(R=>applyData({date:'2026-10-28',rows:Object.entries(R).map(([name,[tempo,tmax,tmin]])=>({name,tempo,tmax:String(tmax),tmin:String(tmin)}))}),RW);
  await p.evaluate(()=>{const r=document.querySelector('input[name=bgsel][value="osm"]');if(r){r.click();r.dispatchEvent(new Event('change',{bubbles:true}));}window.scrollTo(0,0);});await p.waitForTimeout(15000);
@@ -22,7 +22,8 @@ async function shot(p,name,sels){const boxes=[];for(const s of sels){const loc=p
  await shot(p,'prev_lote',['#rows .trow:nth-child(1) .ck','#bulkCond','#btnApply','#btnAdd','#btnBase']);
  await p.evaluate(()=>window.scrollTo(0,0));
  await p.click('#tabBul');await p.waitForTimeout(2500);
- await shot(p,'prev_boletim',['#bTitle','#bDate','#bVal','#bParas','button[data-ins="Nível 1"]','#bPages','#smBotao']);
+ await p.evaluate(()=>{document.querySelectorAll('#bBlocks details').forEach(d=>d.open=false);window.scrollTo(0,0);});await p.waitForTimeout(600);
+ await shot(p,'prev_boletim',['#bDate','#bVal','#bBlocks','#bAddMapa','button[data-ins="Nível 1"]','#bPages','#smBotao']);
  await p.click('#tabCid');await p.waitForTimeout(800);await p.click('#cBtnImport');await p.waitForTimeout(1500);
  await shot(p,'prev_cidade',['#cDate','#cBtnImport','#cTempsSeg','#cList > *:first-child','#cPages','#smBotao']);
  console.log('errs',p.errs);}
@@ -53,11 +54,11 @@ async function shot(p,name,sels){const boxes=[];for(const s of sels){const loc=p
  await p.click('#abaPlantao');await p.waitForTimeout(2500);
  await shot(p,'al_plantao1',['#pResp','#pData','#pInicio','#grpIntervalo','#relPages','#salvarPlantao','#smBotao','#smNavegador']);
  await p.evaluate(()=>document.querySelector('#grpPublicacao').scrollIntoView({block:'start'}));await p.waitForTimeout(500);
- await shot(p,'al_plantao2',['#grpPublicacao','#grpInter','#grpFerr','#salvarPlantao']);
- await p.evaluate(()=>document.querySelector('#pPassagem').scrollIntoView({block:'start'}));await p.waitForTimeout(500);
- await shot(p,'al_plantao3',['#pPassagem','#pMapaPrev','#pOutras','#salvarPlantao']);
+ await shot(p,'al_plantao2',['#grpPublicacao','#grpInter','#salvarPlantao','#prodOutrosAdd']);
+ await p.evaluate(()=>document.querySelector('#grpFerr').scrollIntoView({block:'start'}));await p.waitForTimeout(500);
+ await shot(p,'al_plantao3',['#pPassagem','#pMapaPrev','label:has(#pOutras)','#salvarPlantao','#grpFerr']);
  console.log('errs',p.errs);}
-{const p=await page(b);await p.goto(B+'reservatorios/');await p.waitForTimeout(800);
+{const p=await page(b);await p.goto(B+'reservatorios/plataforma.html');await p.waitForTimeout(800);
  await p.click('#cpcLoad');await p.waitForFunction(()=>!document.getElementById('cpcLoad').disabled,null,{timeout:120000});await p.waitForTimeout(500);
  await shot(p,'res_busca',['#cpcCycle','#cpcLoad','#cpcStatus','.tab[data-tab=reserv]']);
  await p.evaluate(()=>(()=>{const h=document.querySelector('body > header').offsetHeight;const t=document.querySelector('#reserv').getBoundingClientRect().top+scrollY;window.scrollTo(0,t-h-8);})());await p.waitForTimeout(400);
@@ -74,12 +75,13 @@ async function shot(p,name,sels){const boxes=[];for(const s of sels){const loc=p
   const mk=(ok,no)=>new Proxy({},{get(t,k){if(k==='withSuccessHandler')return f=>mk(f,no);if(k==='withFailureHandler')return f=>mk(ok,f);
    return(...a)=>setTimeout(()=>{if(k==='salvarArquivo')ok&&ok({url:'https://drive.google.com/file/d/exemplo',nome:a[1]});else ok&&ok(null);},400);}});
   window.google={script:{run:mk(null,null)}};});
- const p=await ctx.newPage();await p.goto(B+'previsao/');await p.waitForTimeout(4000);
+ const p=await ctx.newPage();await p.goto(B+'previsao/plataforma.html');await p.waitForTimeout(4000);
  const RW={"Belo Horizonte":["tempestades à tarde",31,19],"Uberlândia":["tempestades à tarde",31,20],"Montes Claros":["parcialmente nublado",35,21],"Juiz de Fora":["tempestades à tarde",28,17],"Governador Valadares":["parcialmente nublado",35,22],"Januária":["predomínio de sol",36,22],"Poços de Caldas":["nublado com chuva forte",25,15],"Diamantina":["tempestades à tarde",27,16],"Uberaba":["tempestade com chuva forte",31,20],"Teófilo Otoni":["parcialmente nublado",33,20],"Patos de Minas":["tempestades à tarde",30,18],"Paracatu":["chuvas isoladas à tarde",33,20]};
  await p.evaluate(R=>applyData({date:'2026-10-28',rows:Object.entries(R).map(([name,[tempo,tmax,tmin]])=>({name,tempo,tmax:String(tmax),tmin:String(tmin)}))}),RW);
  await p.evaluate(()=>{const r=document.querySelector('input[name=bgsel][value="osm"]');if(r){r.click();r.dispatchEvent(new Event('change',{bubbles:true}));}window.scrollTo(0,0);});await p.waitForTimeout(15000);
  await p.click('#smBotao');await p.waitForTimeout(800);
- await p.click('#smJanela .salvar >> nth=0');
+ await p.click('#smJanela .salvar >> nth=0');await p.waitForTimeout(1200);
+ {const a=await p.$('#smJanela [data-a=assim]');if(a){console.log('aviso fora do padrão:',await p.$eval('#smJanela .res',e=>e.innerText));await a.click();}}
  await p.waitForSelector('#smJanela .res.ok',{timeout:180000});await p.waitForTimeout(800);
  await p.evaluate(()=>{document.querySelector('#smJanela').scrollTop=0;});
  await shot(p,'salvar_painel',['#smBotao','#smJanela .prev','#smJanela .salvar >> nth=0','#smJanela .res','#smJanela .fechar']);
@@ -89,4 +91,9 @@ async function shot(p,name,sels){const boxes=[];for(const s of sels){const loc=p
  await p.hover('#tuCamada .tuN >> nth=2');await p.waitForTimeout(600);
  await shot(p,'tutorial',['#tuBotao','#tuCamada .tuN >> nth=0','#tuCamada .tuBalao']);
  await ctx.close();}
+{const p=await page(b);await p.goto(B+'tempo-severo/plataforma.html');await p.waitForTimeout(6000);
+ await p.click('#plannerBtn');await p.waitForTimeout(1500);
+ await p.evaluate(()=>{const m=document.querySelector('.pln-acoes .msg');if(m)m.textContent='';});
+ await shot(p,'planner',['#plannerBtn','.pln-sem','.pln-cel.agora','.pln-cel.n .pln-ent >> nth=1','.pln-leg']);
+ await p.keyboard.press('Escape');}
 fs.writeFileSync(OUT+'/boxes.json',JSON.stringify(R,null,1));await b.close();})();
