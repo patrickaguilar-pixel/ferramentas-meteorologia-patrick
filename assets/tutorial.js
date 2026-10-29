@@ -28,6 +28,17 @@
   var SALVAR = { s: '#smBotao', t: 'Opções de salvamento', d: 'Salva o mapa e os arquivos desta aba no PC e no Drive ao mesmo tempo. A mensagem fica verde quando salvou nos dois.' };
   var NAVEGADOR = { s: '#btnSave, #saveBtn, #smNavegador', t: 'Salvar neste navegador', d: 'Guarda o que você preencheu ou desenhou neste computador. Não gera arquivo.' };
   var FUNDO = { s: fundo, t: 'Fundo do mapa', d: 'Use OSM padrão nos mapas de Minas.' };
+  var PLANNER = { s: '#plannerBtn', t: 'Planner da semana', d: 'Quadro com os produtos de cada dia e turno, feriados e anotações da equipe.' };
+  // itens do quadro do Planner (aparecem quando ele está aberto)
+  var QUADRO = [
+    { s: '.pln-sem', t: 'Semana', d: '‹ e › trocam de semana. ● volta para a semana atual.' },
+    { s: '.pln-leg', t: 'Legenda', d: 'Fixo, extra do dia e especial (com data). “Envio: só CEDEC” quando a entrega cai em fim de semana ou feriado.' },
+    { s: '.pln-cel.agora', t: 'Turno atual', d: 'O que precisa ser feito agora.' },
+    { s: '.pln-cel.n .pln-ent', t: 'Noturno', d: 'Fica no dia em que começa. “Entrega” mostra para qual manhã é o boletim.' },
+    { s: '.pln-anot', t: 'Anotações', d: 'Regras que valem para todos os produtos.' },
+    { s: '[data-modo=editar]', t: 'Editar', d: 'Só para quem está autorizado: muda produtos, feriados e anotações na planilha.' },
+    { s: '.pln-modal [data-fechar]', t: 'Fechar', d: 'Ou tecla Esc.' }
+  ];
   // itens do painel "Opções de salvamento" (aparecem quando ele está aberto)
   var PAINEL = [
     { s: '#smJanela .prev', t: 'Prévia', d: 'O mapa da aba aberta, como vai ser salvo.' },
@@ -44,8 +55,11 @@
       { s: '#rows .trow .wmx', t: 'Máxima e mínima', d: 'Ex.: 30 ou 18,5. A tecla Tab avança para o próximo campo.' },
       { s: '#bulkCond', t: 'Várias cidades de uma vez', d: 'Marque as linhas e aplique a mesma condição a todas.' },
       { s: '#paper', t: 'Mapa', d: 'Atualiza sozinho. Ícone cobrindo um nome: arraste o ícone.' },
-      { s: '#bParas, #bBlocks', t: 'Texto do boletim', d: 'Escreva a previsão. O mapa, a data, a validade e a lista de cidades entram sozinhos.' },
-      { s: 'button[data-ins="Nível 1"]', t: 'Botões Inserir', d: '°C, Nível 1 e regiões, sempre escritos do mesmo jeito.' },
+      { s: '#bDate', t: 'Data por extenso', d: 'Automática.' },
+      { s: '#bVal', t: 'Período de vigência', d: 'Automático: 10h do dia seguinte.' },
+      { s: '#bBlocks, #bParas', t: 'Blocos do PDF', d: 'Na ordem do PDF. Ícones, Tempo Severo e Chuva já vêm; as setas mudam a ordem. Escreva os parágrafos de cada bloco.' },
+      { s: '#bAddMapa', t: 'Adicionar mapa', d: 'Para o que varia no dia (ex.: tendência, fim de semana). Os mapas vêm do Drive ou do computador.' },
+      { s: 'button[data-ins="Nível 1"]', t: 'Botões Inserir', d: '°C, Nível 1, regiões e cores, sempre escritos do mesmo jeito.' },
       { s: '#cBtnImport', t: 'Puxar do Mapa do dia', d: 'Traz o ícone e as temperaturas de cada cidade.' },
       { s: '#cTempsSeg', t: 'Temperatura no PDF', d: 'Máxima, mínima ou as duas.' },
       { s: '#cList > *:first-child', t: 'Chuva e umidade', d: 'Preencha se houver. Só "até" = "Até 5 mm"; os dois = "15 a 30 mm".' },
@@ -91,15 +105,15 @@
       { s: '#emit', t: 'Emitir alerta', d: 'Registra na planilha e salva o KML no Drive.' },
       { s: '#pResp', t: 'Responsável', d: 'Quem está no plantão.' },
       { s: '#pData', t: 'Data e turno', d: 'Dia e turno do plantão.' },
-      { s: '#pInicio', t: 'Início e fim', d: 'Horário do plantão.' },
-      { s: '#grpIntervalo', t: 'Intervalo', d: 'Só se houve revezamento.' },
-      { s: '#grpPublicacao', t: 'Publicação da previsão', d: 'Manhã/Tarde e horário.' },
-      { s: '#grpInter', t: 'Intercorrências', d: 'Obrigatório. Se não houve: "Sem intercorrências".' },
+      { s: '#pInicio', t: 'Entrada e saída', d: 'Horário do plantão.' },
+      { s: '#grpIntervalo', t: 'Escala e revezamento', d: 'Início e retorno do descanso, só se houve.' },
+      { s: '#grpPublicacao', t: 'Entregas e produtos', d: 'Marque cada produto entregue e o horário.' },
+      { s: '#grpInter', t: 'Ocorrências operacionais', d: 'Obrigatório. Registre cada ocorrência, ou que não houve.' },
       { s: '#grpFerr', t: 'Ferramentas utilizadas', d: 'Obrigatório.' },
       { s: '#pPassagem', t: 'Passagem de plantão', d: 'Áreas suscetíveis e pendências.' },
-      { s: '#pProdOutros', t: 'Outros produtos', d: 'Nome e horário de cada produto entregue.' },
-      { s: '#pMapaPrev', t: 'Imagem obrigatória', d: 'Anexe o arquivo ou cole um print com Ctrl+V.' },
-      { s: '#pOutras', t: 'Outras imagens', d: 'Opcional. Ctrl+V cola um print.' },
+      { s: '#prodOutrosAdd', t: 'Outro produto', d: 'Nome e horário de produto fora da lista.' },
+      { s: '#pMapaPrev', t: 'Evidência de Publicação', d: 'Obrigatória: print da tela do SIMGE. Anexe ou cole com Ctrl+V.' },
+      { s: 'label:has(#pOutras), #pOutras', t: 'Outras imagens', d: 'Opcional: “+ Imagens” ou Ctrl+V.' },
       { s: '#salvarPlantao', t: 'Salvar passagem e gerar relatório', d: 'Encerra o plantão: o relatório vai para o Drive e para o PC. Depois, confirme o e-mail.' },
       NAVEGADOR, SALVAR
     ],
@@ -118,18 +132,18 @@
   /* ---------------- estilo ---------------- */
   var css = document.createElement('style');
   css.textContent = [
-    '#tuBotao{position:fixed;right:12px;bottom:12px;z-index:99970;width:34px;height:34px;border-radius:50%;border:1px solid rgba(9,43,106,.25);background:rgba(255,255,255,.85);color:#5f7393;font:700 17px/1 "Barlow",Arial,sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(9,43,106,.15);display:grid;place-items:center;opacity:.7;transition:opacity .15s}',
+    '#tuBotao{position:fixed;right:12px;bottom:12px;z-index:100001;width:34px;height:34px;border-radius:50%;border:1px solid rgba(9,43,106,.25);background:rgba(255,255,255,.85);color:#5f7393;font:700 17px/1 "Barlow",Arial,sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(9,43,106,.15);display:grid;place-items:center;opacity:.7;transition:opacity .15s}',
     '#tuBotao:hover,#tuBotao:focus-visible{opacity:1}',
     '#tuBotao.on{background:#092b6a;color:#ffb703;border-color:#092b6a;opacity:1}',
     '#tuBotao .rot{position:absolute;right:42px;white-space:nowrap;background:#092b6a;color:#fff;font:600 12.5px/1 "Barlow",Arial,sans-serif;padding:6px 9px;border-radius:7px;opacity:0;pointer-events:none;transition:opacity .15s}',
     '#tuBotao:hover .rot,#tuBotao:focus-visible .rot{opacity:1}',
-    '#tuCamada{position:fixed;inset:0;z-index:99995;pointer-events:none}',
+    '#tuCamada{position:fixed;inset:0;z-index:100010;pointer-events:none}',
     '#tuCamada .tuN{position:fixed;width:22px;height:22px;border-radius:50%;background:#ffb703;color:#092b6a;border:2px solid #092b6a;font:800 12px/18px "Barlow",Arial,sans-serif;text-align:center;cursor:help;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.25)}',
     '#tuCamada .tuN:hover,#tuCamada .tuN.ativo{background:#092b6a;color:#ffb703;border-color:#ffb703}',
     '#tuCamada .tuAlvo{position:fixed;border:2px dashed #ffb703;border-radius:8px;box-shadow:0 0 0 3px rgba(9,43,106,.25);display:none}',
     '#tuCamada .tuBalao{position:fixed;max-width:280px;background:#092b6a;color:#fff;border-radius:10px;padding:10px 13px;font:400 14px/1.4 "Barlow",Arial,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3);display:none}',
     '#tuCamada .tuBalao b{display:block;color:#ffb703;font-weight:700;margin-bottom:2px}',
-    '#tuAviso{position:fixed;right:54px;bottom:12px;z-index:99971;max-width:300px;background:#092b6a;color:#fff;border-radius:10px;padding:10px 13px;font:400 14px/1.4 "Barlow",Arial,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3)}',
+    '#tuAviso{position:fixed;right:54px;bottom:12px;z-index:100002;max-width:300px;background:#092b6a;color:#fff;border-radius:10px;padding:10px 13px;font:400 14px/1.4 "Barlow",Arial,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3)}',
     '#tuAviso b{color:#ffb703}',
     '@media print{#tuBotao,#tuCamada,#tuAviso{display:none!important}}'
   ].join('');
@@ -160,7 +174,7 @@
     if (!ligado) return;
     var topo = janelaAberta(), n = 0, usados = [];
     [].slice.call(camada.querySelectorAll('.tuN')).forEach(function (x) { x.remove(); });
-    (PASSOS[FERR()] || []).concat(PAINEL).forEach(function (p) {
+    (PASSOS[FERR()] || []).concat([PLANNER], PAINEL, QUADRO).forEach(function (p) {
       var el = achar(p);
       if (!el || usados.indexOf(el) >= 0) return;
       if (topo && !topo.contains(el)) return;

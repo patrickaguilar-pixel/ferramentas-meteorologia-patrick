@@ -30,16 +30,27 @@ const DEFAULT_TEXTS = {
   footer: "Iniciativa realizada com recursos do Acordo de Reparação do Rio Doce, firmado em decorrência do rompimento da Barragem de Fundão, da Samarco S.A. O rompimento, ocorrido em 5 de novembro de 2015, tirou a vida de 19 pessoas.",
   credits: "Previsão de Tempo - SIMGE/IGAM, {ano}\nLimites municipais e mesorregiões - IBGE\nBase cartográfica: IBGE\nProjeção: Latitude/Longitude - Datum SIRGAS 2000"
 };
-// textos iniciais do boletim (exemplo enviado pela equipe; tudo editável)
+// textos iniciais do boletim completo (exemplo enviado pela equipe; tudo editável).
+// Marcação nos textos: **negrito**, [amarelo]…[/amarelo], [verde]…[/verde], [laranja]…[/laranja], [vermelho]…[/vermelho].
+// {cidades} vira a lista de cidades do mapa de ícones.
+const OBS_CIDADES = "**OBS:** Localização aproximada, para termos de referência, das cidades: {cidades}.";
 const BUL_DEFAULT = () => ({
-  title: "PREVISÕES E AVISOS METEOROLÓGICOS",
+  v: 2,
   dateAuto: true, dateText: "",
   valAuto: true, valText: "",
-  paras: [
-    "A aproximação de uma frente fria pelo Sudeste, associada ao forte aquecimento e ao aumento da disponibilidade de umidade, deixa o tempo instável em parte de Minas Gerais. A partir da tarde, há previsão de pancadas de chuva e trovoadas isoladas no Triângulo Mineiro, Alto Paranaíba, região Central e Leste do estado. Há condições para tempestades severas, Nível 1, no Triângulo Mineiro e na metade sul e sudeste de Minas, com possibilidade de chuva forte, rajadas de vento e granizo. No Norte, Noroeste e Nordeste mineiro, o ar quente e seco mantém o predomínio de Sol, temperaturas elevadas e baixos índices de umidade. As máximas variam entre 26 °C no extremo Sul e 40 °C no Norte de Minas.",
-    "Em Belo Horizonte, o dia começa com Sol e temperaturas elevadas. A partir da tarde, há condições para tempestades, com possibilidade de episódios localmente fortes. A temperatura máxima pode atingir 34 °C."
-  ],
-  obsAuto: true, obsText: ""
+  blocks: [
+    {id:"icone", tipo:"icone", fixo:true, titulo:"", sub:"", novaPagina:false, paras:[
+      "Uma frente fria atua no litoral sul da Bahia e contribui para ocorrência de tempestades, chuva moderada a forte, descargas elétricas e rajadas de vento nas mesorregiões do Norte, Noroeste e Jequitinhonha. O céu fica nublado com possibilidade de chuva isolada e temperaturas amenas nas mesorregiões da Zona da Mata, Metropolitana de Belo Horizonte, Rio Doce e Mucuri. No restante de Minas Gerais, o sol aparece entre nuvens, e a temperatura máxima pode chegar a 36 °C no Norte mineiro.",
+      "Em Belo Horizonte, o céu fica nublado com possibilidade de chuva isolada. A temperatura máxima prevista é de 25 °C, com umidade relativa do ar em torno de 50% à tarde."
+    ], obs: OBS_CIDADES},
+    {id:"severo", tipo:"severo", fixo:true, titulo:"PREVISÃO DE TEMPO SEVERO", sub:"", novaPagina:true, link:true, mapa:{auto:true}, paras:[
+      "Uma frente fria no litoral sul da Bahia contribui para instabilizar o tempo sobre as mesorregiões Norte, Noroeste e Nordeste do estado de Minas Gerais. A condição de maior teor de água precipitável (50 - 60 mm) aliada a um levantamento mais expressivo, sobretudo, no período da tarde e noite, mantém a atmosfera instável e favorável a tempestades discretas com chuva forte, granizo e rajadas de vento.",
+      "[amarelo]Nível 1[/amarelo] de severidade, a área inclui as microrregiões de **Bocaiúva, Grão Mogol, Janaúba, Januária, Montes Claros, Paracatu, Pirapora, Salinas e Unaí**. [verde]Tempestades Não Severas[/verde] nas microrregiões de **Almenara, Araçuaí, Capelinha, Curvelo, Diamantina, Governador Valadares e Teófilo Otoni**."
+    ], obs: "**OBS:** As probabilidades no mapa são interpretadas da seguinte forma: a probabilidade que uma pessoa tem, em um determinado ponto, para observar evento de Tempo Severo num raio de 40 km de distância dela.\n**OBS1:** Localização aproximada, para termos de referência, das cidades: {cidades}."},
+    {id:"chuva", tipo:"chuva", fixo:true, titulo:"AVISO DE CHUVA", sub:"", novaPagina:true, mapa:{auto:true}, paras:[
+      "O incremento de água precipitável contribui para volumes de precipitação mais acentuados entre 40 e 60 mm no Norte de Minas Gerais. Na porção mais central do Norte, Noroeste e Mucuri o volume de chuva deve ficar entre 20 e 40 mm. No restante do estado há previsão de chuva não significativa. **Atenção às áreas com histórico de alagamentos e enxurradas.**"
+    ], obs: OBS_CIDADES}
+  ]
 });
 const LOGO_SLOTS = [
   {key:"igam", name:"IGAM", x:11.85, w:40.2},
@@ -152,6 +163,11 @@ if (!S || !Array.isArray(S.rows)) S = defaultState();
 S.rows.forEach(r => { r.id = "r"+(++uid); });
 S.texts = {...DEFAULT_TEXTS, ...(S.texts||{})};
 S.bul = {...BUL_DEFAULT(), ...(S.bul||{})};
+// boletim antigo (PDF simples) -> boletim completo: os parágrafos antigos viram o texto do bloco de ícones
+if (!Array.isArray(S.bul.blocks) || S.bul.v !== 2){ const velho = S.bul, novo = BUL_DEFAULT();
+  if (Array.isArray(velho.paras) && velho.paras.some(t => t.trim())) novo.blocks[0].paras = velho.paras.slice();
+  S.bul = novo; }
+S.bul.blocks.forEach(b => { if (b.tipo !== "texto" && !Array.isArray(b.paras)) b.paras = []; if (b.mapa && typeof b.mapa !== "object") b.mapa = {auto:false}; });
 S.opts = {...defaultState().opts, ...(S.opts||{})};
 if (!S.val) S.val = parseValidity(S.validity) || {time:"10:00", date:addDays(S.date,1), auto:true};
 delete S.validity;
@@ -1623,98 +1639,225 @@ $("#btnPdf").addEventListener("click", e => busy(e.currentTarget, async () => {
 }));
 
 
-/* ================= boletim em PDF (A4 retrato) ================= */
-const A4 = {w:210, h:297, ml:25, mr:25, mt:12, mb:14};
+/* ================= boletim completo em PDF (modelo "Previsões e avisos meteorológicos", A4 retrato) =================
+   Blocos em ordem livre: Ícones, Tempo severo e Chuva já vêm nessa ordem (podem ser movidos, não excluídos);
+   "Adicionar mapa" (tendência, ícones do fim de semana ou outro) e "Adicionar parágrafo" entram onde a pessoa quiser.
+   Cabeçalho, rodapé e fonte (Open Sans) vêm de previsao/modelo/modelo-boletim.js (template Word da equipe). */
+const A4 = {w:210, h:297, ml:30, mr:30, top:31, bottom:269};
+const BW = A4.w - A4.ml - A4.mr;                       // largura do texto: 150 mm (a mesma dos mapas no template)
+const BCOR = {azul:"#0b5394", link:"#1155cc", texto:"#000000"};
+const HL = {amarelo:"#ffff00", verde:"#00ff00", laranja:"#ff9900", vermelho:"#ff4d4d"};
+const LINK_METODO = "http://mtc-m21c.sid.inpe.br/col/sid.inpe.br/mtc-m21c/2020/10.01.13.31/doc/publicacao.pdf";
 const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 const longDate = iso => { if (!iso) return ""; const [y,m,d] = iso.split("-"); return `${d} de ${MESES[+m-1]} de ${y}`; };
-function bulDate(){ return S.bul.dateAuto ? longDate(S.date) : S.bul.dateText; }
+const ddmm = iso => { const [, m, d] = iso.split("-"); return `${d}/${m}`; };
+function bulDate(){ return S.bul.dateAuto ? longDate(S.date).toUpperCase() : S.bul.dateText; }
 function bulVal(){
   if (!S.bul.valAuto) return S.bul.valText;
   const v = S.val; if (!v || !v.time || !v.date) return "";
-  const [, m, d] = v.date.split("-");
-  return `válida até às ${v.time}hrs LT do dia ${d}/${m}.`;
+  return `Período de Vigência: ${v.time.replace(":", "h")} LT do dia ${ddmm(v.date)}`;
 }
 function joinPt(list){ return list.length < 2 ? (list[0] || "") : list.slice(0,-1).join(", ") + " e " + list[list.length-1]; }
-function bulObs(){
-  if (!S.bul.obsAuto) return S.bul.obsText;
-  const names = S.rows.map(r => r.name).sort((a,b) => a.localeCompare(b, "pt-BR", {sensitivity:"base"}));
-  return `Localização aproximada, para termos de referência, das cidades: ${joinPt(names)}.`;
-}
-// caracteres fora do conjunto das fontes-padrão do PDF (Times) são trocados por equivalentes
-const pdfSafe = t => String(t || "").replace(/[\u2009\u202F\u00A0]/g, " ").replace(/[\u2010\u2011\u2012]/g, "-").replace(/\u2212/g, "-").replace(/\r/g, "");
+const cidadesTxt = () => joinPt(S.rows.map(r => r.name).sort((a,b) => a.localeCompare(b, "pt-BR", {sensitivity:"base"})));
+const comCidades = t => String(t || "").replace(/\{cidades\}/g, cidadesTxt());
+// caracteres fora do conjunto das fontes do PDF são trocados por equivalentes
+const pdfSafe = t => String(t || "").replace(/[   ]/g, " ").replace(/[‐‑‒]/g, "-").replace(/−/g, "-").replace(/\r/g, "");
+const bid = () => "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
-// medidas de texto com as mesmas métricas que o PDF usa (Times do jsPDF)
+/* ---- modelos de "Adicionar mapa" ---- */
+const TIPO_NOME = {icone:"Mapa de ícones (Mapa do dia)", severo:"Tempo severo", chuva:"Aviso de chuva", mapa:"Mapa adicional", texto:"Parágrafo"};
+const PREFIXO = {severo:"tempo_severo_", chuva:"chuva_", tendencia:"tendencia_", icones:"previsao_"};
+function novoMapa(modelo){
+  const d1 = addDays(S.date, 1), d2 = addDays(S.date, 2), d3 = addDays(S.date, 3);
+  const b = {id:bid(), tipo:"mapa", titulo:"", sub:"", novaPagina:true, mapa:{auto:false}, paras:[""], obs:OBS_CIDADES};
+  if (modelo === "tendencia"){
+    b.titulo = `TENDÊNCIA – ${ddmm(d1)} e ${ddmm(d2)}`;
+    b.sub = `Válida até às 10:00hrs LT do dia ${fmtDateBR(d3)}.`;
+    b.paras = ["A tendência é de aumento da instabilidade atmosférica sobre Minas Gerais. Favor acompanhar as próximas atualizações da previsão do tempo."];
+    b.mapa = {auto:true, prefixo:PREFIXO.tendencia};
+  } else if (modelo === "sabado" || modelo === "domingo"){
+    b.titulo = `PREVISÃO DE TEMPO – ${modelo === "sabado" ? "SÁBADO" : "DOMINGO"}`;
+    b.mapa = {auto:false, prefixo:PREFIXO.icones};
+  } else b.titulo = "NOVO MAPA";
+  return b;
+}
+
+/* ---- textos com marcação → palavras com trechos (negrito / destaque) ---- */
+function tokenize(text){
+  const words = []; let b = false, hl = null, cur = null;
+  const re = /\*\*|\[(\/?)(amarelo|verde|laranja|vermelho)\]/g;
+  const src = pdfSafe(text); let last = 0, m;
+  const push = s => { for (const ch of s){
+    if (/\s/.test(ch)){ cur = null; continue; }
+    if (!cur){ cur = []; words.push(cur); }
+    const sg = cur[cur.length-1];
+    if (sg && sg.b === b && sg.hl === hl) sg.t += ch; else cur.push({t:ch, b, hl});
+  } };
+  while ((m = re.exec(src))){ push(src.slice(last, m.index)); last = re.lastIndex;
+    if (m[0] === "**") b = !b; else hl = m[1] ? null : m[2]; }
+  push(src.slice(last));
+  return words;
+}
+const plain = t => pdfSafe(t).replace(/\*\*|\[\/?(amarelo|verde|laranja|vermelho)\]/g, "");
+
+/* ---- fontes do modelo (Open Sans) para o PDF, as medidas e a prévia ---- */
+const MODELO = () => window.MODELO_BOLETIM || null;
+const FONT_PDF = {r:["OpenSans","normal"], b:["OpenSans","bold"], x:["OpenSansXB","normal"]};
+function addFonts(doc){
+  const M = MODELO(); if (!M) return false;
+  if (doc.__os) return true;
+  doc.addFileToVFS("OpenSans-Regular.ttf", M.fontes.regular); doc.addFont("OpenSans-Regular.ttf", "OpenSans", "normal");
+  doc.addFileToVFS("OpenSans-Bold.ttf", M.fontes.bold); doc.addFont("OpenSans-Bold.ttf", "OpenSans", "bold");
+  doc.addFileToVFS("OpenSans-ExtraBold.ttf", M.fontes.extrabold); doc.addFont("OpenSans-ExtraBold.ttf", "OpenSansXB", "normal");
+  doc.__os = true; return true;
+}
+function setF(doc, f, pt){ if (doc.__os) doc.setFont(...FONT_PDF[f]); else doc.setFont("helvetica", f === "r" ? "normal" : "bold"); doc.setFontSize(pt); }
 let _mdoc = null;
 function measurer(){
-  if (!_mdoc && window.jspdf) _mdoc = new window.jspdf.jsPDF({unit:"mm", format:"a4"});
-  return (txt, pt, bold) => {
-    if (_mdoc){ _mdoc.setFont("times", bold ? "bold" : "normal"); _mdoc.setFontSize(pt); return _mdoc.getTextWidth(txt); }
-    measureCtx.font = `${bold ? 700 : 400} 100px "Times New Roman", Times, serif`; return measureCtx.measureText(txt).width * pt*PT / 100;
+  if (!_mdoc && window.jspdf){ _mdoc = new window.jspdf.jsPDF({unit:"mm", format:"a4"}); addFonts(_mdoc); }
+  return (txt, pt, f) => {
+    if (_mdoc){ if (MODELO() && !_mdoc.__os) addFonts(_mdoc); setF(_mdoc, f, pt); return _mdoc.getTextWidth(txt); }
+    measureCtx.font = `${f === "r" ? 400 : 700} 100px "Open Sans", Arial, sans-serif`; return measureCtx.measureText(txt).width * pt*PT / 100;
   };
 }
-// quebra em linhas e justifica; tokens = [{t, b}] (b = negrito)
-function wrapTokens(tokens, width, pt, indent, M){
-  const sp = M(" ", pt, false), lines = []; let cur = [], w = 0, first = true;
-  const avail = () => width - (first ? indent : 0);
-  for (const tk of tokens){
-    const tw = M(tk.t, pt, tk.b);
-    if (cur.length && w + sp + tw > avail()){ lines.push({words:cur, indent: first ? indent : 0, last:false}); cur = []; w = 0; first = false; }
-    w += (cur.length ? sp : 0) + tw; cur.push({...tk, w:tw});
+let _fontCss = false;
+function fontesNaPagina(){
+  const M = MODELO(); if (_fontCss || !M) return; _fontCss = true;
+  const st = document.createElement("style");
+  st.textContent = `@font-face{font-family:"OSBol";font-weight:400;src:url(data:font/ttf;base64,${M.fontes.regular}) format("truetype")}` +
+    `@font-face{font-family:"OSBol";font-weight:700;src:url(data:font/ttf;base64,${M.fontes.bold}) format("truetype")}` +
+    `@font-face{font-family:"OSBolXB";font-weight:400;src:url(data:font/ttf;base64,${M.fontes.extrabold}) format("truetype")}`;
+  document.head.append(st);
+}
+
+/* ---- mapas escolhidos (ficam só na memória; a escolha fica salva) ---- */
+const MAPAS = {};                       // id do bloco -> {src (JPEG), w, h, nome}
+let DRIVE_LIST = null, DRIVE_ERR = "";
+const temDrive = () => !!(window.google && google.script && google.script.run && google.script.run.listarMapasBoletim);
+function gsr(fn, ...args){ return new Promise((ok, no) => google.script.run.withSuccessHandler(ok).withFailureHandler(no)[fn](...args)); }
+async function listarDrive(force){
+  if (!temDrive()) return null;
+  if (DRIVE_LIST && !force) return DRIVE_LIST;
+  try { DRIVE_LIST = await gsr("listarMapasBoletim"); DRIVE_ERR = ""; }
+  catch(e){ DRIVE_ERR = e && e.message ? e.message : String(e); DRIVE_LIST = DRIVE_LIST || []; }
+  return DRIVE_LIST;
+}
+// reduz a imagem para JPEG (até 2200 px de largura) para o PDF não ficar pesado
+function paraJpeg(src, nome){
+  return new Promise((ok, no) => { const im = new Image();
+    im.onload = () => { const k = Math.min(1, 2200 / im.naturalWidth), c = document.createElement("canvas");
+      c.width = Math.round(im.naturalWidth*k); c.height = Math.round(im.naturalHeight*k);
+      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
+      ok({src:c.toDataURL("image/jpeg", 0.9), w:c.width, h:c.height, nome}); };
+    im.onerror = () => no(new Error("imagem inválida")); im.src = src; });
+}
+const prefixoDe = b => b.mapa && (b.mapa.prefixo || PREFIXO[b.tipo]);
+function maisRecente(b){ const p = prefixoDe(b); if (!p || !DRIVE_LIST) return null;
+  return DRIVE_LIST.find(f => f.nome.toLowerCase().includes(p) && !/poligono/i.test(f.nome)) || null; }
+const carregando = new Set();
+async function carregarDoDrive(b, f){
+  if (!f || carregando.has(b.id)) return; carregando.add(b.id); renderBlocks();
+  try { const r = await gsr("lerMapaBoletim", f.id); MAPAS[b.id] = await paraJpeg(`data:${r.mime};base64,${r.b64}`, f.nome); b.mapa.id = f.id; b.mapa.nome = f.nome; persist(); }
+  catch(e){ showBMsg("err", `Não foi possível abrir “${esc(f.nome)}” do Drive (${esc(e && e.message ? e.message : e)}).`); }
+  carregando.delete(b.id); renderBlocks(); drawBulletin();
+}
+// ao abrir a aba: escolhe sozinho o mais recente (modo automático) ou reabre o arquivo escolhido antes
+async function prepararMapas(force){
+  if (!temDrive()) return;
+  const precisa = S.bul.blocks.some(b => b.mapa && (b.mapa.auto || (b.mapa.id && !MAPAS[b.id])));
+  if (!precisa && !force) return;
+  await listarDrive(force);
+  for (const b of S.bul.blocks){ if (!b.mapa) continue;
+    if (b.mapa.auto){ const f = maisRecente(b); if (f && (!MAPAS[b.id] || b.mapa.id !== f.id)) carregarDoDrive(b, f); }
+    else if (b.mapa.id && !MAPAS[b.id]){ const f = (DRIVE_LIST || []).find(x => x.id === b.mapa.id) || {id:b.mapa.id, nome:b.mapa.nome || "mapa"}; carregarDoDrive(b, f); }
   }
-  if (cur.length) lines.push({words:cur, indent: first ? indent : 0, last:true});
-  return {lines, sp};
+  renderBlocks();
 }
+
+/* ---- paginação: as mesmas medidas na prévia e no PDF ---- */
 function layoutBulletin(){
-  const M = measurer();
-  const W = A4.w - A4.ml - A4.mr, pages = [[]];
-  let y = A4.mt, pg = pages[0];
-  const newPage = () => { pg = []; pages.push(pg); y = A4.mt + 4; };
-  const room = h => { if (y + h > A4.h - A4.mb){ newPage(); } };
-  const textC = (t, pt, bold, lead) => { t = pdfSafe(t); if (!t) return; room(lead); y += lead;
-    pg.push({k:"t", t, x: A4.w/2 - M(t, pt, bold)/2, y: y - lead*0.22, pt, b:bold}); };
-  const para = (text, pt, lead, indent, prefix) => {
-    const words = pdfSafe(text).split(/\s+/).filter(Boolean).map(t => ({t, b:false}));
-    if (prefix) words.unshift({t:prefix, b:true});
-    if (!words.length) return;
-    const {lines, sp} = wrapTokens(words, W, pt, indent, M);
-    for (const ln of lines){
+  const M = measurer(), MD = MODELO(), pages = [];
+  let pg, y, conteudo;
+  const newPage = () => { pg = []; pages.push(pg); conteudo = false;
+    if (MD){ const H = pages.length === 1 ? MD.cabecalhoCapa : MD.cabecalho;
+      pg.push({k:"img", src:H.src, a:pages.length === 1 ? "capa" : "cab", x:0, y:0, w:A4.w, h:A4.w*H.h/H.w});
+      const R = MD.rodape, rw = 206.4, rh = rw*R.h/R.w;
+      pg.push({k:"img", src:R.src, a:"rod", x:(A4.w-rw)/2, y:A4.h - rh - 1.5, w:rw, h:rh}); }
+    y = pages.length === 1 ? 58 : A4.top; };
+  const room = h => { if (y + h > A4.bottom){ newPage(); return true; } return false; };
+  const lineC = (t, pt, f, lead, cor) => { t = plain(t); if (!t) return; room(lead); y += lead;
+    pg.push({k:"t", t, x:A4.w/2 - M(t, pt, f)/2, y:y - lead*0.27, pt, f, c:cor}); conteudo = true; };
+  const para = (text, pt, lead, after, junto) => {
+    const words = tokenize(text); if (!words.length) return;
+    const sp = M(" ", pt, "r");
+    const W = words.map(w => { let s = 0; w.forEach(g => { g.w = M(g.t, pt, g.b ? "b" : "r"); s += g.w; }); return {segs:w, w:s}; });
+    const lines = []; let cur = [], cw = 0;
+    for (const w of W){ if (cur.length && cw + sp + w.w > BW){ lines.push(cur); cur = []; cw = 0; } cw += (cur.length ? sp : 0) + w.w; cur.push(w); }
+    if (cur.length) lines.push(cur);
+    if (junto && conteudo && y + lines.length*lead > A4.bottom) newPage();   // observações não se partem entre páginas
+    lines.forEach((ln, li) => {
       room(lead); y += lead;
-      const x0 = A4.ml + ln.indent, sum = ln.words.reduce((a, w) => a + w.w, 0);
-      const gap = (!ln.last && ln.words.length > 1) ? (W - ln.indent - sum)/(ln.words.length - 1) : sp;
-      let x = x0;
-      for (const w of ln.words){ pg.push({k:"t", t:w.t, x, y: y - lead*0.25, pt, b:w.b}); x += w.w + gap; }
-    }
+      const last = li === lines.length - 1, sum = ln.reduce((a, w) => a + w.w, 0);
+      const gap = (!last && ln.length > 1) ? (BW - sum)/(ln.length - 1) : sp;
+      let x = A4.ml; const by = y - lead*0.27;
+      ln.forEach((w, wi) => {
+        let sx = x;
+        w.segs.forEach((g, gi) => {
+          if (g.hl){ const nxt = gi === w.segs.length-1 && ln[wi+1] && ln[wi+1].segs[0].hl === g.hl ? gap : 0;
+            pg.push({k:"hl", x:sx, y:by - pt*PT*0.80, w:g.w + nxt, h:pt*PT*1.08, c:HL[g.hl]}); }
+          pg.push({k:"t", t:g.t, x:sx, y:by, pt, f:g.b ? "b" : "r"}); sx += g.w; });
+        x += w.w + gap; });
+      conteudo = true;
+    });
+    y += after;
   };
-  // cabeçalho com logotipos
-  const L1 = DEFAULT_LOGOS.igam, L2 = DEFAULT_LOGOS.simge;
-  const h1 = 15, w1 = h1*L1.w/L1.h, h2 = 12.5, w2 = h2*L2.w/L2.h;
-  pg.push({k:"img", src:L1.src, x:A4.ml - 2, y:A4.mt + 2, w:w1, h:h1});
-  pg.push({k:"img", src:L2.src, x:A4.w - A4.mr - w2 + 2, y:A4.mt + 2 + (h1-h2)/2, w:w2, h:h2});
-  y = A4.mt + h1 + 9;
-  textC(S.bul.title, 13, true, 6.2);
-  y += 1.6; textC(bulDate(), 13, true, 6.2);
-  y += 1.2; textC(bulVal(), 11, true, 5.6);
-  y += 5;
-  const paras = S.bul.paras.map(t => t.trim()).filter(Boolean);
-  paras.forEach((t, i) => { para(t, 11, 5.3, 12.5); if (i < paras.length-1) y += 3.6; });
-  // mapa do dia (layout completo)
-  const mw = W + 8, mh = mw * PAGE.h / PAGE.w;
-  y += 6; if (y + mh > A4.h - A4.mb) newPage();
-  pg.push({k:"map", x:(A4.w - mw)/2, y, w:mw, h:mh}); y += mh + 2.5;
-  // observação
-  para(bulObs(), 8.5, 3.9, 0, "OBS:");
+  const mapa = (b) => {
+    const img = b.tipo === "icone" ? {w:PAGE.w, h:PAGE.h} : MAPAS[b.id];
+    const ratio = img ? img.h / img.w : 0.62;
+    let w = b.tipo === "icone" ? 137 : BW, h = w * ratio; const maxH = A4.bottom - A4.top - 4;   // larguras do template: 137 mm (ícones) e 150 mm
+    if (h > maxH){ h = maxH; w = h / ratio; }
+    y += 2; if (y + h > A4.bottom) newPage();
+    const x = (A4.w - w)/2;
+    if (b.tipo === "icone") pg.push({k:"map", x, y, w, h});
+    else if (img) pg.push({k:"img", src:img.src, x, y, w, h, jpg:true});
+    else pg.push({k:"falta", x, y, w, h, t:carregando.has(b.id) ? "Abrindo o mapa do Drive…" : "Escolha o mapa deste bloco"});
+    y += h + 3; conteudo = true;
+  };
+
+  newPage();
+  lineC(bulDate(), 14, "x", 7, BCOR.texto);
+  y += 1; lineC(bulVal(), 11, "r", 6, BCOR.texto);
+  y += 4; pg.push({k:"l", x1:A4.ml, x2:A4.w - A4.mr, y}); y += 5;
+  for (const b of S.bul.blocks){
+    if (b.tipo === "texto"){ para(b.texto, 11, 5.6, 1.8); continue; }
+    if (b.novaPagina && conteudo) newPage();
+    if (b.titulo && b.titulo.trim()){ y += 1; lineC(b.titulo, 14, "x", 7.4, BCOR.azul); y += 1.5; }
+    if (b.sub && b.sub.trim()){ lineC(b.sub, 11, "r", 5.8, BCOR.texto); y += 2; }
+    (b.paras || []).filter(t => t.trim()).forEach(t => para(t, 11, 5.6, 1.8));
+    if (b.link){ room(5.6); y += 5.6; const t = "Entenda mais a metodologia empregada.";
+      pg.push({k:"t", t, x:A4.ml, y:y - 5.6*0.27, pt:11, f:"b", c:BCOR.link, link:LINK_METODO, u:M(t, 11, "b")}); y += 1.8; }
+    mapa(b);
+    pdfSafe(comCidades(b.obs)).split("\n").filter(t => t.trim()).forEach(t => para(t, 9, 4.5, 1.5, true));
+    y += 3;
+  }
   return pages;
 }
-const SERIF = "'Times New Roman', Times, 'Liberation Serif', serif";
+
+/* ---- prévia (SVG) ---- */
+const OSF = f => f === "x" ? `font-family="OSBolXB, 'Open Sans', Arial, sans-serif" font-weight="800"` : `font-family="OSBol, 'Open Sans', Arial, sans-serif" font-weight="${f === "b" ? 700 : 400}"`;
 function renderBulletinSVG(page){
   const o = [`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${A4.w} ${A4.h}"><rect width="${A4.w}" height="${A4.h}" fill="#fff"/>`];
   for (const it of page){
-    if (it.k === "img") o.push(`<image href="${it.src}" xlink:href="${it.src}" x="${f2(it.x)}" y="${f2(it.y)}" width="${f2(it.w)}" height="${f2(it.h)}"/>`);
+    if (it.k === "img") o.push(`<image href="${it.src}" xlink:href="${it.src}" x="${f2(it.x)}" y="${f2(it.y)}" width="${f2(it.w)}" height="${f2(it.h)}" preserveAspectRatio="none"/>`);
     else if (it.k === "map"){
       const m = renderSVG({forExport:true}).replace(/mapclip/g, "mapclipB")
         .replace(`width="${PAGE.w}mm" height="${PAGE.h}mm"`, `x="${f2(it.x)}" y="${f2(it.y)}" width="${f2(it.w)}" height="${f2(it.h)}"`);
       o.push(m);
-    } else o.push(`<text x="${f2(it.x)}" y="${f2(it.y)}" font-family="${SERIF}" font-size="${f2(it.pt*PT)}" font-weight="${it.b?700:400}" fill="#000">${esc(it.t)}</text>`);
+    } else if (it.k === "falta") o.push(`<rect x="${f2(it.x)}" y="${f2(it.y)}" width="${f2(it.w)}" height="${f2(it.h)}" fill="#f4f9fd" stroke="#8fb3d6" stroke-width=".5" stroke-dasharray="3 2"/><text x="${f2(it.x + it.w/2)}" y="${f2(it.y + it.h/2)}" text-anchor="middle" font-family="Arial" font-size="5" fill="#3d5a8a">${esc(it.t)}</text>`);
+    else if (it.k === "hl") o.push(`<rect x="${f2(it.x)}" y="${f2(it.y)}" width="${f2(it.w)}" height="${f2(it.h)}" fill="${it.c}"/>`);
+    else if (it.k === "l") o.push(`<line x1="${f2(it.x1)}" x2="${f2(it.x2)}" y1="${f2(it.y)}" y2="${f2(it.y)}" stroke="#7f7f7f" stroke-width=".3"/>`);
+    else { o.push(`<text x="${f2(it.x)}" y="${f2(it.y)}" ${OSF(it.f)} font-size="${f2(it.pt*PT)}" fill="${it.c || "#000"}" xml:space="preserve">${esc(it.t)}</text>`);
+      if (it.u) o.push(`<line x1="${f2(it.x)}" x2="${f2(it.x + it.u)}" y1="${f2(it.y + .6)}" y2="${f2(it.y + .6)}" stroke="${it.c}" stroke-width=".25"/>`); }
   }
   o.push(`</svg>`); return o.join("");
 }
@@ -1723,64 +1866,164 @@ function drawBulletin(){
   if ($("#viewBul").hidden) return;
   clearTimeout(bulT);
   bulT = setTimeout(() => {
+    fontesNaPagina();
     const pages = layoutBulletin();
-    $("#bPages").innerHTML = pages.map((p, i) => `<div class="a4" aria-label="Página ${i+1}">${renderBulletinSVG(p)}</div>${pages.length > 1 ? `<div class="pgnum">Página ${i+1} de ${pages.length}</div>` : ""}`).join("");
-    $("#bPagesInfo").textContent = `210 × 297 mm · ${pages.length} página${pages.length > 1 ? "s" : ""}.` + (pages.length > 1 ? " O texto passou de uma página; encurte os parágrafos se quiser tudo em uma folha." : "");
+    $("#bPages").innerHTML = pages.map((p, i) => `<div class="a4" aria-label="Página ${i+1}">${renderBulletinSVG(p)}</div><div class="pgnum">Página ${i+1} de ${pages.length}</div>`).join("");
+    $("#bPagesInfo").textContent = `210 × 297 mm · ${pages.length} página${pages.length > 1 ? "s" : ""}.` + (MODELO() ? "" : " Modelo (cabeçalho e fonte) não carregado: confira previsao/modelo/modelo-boletim.js no GitHub.");
   }, 120);
 }
-// ---- editor ----
-const bEl = {title:$("#bTitle"), date:$("#bDate"), dateAuto:$("#bDateAuto"), val:$("#bVal"), valAuto:$("#bValAuto"), obs:$("#bObs"), obsAuto:$("#bObsAuto")};
+
+/* ---- editor ---- */
+const bEl = {date:$("#bDate"), dateAuto:$("#bDateAuto"), val:$("#bVal"), valAuto:$("#bValAuto")};
 let lastTA = null;
+const UP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg>`;
+const DOWN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>`;
 function fillBulletin(){
-  bEl.title.value = S.bul.title;
   bEl.dateAuto.checked = S.bul.dateAuto; bEl.date.value = bulDate();
   bEl.valAuto.checked = S.bul.valAuto; bEl.val.value = bulVal();
-  bEl.obsAuto.checked = S.bul.obsAuto; bEl.obs.value = bulObs();
-  renderParas();
+  renderBlocks();
 }
-function renderParas(){
-  const box = $("#bParas"); box.innerHTML = "";
-  S.bul.paras.forEach((t, i) => {
-    const d = document.createElement("div"); d.className = "para";
-    d.innerHTML = `<div class="ph"><span>Parágrafo ${i+1}</span>
-      <button class="icobtn" type="button" data-up title="Mover para cima" aria-label="Mover parágrafo ${i+1} para cima" ${i===0?"disabled":""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg></button>
-      <button class="icobtn" type="button" data-down title="Mover para baixo" aria-label="Mover parágrafo ${i+1} para baixo" ${i===S.bul.paras.length-1?"disabled":""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
-      <button class="icobtn" type="button" data-del title="Excluir parágrafo" aria-label="Excluir parágrafo ${i+1}">${ICON_X}</button></div>
-      <textarea class="field" aria-label="Texto do parágrafo ${i+1}"></textarea>`;
-    const ta = d.querySelector("textarea"); ta.value = t;
-    const grow = () => { ta.style.height = "auto"; ta.style.height = Math.max(130, ta.scrollHeight + 2) + "px"; };
-    requestAnimationFrame(grow);
-    ta.addEventListener("input", () => { S.bul.paras[i] = ta.value; grow(); persist(); drawBulletin(); });
-    ta.addEventListener("focus", () => lastTA = ta);
-    d.querySelector("[data-up]").onclick = () => { [S.bul.paras[i-1], S.bul.paras[i]] = [S.bul.paras[i], S.bul.paras[i-1]]; persist(); renderParas(); drawBulletin(); };
-    d.querySelector("[data-down]").onclick = () => { [S.bul.paras[i+1], S.bul.paras[i]] = [S.bul.paras[i], S.bul.paras[i+1]]; persist(); renderParas(); drawBulletin(); };
-    d.querySelector("[data-del]").onclick = () => { const old = S.bul.paras.slice(); S.bul.paras.splice(i, 1); persist(); renderParas(); drawBulletin();
-      showBMsg("info", `Parágrafo excluído. <button class="btn small ghost" id="undoPara" type="button">Desfazer</button>`);
-      $("#undoPara")?.addEventListener("click", () => { S.bul.paras = old; persist(); renderParas(); drawBulletin(); $("#bmsg").hidden = true; }); };
-    box.append(d);
+const bulChanged = () => { persist(); drawBulletin(); };
+function moveBlock(i, d){ const L = S.bul.blocks, j = i + d; if (j < 0 || j >= L.length) return; [L[i], L[j]] = [L[j], L[i]]; renderBlocks(); bulChanged();
+  requestAnimationFrame(() => $(`#bBlocks [data-bi="${j}"] [data-${d < 0 ? "up" : "down"}]`)?.focus()); }
+function opcoesDrive(b){
+  const p = prefixoDe(b), L = DRIVE_LIST || [];
+  const fmt = f => `${esc(f.nome)}${f.data ? " — " + esc(f.data) : ""}`;
+  const grupos = [["tempo-severo","Tempo Severo"],["chuva","Chuva e Tendência"],["previsao","Ícones"]];
+  let h = p ? `<option value="auto"${b.mapa.auto ? " selected" : ""}>O mais recente (“${esc(p.replace(/_$/,""))}”) automaticamente</option>` : "";
+  h += `<option value=""${!b.mapa.auto && !b.mapa.id ? " selected" : ""} disabled>Escolher um arquivo do Drive…</option>`;
+  grupos.forEach(([k, n]) => { const fs = L.filter(f => f.ferramenta === k); if (!fs.length) return;
+    h += `<optgroup label="${n}">` + fs.map(f => `<option value="${esc(f.id)}"${!b.mapa.auto && b.mapa.id === f.id ? " selected" : ""}>${fmt(f)}</option>`).join("") + `</optgroup>`; });
+  if (!b.mapa.auto && b.mapa.id && !L.some(f => f.id === b.mapa.id)) h += `<option value="${esc(b.mapa.id)}" selected>${esc(b.mapa.nome || "arquivo escolhido")}</option>`;
+  return h;
+}
+function paraEditor(list, i, label, onChange){
+  const d = document.createElement("div"); d.className = "para";
+  d.innerHTML = `<div class="ph"><span>${label}</span>
+    <button class="icobtn" type="button" data-pup title="Mover para cima" aria-label="Mover ${label} para cima" ${i===0?"disabled":""}>${UP}</button>
+    <button class="icobtn" type="button" data-pdown title="Mover para baixo" aria-label="Mover ${label} para baixo" ${i===list.length-1?"disabled":""}>${DOWN}</button>
+    <button class="icobtn" type="button" data-pdel title="Excluir parágrafo" aria-label="Excluir ${label}">${ICON_X}</button></div>
+    <textarea class="field" aria-label="Texto: ${label}"></textarea>`;
+  const ta = d.querySelector("textarea"); ta.value = list[i];
+  const grow = () => { ta.style.height = "auto"; ta.style.height = Math.max(96, ta.scrollHeight + 2) + "px"; };
+  requestAnimationFrame(grow);
+  ta.addEventListener("input", () => { list[i] = ta.value; grow(); bulChanged(); });
+  ta.addEventListener("focus", () => lastTA = ta);
+  d.querySelector("[data-pup]").onclick = () => { [list[i-1], list[i]] = [list[i], list[i-1]]; onChange(); };
+  d.querySelector("[data-pdown]").onclick = () => { [list[i+1], list[i]] = [list[i], list[i+1]]; onChange(); };
+  d.querySelector("[data-pdel]").onclick = () => { const old = list.slice(); list.splice(i, 1); onChange();
+    showBMsg("info", `Parágrafo excluído. <button class="btn small ghost" id="undoPara" type="button">Desfazer</button>`);
+    $("#undoPara")?.addEventListener("click", () => { list.splice(0, list.length, ...old); onChange(); $("#bmsg").hidden = true; }); };
+  return d;
+}
+const abertos = new Set(["icone"]);
+function renderBlocks(){
+  const box = $("#bBlocks"); if (!box) return;
+  box.innerHTML = "";
+  const L = S.bul.blocks;
+  L.forEach((b, i) => {
+    const det = document.createElement("details"); det.className = "blk" + (b.fixo ? " fixo" : ""); det.dataset.bi = i;
+    det.open = abertos.has(b.id); det.addEventListener("toggle", () => det.open ? abertos.add(b.id) : abertos.delete(b.id));
+    const nome = b.tipo === "texto" ? "Parágrafo avulso" : (plain(b.titulo).trim() || TIPO_NOME[b.tipo]);
+    const resumo = b.tipo === "texto" ? plain(b.texto).slice(0, 60) : TIPO_NOME[b.tipo];
+    det.innerHTML = `<summary><span class="num">${i+1}</span><span class="nm"><b>${esc(nome)}</b><small>${esc(resumo)}${b.fixo ? " · fixo" : ""}</small></span>
+      <button class="icobtn" type="button" data-up title="Subir no PDF" aria-label="Subir ${esc(nome)}" ${i===0?"disabled":""}>${UP}</button>
+      <button class="icobtn" type="button" data-down title="Descer no PDF" aria-label="Descer ${esc(nome)}" ${i===L.length-1?"disabled":""}>${DOWN}</button>
+      ${b.fixo ? "" : `<button class="icobtn" type="button" data-del title="Excluir do PDF" aria-label="Excluir ${esc(nome)}">${ICON_X}</button>`}</summary><div class="bbody"></div>`;
+    const sum = det.querySelector("summary");
+    sum.querySelector("[data-up]").onclick = e => { e.preventDefault(); moveBlock(i, -1); };
+    sum.querySelector("[data-down]").onclick = e => { e.preventDefault(); moveBlock(i, 1); };
+    const del = sum.querySelector("[data-del]");
+    if (del) del.onclick = e => { e.preventDefault(); const old = L.slice(); L.splice(i, 1); delete MAPAS[b.id]; renderBlocks(); bulChanged();
+      showBMsg("info", `“${esc(nome)}” saiu do PDF. <button class="btn small ghost" id="undoBlk" type="button">Desfazer</button>`);
+      $("#undoBlk")?.addEventListener("click", () => { S.bul.blocks = old; renderBlocks(); bulChanged(); prepararMapas(); $("#bmsg").hidden = true; }); };
+    const body = det.querySelector(".bbody");
+    if (b.tipo === "texto"){ body.append(paraEditor([b.texto], 0, "Texto", () => {}));
+      const ta = body.querySelector("textarea"); body.querySelector(".ph").remove();
+      ta.oninput = null; ta.addEventListener("input", () => { b.texto = ta.value; bulChanged(); });
+      box.append(det); return; }
+    // título, subtítulo, nova página
+    const top = document.createElement("div"); top.className = "bgrid";
+    top.innerHTML = `<label>Título<input class="field" data-k="titulo" autocomplete="off" placeholder="(sem título)"></label>
+      <label>Subtítulo / validade<input class="field" data-k="sub" autocomplete="off" placeholder="(opcional)"></label>
+      <span class="auto"><input type="checkbox" data-k="novaPagina"> começar em uma página nova</span>
+      ${b.tipo === "severo" ? `<span class="auto"><input type="checkbox" data-k="link"> incluir “Entenda mais a metodologia empregada.” (com link)</span>` : ""}`;
+    top.querySelectorAll("[data-k]").forEach(el => { const k = el.dataset.k;
+      if (el.type === "checkbox"){ el.checked = !!b[k]; el.onchange = () => { b[k] = el.checked; bulChanged(); }; }
+      else { el.value = b[k] || ""; el.oninput = () => { b[k] = el.value; bulChanged(); sum.querySelector(".nm b").textContent = plain(b.titulo).trim() || TIPO_NOME[b.tipo]; }; } });
+    body.append(top);
+    // mapa
+    const mp = document.createElement("div"); mp.className = "bmapa";
+    if (b.tipo === "icone") mp.innerHTML = `<b>Mapa</b><span class="hint">Usa o mapa da aba “Mapa do dia”.</span>`;
+    else {
+      const img = MAPAS[b.id];
+      const est = carregando.has(b.id) ? "Abrindo do Drive…" : img ? `Em uso: <b>${esc(img.nome)}</b>` : "Nenhum mapa escolhido ainda.";
+      mp.innerHTML = `<b>Mapa</b><span class="hint">${est}</span>
+        <div class="row2">${temDrive() ? `<select class="field" data-drive aria-label="Mapa do Drive">${opcoesDrive(b)}</select>
+          <button class="btn small ghost" type="button" data-relist title="Atualizar a lista do Drive">Atualizar lista</button>` : ""}
+          <label class="btn small" style="cursor:pointer;display:inline-flex">Do computador…<input type="file" accept="image/png,image/jpeg" data-pc hidden></label></div>
+        ${DRIVE_ERR && temDrive() ? `<span class="hint err">Não foi possível listar o Drive: ${esc(DRIVE_ERR)}</span>` : ""}
+        ${!temDrive() ? `<span class="hint">Fora do Apps Script só dá para escolher do computador.</span>` : ""}`;
+      const sel = mp.querySelector("[data-drive]");
+      if (sel) sel.onchange = () => { const v = sel.value;
+        if (v === "auto"){ b.mapa.auto = true; persist(); prepararMapas(); return; }
+        const f = (DRIVE_LIST || []).find(x => x.id === v) || {id:v, nome:b.mapa.nome};
+        b.mapa.auto = false; carregarDoDrive(b, f); };
+      mp.querySelector("[data-relist]")?.addEventListener("click", async () => { await prepararMapas(true); renderBlocks(); });
+      mp.querySelector("[data-pc]").onchange = e => { const file = e.target.files[0]; if (!file) return;
+        const r = new FileReader(); r.onload = async () => { try { MAPAS[b.id] = await paraJpeg(r.result, file.name);
+          b.mapa.auto = false; b.mapa.id = ""; b.mapa.nome = file.name; renderBlocks(); bulChanged(); } catch(err){ showBMsg("err", "Não foi possível ler essa imagem. Use PNG ou JPG."); } };
+        r.readAsDataURL(file); };
+    }
+    body.append(mp);
+    // parágrafos
+    const ph = document.createElement("div"); ph.className = "paras";
+    const rerender = () => { renderBlocks(); bulChanged(); };
+    b.paras.forEach((t, k) => ph.append(paraEditor(b.paras, k, `Parágrafo ${k+1}`, rerender)));
+    const add = document.createElement("button"); add.type = "button"; add.className = "btn small ghost"; add.textContent = "+ Parágrafo neste bloco";
+    add.onclick = () => { b.paras.push(""); abertos.add(b.id); rerender(); const all = det.querySelectorAll(".paras textarea"); all[all.length-1]?.focus(); };
+    body.append(ph, add);
+    // OBS
+    const ob = document.createElement("label"); ob.className = "obs";
+    ob.innerHTML = `Observações abaixo do mapa <small>(uma por linha; {cidades} vira a lista de cidades do mapa de ícones)</small><textarea class="field" rows="3"></textarea>`;
+    const ta = ob.querySelector("textarea"); ta.value = b.obs || "";
+    ta.addEventListener("input", () => { b.obs = ta.value; bulChanged(); }); ta.addEventListener("focus", () => lastTA = ta);
+    body.append(ob);
+    box.append(det);
   });
 }
-bEl.title.addEventListener("input", () => { S.bul.title = bEl.title.value; persist(); drawBulletin(); });
-bEl.date.addEventListener("input", () => { S.bul.dateText = bEl.date.value; S.bul.dateAuto = false; bEl.dateAuto.checked = false; persist(); drawBulletin(); });
-bEl.val.addEventListener("input", () => { S.bul.valText = bEl.val.value; S.bul.valAuto = false; bEl.valAuto.checked = false; persist(); drawBulletin(); });
-bEl.obs.addEventListener("input", () => { S.bul.obsText = bEl.obs.value; S.bul.obsAuto = false; bEl.obsAuto.checked = false; persist(); drawBulletin(); });
-for (const k of ["date","val","obs"]){
+bEl.date.addEventListener("input", () => { S.bul.dateText = bEl.date.value; S.bul.dateAuto = false; bEl.dateAuto.checked = false; bulChanged(); });
+bEl.val.addEventListener("input", () => { S.bul.valText = bEl.val.value; S.bul.valAuto = false; bEl.valAuto.checked = false; bulChanged(); });
+for (const k of ["date","val"]){
   const ck = bEl[k+"Auto"];
-  ck.addEventListener("change", () => { S.bul[k+"Auto"] = ck.checked; if (!ck.checked) S.bul[k+"Text"] = bEl[k].value; fillBulletin(); persist(); drawBulletin(); });
+  ck.addEventListener("change", () => { S.bul[k+"Auto"] = ck.checked; if (!ck.checked) S.bul[k+"Text"] = bEl[k].value; fillBulletin(); bulChanged(); });
 }
-lastTA = null;
-document.querySelectorAll("[data-ins]").forEach(b => b.addEventListener("mousedown", e => e.preventDefault()));
+// inserir textos prontos e marcar negrito / destaque no texto selecionado
+document.querySelectorAll("[data-ins],[data-wrap]").forEach(b => b.addEventListener("mousedown", e => e.preventDefault()));
+function alvoTA(){ return lastTA && document.body.contains(lastTA) ? lastTA : $("#bBlocks textarea"); }
 document.querySelectorAll("[data-ins]").forEach(b => b.addEventListener("click", () => {
-  const ta = lastTA && document.body.contains(lastTA) ? lastTA : $("#bParas textarea"); if (!ta) return;
+  const ta = alvoTA(); if (!ta) return;
   const ins = b.dataset.ins, st = ta.selectionStart ?? ta.value.length, en = ta.selectionEnd ?? st;
   ta.value = ta.value.slice(0, st) + ins + ta.value.slice(en); ta.focus(); ta.selectionStart = ta.selectionEnd = st + ins.length;
   ta.dispatchEvent(new Event("input"));
 }));
-$("#bAddPara").addEventListener("click", () => { S.bul.paras.push(""); persist(); renderParas(); drawBulletin(); const all = $("#bParas").querySelectorAll("textarea"); all[all.length-1]?.focus(); });
+document.querySelectorAll("[data-wrap]").forEach(b => b.addEventListener("click", () => {
+  const ta = alvoTA(); if (!ta) return;
+  const w = b.dataset.wrap, [a, z] = w === "b" ? ["**", "**"] : [`[${w}]`, `[/${w}]`];
+  const st = ta.selectionStart ?? 0, en = ta.selectionEnd ?? st;
+  if (st === en){ showBMsg("info", "Selecione um trecho do texto antes de marcar."); return; }
+  ta.value = ta.value.slice(0, st) + a + ta.value.slice(st, en) + z + ta.value.slice(en);
+  ta.focus(); ta.selectionStart = st; ta.selectionEnd = en + a.length + z.length;
+  ta.dispatchEvent(new Event("input"));
+}));
+$("#bAddPara").addEventListener("click", () => { const b = {id:bid(), tipo:"texto", texto:""}; S.bul.blocks.push(b); abertos.add(b.id); renderBlocks(); bulChanged();
+  const all = $("#bBlocks").querySelectorAll("textarea"); all[all.length-1]?.focus(); all[all.length-1]?.scrollIntoView({block:"center"}); });
+$("#bAddMapa").addEventListener("click", () => { const b = novoMapa($("#bModelo").value); S.bul.blocks.push(b); abertos.add(b.id); renderBlocks(); bulChanged(); prepararMapas();
+  $("#bBlocks").lastElementChild?.scrollIntoView({block:"start", behavior:"smooth"}); });
 $("#bReset").addEventListener("click", () => {
-  const old = JSON.stringify(S.bul); S.bul = BUL_DEFAULT(); fillBulletin(); persist(); drawBulletin();
-  showBMsg("info", `Textos de exemplo restaurados. <button class="btn small ghost" id="undoBul" type="button">Desfazer</button>`);
-  $("#undoBul")?.addEventListener("click", () => { S.bul = JSON.parse(old); fillBulletin(); persist(); drawBulletin(); $("#bmsg").hidden = true; });
+  const old = JSON.stringify(S.bul); S.bul = BUL_DEFAULT(); fillBulletin(); bulChanged(); prepararMapas();
+  showBMsg("info", `Blocos e textos de exemplo restaurados. <button class="btn small ghost" id="undoBul" type="button">Desfazer</button>`);
+  $("#undoBul")?.addEventListener("click", () => { S.bul = JSON.parse(old); fillBulletin(); bulChanged(); prepararMapas(); $("#bmsg").hidden = true; });
 });
 function showBMsg(kind, html){ const m = $("#bmsg"); m.className = "msg " + kind; m.innerHTML = html; m.hidden = false; }
 // ---- abas ----
@@ -1791,7 +2034,7 @@ function setView(v){
   document.querySelectorAll(".actions [data-view]").forEach(b => b.hidden = b.dataset.view !== v);
   closePop(false);
   const selo = document.getElementById("ponteSelo"); if (selo) selo.style.display = v === "cid" ? "none" : "";   // nesta aba o PDF não vai para o Drive
-  if (v === "bul"){ fillBulletin(); drawBulletin(); } else if (v === "cid"){ fillCid(); renderCid(); drawCid(); } else drawPreview();
+  if (v === "bul"){ fillBulletin(); drawBulletin(); prepararMapas(); } else if (v === "cid"){ fillCid(); renderCid(); drawCid(); } else drawPreview();
   try { sessionStorage.setItem("prevmg:view", v); } catch(e){}
 }
 const VIEWS = [["map","#tabMap"],["bul","#tabBul"],["cid","#tabCid"]];
@@ -1803,31 +2046,40 @@ $(".tabs").addEventListener("keydown", e => {
   setView(v); $(id).focus();
 });
 // ---- geração do PDF ----
+const hexRgb = h => [1,3,5].map(i => parseInt(h.slice(i, i+2), 16));
 $("#btnBulPdf").addEventListener("click", e => busy(e.currentTarget, async () => {
-  if (!S.bul.paras.some(t => t.trim())){ showBMsg("err", "Escreva pelo menos um parágrafo de previsão."); return; }
-  if (!await preflight()){ if (!msg.hidden) setView("map"); return; }
+  const faltam = S.bul.blocks.filter(b => b.mapa && !MAPAS[b.id]).map(b => `“${esc(plain(b.titulo).trim() || TIPO_NOME[b.tipo])}”`);
+  if (faltam.length){ showBMsg("err", `Falta escolher o mapa de ${joinPt(faltam)}.` + (carregando.size ? " Alguns mapas ainda estão abrindo; aguarde um instante." : "")); return; }
+  if (!S.bul.blocks.some(b => b.tipo === "texto" ? b.texto.trim() : b.paras.some(t => t.trim()))){ showBMsg("err", "Escreva pelo menos um parágrafo de previsão."); return; }
+  const usaIcone = S.bul.blocks.some(b => b.tipo === "icone");
+  if (usaIcone && !await preflight()){ if (!msg.hidden) setView("map"); return; }
   try {
     const JsPDF = await loadJsPdf();
     const pages = layoutBulletin();
-    const mapCanvas = await svgToCanvas(300);
-    const mapJpg = mapCanvas.toDataURL("image/jpeg", 0.92);
+    const mapJpg = usaIcone ? (await svgToCanvas(300)).toDataURL("image/jpeg", 0.92) : null;
     const pdf = new JsPDF({orientation:"portrait", unit:"mm", format:"a4", compress:true});
+    addFonts(pdf);
     pages.forEach((pg, i) => {
       if (i) pdf.addPage("a4", "portrait");
       for (const it of pg){
-        if (it.k === "img") pdf.addImage(it.src, "PNG", it.x, it.y, it.w, it.h, undefined, "FAST");
-        else if (it.k === "map") pdf.addImage(mapJpg, "JPEG", it.x, it.y, it.w, it.h, undefined, "FAST");
-        else { pdf.setFont("times", it.b ? "bold" : "normal"); pdf.setFontSize(it.pt); pdf.text(it.t, it.x, it.y); }
+        if (it.k === "img") pdf.addImage(it.src, it.jpg ? "JPEG" : "PNG", it.x, it.y, it.w, it.h, it.a || undefined, "FAST");
+        else if (it.k === "map") pdf.addImage(mapJpg, "JPEG", it.x, it.y, it.w, it.h, "icone", "FAST");
+        else if (it.k === "hl"){ pdf.setFillColor(...hexRgb(it.c)); pdf.rect(it.x, it.y, it.w, it.h, "F"); }
+        else if (it.k === "l"){ pdf.setDrawColor(127,127,127); pdf.setLineWidth(.3); pdf.line(it.x1, it.y, it.x2, it.y); }
+        else if (it.k === "t"){ setF(pdf, it.f, it.pt); pdf.setTextColor(...hexRgb(it.c || "#000000")); pdf.text(it.t, it.x, it.y);
+          if (it.u){ pdf.setDrawColor(...hexRgb(it.c)); pdf.setLineWidth(.25); pdf.line(it.x, it.y + .6, it.x + it.u, it.y + .6); }
+          if (it.link) pdf.link(it.x, it.y - it.pt*PT*.8, it.u || 50, it.pt*PT, {url:it.link}); }
       }
     });
-    pdf.setProperties({title:`${S.bul.title} - ${bulDate()}`, author:"SIMGE/IGAM", creator:"Previsão diária MG 1.10"});
-    if (await saveFile(`boletim_previsao_${S.date}.pdf`, pdf.output("blob"))) showBMsg("ok", `Boletim de ${fmtDateBR(S.date)} gerado em PDF (A4, ${pages.length} página${pages.length>1?"s":""}).`);
-  } catch(err){ showBMsg("err", "Não foi possível gerar o PDF do boletim. Tente novamente."); }
+    pdf.setProperties({title:`Previsões e avisos meteorológicos - ${fmtDateBR(S.date)}`, author:"SIMGE/IGAM", creator:"Previsão diária MG 2.0"});
+    if (await saveFile(`${S.date.replace(/-/g, "")}_Previsoes_e_avisos_meteorologicos.pdf`, pdf.output("blob")))
+      showBMsg("ok", `PDF de ${fmtDateBR(S.date)} gerado (A4, ${pages.length} página${pages.length>1?"s":""}).`);
+  } catch(err){ showBMsg("err", "Não foi possível gerar o PDF. Tente novamente."); console.error(err); }
 }));
 // o boletim acompanha mudanças feitas no mapa
 const _drawPreview = drawPreview;
 drawPreview = function(){ _drawPreview(); if (!$("#viewBul").hidden){ fillBulletinAuto(); drawBulletin(); } };
-function fillBulletinAuto(){ if (S.bul.dateAuto) bEl.date.value = bulDate(); if (S.bul.valAuto) bEl.val.value = bulVal(); if (S.bul.obsAuto) bEl.obs.value = bulObs(); }
+function fillBulletinAuto(){ if (S.bul.dateAuto) bEl.date.value = bulDate(); if (S.bul.valAuto) bEl.val.value = bulVal(); }
 
 /* ================= previsão por cidade (PDF A4 retrato, baixado no PC) ================= */
 const CID_EXAMPLE = ["Belo Horizonte", "Paracatu", "Uberlândia", "Curvelo", "Manhuaçu"];

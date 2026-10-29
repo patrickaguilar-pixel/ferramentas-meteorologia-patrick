@@ -30,6 +30,7 @@
  */
 (function () {
   if (window.SalvarMaterial) return;
+  var VER = (function () { var c = document.currentScript; var m = c && /[?&]v=([^&]+)/.exec(c.src || ''); return m ? m[1] : 'tu3'; })();
   var temAppsScript = function () { return !!(window.google && google.script && google.script.run); };
   var FERRAMENTA = function () { return window.FERRAMENTA || ''; };
 
@@ -110,7 +111,7 @@
     '#smBotao.topo.pend{animation:smPulso2 1.8s ease-in-out infinite}',
     '@keyframes smPulso2{0%,100%{box-shadow:0 0 0 1px #092b6a,0 4px 12px rgba(9,43,106,.3)}50%{box-shadow:0 0 0 1px #092b6a,0 0 0 8px rgba(255,183,3,.45)}}',
     'body.smTopo .bar .actions{margin-right:196px!important}',
-    'body.smTopo header .badge{margin-right:190px}',
+    'body.smTopo header .top{padding-right:190px}',   /* Reservatórios: espaço para o botão (o Planner entra no fim de .top) */
     '#smJanela .cab .mapa{display:block;font:600 14px/1.3 "Barlow",Arial,sans-serif;color:#3d5a8a;margin-top:3px}',
     '#smDica.topo{position:absolute;bottom:auto}',
     '#smDica.topo::after{bottom:auto;top:-8px;border-top:0;border-bottom:8px solid #092b6a;border-left-color:transparent;border-right-color:transparent}',
@@ -123,6 +124,13 @@
     '#smTeste{position:relative;z-index:6;background:#fff3e0;color:#7a3e00;border-bottom:2px solid #e07b00;padding:6px 14px 6px 30px;font:500 13.5px/1.35 "Barlow",Arial,sans-serif;text-align:center}',
     '#smTeste::before{content:"";position:absolute;left:0;top:0;bottom:0;width:16px;background:repeating-linear-gradient(135deg,#ffb703 0 8px,#092b6a 8px 16px)}',
     '#smTeste b{color:#b71c1c;letter-spacing:.03em}',
+    '#smTestePop{position:fixed;inset:0;z-index:99999;background:rgba(80,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px}',
+    '#smTestePop .cx{width:min(440px,100%);background:#fff;border-radius:14px;border-top:10px solid #c62828;box-shadow:0 18px 50px rgba(0,0,0,.4);padding:20px 22px 18px;text-align:center;font:400 15px/1.45 "Barlow",Arial,sans-serif;color:#1f2937}',
+    '#smTestePop .ic{width:58px;height:58px;margin:0 auto 6px;border-radius:50%;background:#c62828;color:#fff;display:grid;place-items:center;font:700 30px/1 Arial,sans-serif}',
+    '#smTestePop h3{margin:0 0 8px;font:800 22px/1.2 "Barlow",Arial,sans-serif;color:#b71c1c;text-transform:uppercase;letter-spacing:.03em}',
+    '#smTestePop p{margin:0 0 8px}',
+    '#smTestePop button{margin-top:6px;border:0;border-radius:9px;background:#c62828;color:#fff;font:700 15px "Barlow",Arial,sans-serif;padding:10px 26px;cursor:pointer}',
+    '#smTestePop button:hover{background:#a51d1d}',
     '@keyframes smGira{to{transform:rotate(360deg)}}',
     '@media (prefers-reduced-motion:reduce){#smJanela .st .and .ic{animation:none}}'
   ].join('');
@@ -365,7 +373,25 @@
         desenharMateriais();
       }
     }, 60000);
+    var antes = avisosDaPagina();
     s.b.click();
+    // a ferramenta recusou (falta preencher algo)? mostra o aviso dela aqui, em vermelho, sem esperar
+    [700, 1600, 3000].forEach(function (t) {
+      setTimeout(function () {
+        if (esperando !== meu) return;
+        var novo = avisosDaPagina().filter(function (x) { return antes.indexOf(x) < 0; })[0];
+        if (!novo) return;
+        esperando = null;
+        RES[k] = { estado: 'erro', html: '<b>Não foi salvo:</b> ' + esc(novo) };
+        desenharMateriais();
+      }, t);
+    });
+  }
+  // mensagens de erro visíveis na página da ferramenta (ex.: "Escreva pelo menos um parágrafo")
+  function avisosDaPagina() {
+    return [].slice.call(document.querySelectorAll('.err, .erro, .error, [class*="msg"].err, [role="alert"]')).filter(function (e) {
+      return !e.closest('#smFundo, #smAviso, #smTeste, #tuCamada, #smTestePop') && e.getClientRects().length && e.textContent.trim().length > 3;
+    }).map(function (e) { return e.textContent.replace(/\s+/g, ' ').trim().slice(0, 300); });
   }
 
   /* ---------------- conferência do padrão (antes de salvar) ---------------- */
@@ -439,6 +465,11 @@
     var pc = soDrive ? it.pcOk : false;
     if (!soDrive && !it.semPc) { try { baixarNoPc(it.nome, it.blob); pc = true; } catch (e) { pc = false; } }
     it.pcOk = pc;
+    if (it.soPc) {   // tipo que o Drive da equipe não recebe (ex.: .txt dos alertas do dia)
+      if (pc) fim(k, it, 'ok', '✓ <b>' + esc(it.nome) + '</b> salvo no PC (pasta Downloads). Este tipo de arquivo fica só no PC.');
+      else fim(k, it, 'erro', '<b>' + esc(it.nome) + ' não foi salvo.</b>');
+      return;
+    }
     var r = RES[k] = { estado: 'and', html: 'Salvando <b>' + esc(it.nome) + '</b> no Drive…', it: it, k: k };
     atualizar(r);
     var p;
@@ -457,6 +488,7 @@
         : ((e && e.message) ? e.message : String(e || 'erro'));
       var tentar = e && e.semDrive ? '' : ' <button type="button" class="mini" data-a="drive2">Tentar o Drive de novo</button>';
       if (pc) fim(k, it, 'parcial', '<b>' + esc(it.nome) + '</b>: salvo no PC (pasta Downloads), mas <b>não foi salvo no Drive</b>: ' + esc(motivo) + '.' + tentar);
+      if (e && e.semDrive) alertaTeste(it.nome);
       else fim(k, it, 'erro', '<b>' + esc(it.nome) + ' não foi salvo</b> (Drive: ' + esc(motivo) + ').' + tentar);
     });
   }
@@ -486,7 +518,8 @@
     montar();
     var k = esperando ? esperando.k : 'auto:' + (o.nome || 'arquivo');
     esperando = null;
-    var it = { nome: o.nome || 'arquivo', blob: o.blob, salvarDrive: o.salvarDrive || null, driveFeito: o.driveFeito || null, drivePromessa: o.drivePromessa || null, semPc: !!o.semPc };
+    var it = { nome: o.nome || 'arquivo', blob: o.blob, salvarDrive: o.salvarDrive || null, driveFeito: o.driveFeito || null, drivePromessa: o.drivePromessa || null, semPc: !!o.semPc,
+      soPc: !o.driveFeito && !o.drivePromessa && !o.salvarDrive && !/\.(png|kml|pdf|svg|csv)$/i.test(o.nome || '') };   // salvarArquivo (SalvarArquivo.gs) só aceita PNG, KML, PDF, SVG e CSV
     salvarAmbos(it, k);
     return it;
   }
@@ -508,6 +541,8 @@
       if (ref && ref.parentElement) {
         var b = document.createElement('button');
         b.type = 'button'; b.className = 'btn'; b.id = 'smNavegador';
+        b.setAttribute('data-view', 'plantao');   // aparece na aba Plantão e relatório (o Alertas mostra/esconde pelo data-view)
+        var vp = document.getElementById('viewPlantao'); b.hidden = !(vp && vp.getClientRects().length);
         b.innerHTML = IC_SALVAR + ' Salvar neste navegador';
         b.title = 'Guarda o plantão (alertas e campos do relatório) neste navegador (não gera arquivo)';
         b.onclick = function () { window.salvarNoNavegador(); avisar('✓ Plantão guardado neste navegador.', 'ok', 3500); };
@@ -549,13 +584,28 @@
   function carregarTutorial() {
     if (window.TutorialFerramentas || document.getElementById('tuScript')) return;
     var t = document.createElement('script'); t.id = 'tuScript';
-    t.src = (window.BASE_DADOS || '../') + 'assets/tutorial.js?v=tu2-20261028';
+    t.src = (window.BASE_DADOS || '../') + 'assets/tutorial.js?v=' + VER;
     document.head.appendChild(t);
   }
   // faixa "versão de testes": só no painel de testes do Patrick (e no computador de quem desenvolve)
+  function ehTeste() { return /^(patrickaguilar-pixel\.github\.io|localhost|127\.0\.0\.1)$/.test(location.hostname); }
+  // alerta vermelho ao salvar no painel de testes: lembra que não é a plataforma oficial
+  function alertaTeste(nome) {
+    if (!ehTeste() || window.__SEM_FAIXA_TESTE) return;
+    var v = document.getElementById('smTestePop'); if (v) v.remove();
+    v = document.createElement('div'); v.id = 'smTestePop';
+    v.innerHTML = '<div class="cx" role="alertdialog" aria-modal="true" aria-labelledby="smTesteTit"><div class="ic" aria-hidden="true">⚠</div>' +
+      '<h3 id="smTesteTit">Versão de testes</h3>' +
+      '<p><b></b> foi salvo <b>só no PC</b>.</p><p>Esta <b>não é a plataforma oficial</b>: aqui nada vai para o Drive da equipe e o que for feito não vale como produto oficial.</p>' +
+      '<button type="button">Entendi</button></div>';
+    v.querySelector('p b').textContent = nome;
+    document.body.appendChild(v);
+    var b = v.querySelector('button'); b.onclick = function () { v.remove(); }; b.focus();
+    v.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); v.remove(); } });
+  }
   function faixaTeste() {
     if (window.__SEM_FAIXA_TESTE || document.getElementById('smTeste')) return;
-    if (!/^(patrickaguilar-pixel\.github\.io|localhost|127\.0\.0\.1)$/.test(location.hostname)) return;
+    if (!ehTeste()) return;
     var f = document.createElement('div');
     f.id = 'smTeste'; f.setAttribute('role', 'note');
     f.innerHTML = '<b>⚠ VERSÃO DE TESTES</b> — não é a plataforma oficial. Nada feito aqui vale como produto oficial e os arquivos não vão para o Drive da equipe.';

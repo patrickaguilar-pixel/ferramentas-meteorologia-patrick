@@ -1,4 +1,10 @@
-/* Alertas e passagem de plantão — código da página (v3.9, 22/10/2026).
+/* Alertas e passagem de plantão — código da página (v4.0, 22/10/2026).
+   v4.0: novo modelo do relatório ("Relatório Diário de Operação e Plantão Hidrometeorológico", seções 1 a 8);
+   entregas com Mapa de Tempo Severo, Previsão de Chuva, Boletim de chuva significativa e "Outros" (nome + horário);
+   "Observações" do intervalo saem do formulário e do relatório; o Mapa de Previsões vira "Evidência de Publicação
+   (print da tela do SIMGE)", obrigatória nos dois turnos (Ctrl+V preenche esse campo primeiro). Intercorrências:
+   mesmo mecanismo de antes (com imagem de evidência); só o título da seção mudou. Colunas novas no fim da aba
+   Plantoes (Codigo.gs 2026.10.22.2).
    v3.9: botão Desfazer no cabeçalho do mapa (e Ctrl+Z) para a seleção de municípios; sugestões de
    municípios enquanto digita em "Localizar município" (sem diferenciar acentos/maiúsculas).
    v3.8: o mapa do relatório passa a ser desenhado no layout da Previsão diária (assets/layout-mapa.js):
@@ -34,7 +40,7 @@
    (definidos no Alertas.html), municipios.js e mesorregioes.js. */
 /* 2026.10.28: salvamento padrão (assets/ponte-drive.js): um clique salva no PC e no Drive; resultado em verde, laranja ou vermelho */
 if(!window.FERRAMENTA)window.FERRAMENTA='alertas';
-(function(){if(window.SalvarMaterial)return;var s=document.createElement('script');s.src=(window.BASE_DADOS||'../')+'assets/ponte-drive.js?v=sm16-20261029';document.head.appendChild(s);})();
+(function(){if(window.SalvarMaterial)return;var s=document.createElement('script');s.src=(window.BASE_DADOS||'../')+'assets/ponte-drive.js?v='+(window.VERSAO_APP||'sm18');document.head.appendChild(s);})();
 window.alertasDados.then(iniciarAlertas,function(e){
   document.getElementById('topinfo').innerHTML='<b>Não foi possível carregar os municípios.</b> Verifique se alertas/data/municipios.js está publicado no GitHub Pages e recarregue (Ctrl+F5).';
   window.diagFaixa(e.message);
@@ -737,31 +743,40 @@ $('abaMapa').onclick=()=>mostrarAba('mapa');
 $('abaPlantao').onclick=()=>mostrarAba('plantao');
 document.querySelector('.tabs').addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const to=$('viewPlantao').hidden?'plantao':'mapa';mostrarAba(to);$(to==='mapa'?'abaMapa':'abaPlantao').focus();}});
 
-/* ---------------- Mapa de Previsões (imagem do formulário) ---------------- */
-let mapaPrevisoesB64='',mapaPrev={url:'',w:0,h:0};
-function limparMapaPrevisoes(){mapaPrevisoesB64='';mapaPrev={url:'',w:0,h:0};$('pMapaPrev').value='';$('pMapaPrevInfo').textContent=TXT_MAPA_PREV;agendarRelatorio();}
-$('pMapaPrev').onchange=()=>{
-  const f=$('pMapaPrev').files[0];mapaPrevisoesB64='';mapaPrev={url:'',w:0,h:0};
-  if(!f){limparMapaPrevisoes();return;}
-  if(f.type!=='image/png'&&!/\.png$/i.test(f.name)){limparMapaPrevisoes();$('pMapaPrevInfo').textContent='Envie uma imagem PNG.';return;}
-  if(f.size>8*1024*1024){limparMapaPrevisoes();$('pMapaPrevInfo').textContent='Imagem grande demais (máximo de 8 MB).';return;}
-  const r=new FileReader();
-  r.onload=()=>{
-    const url=String(r.result);mapaPrevisoesB64=url.split(',')[1]||'';
-    const img=new Image();
-    img.onload=()=>{mapaPrev={url,w:img.naturalWidth,h:img.naturalHeight};$('pMapaPrevInfo').textContent='Imagem pronta: '+f.name+' ('+Math.round(f.size/1024)+' KB).';agendarRelatorio();};
-    img.onerror=()=>{limparMapaPrevisoes();$('pMapaPrevInfo').textContent='Não foi possível ler a imagem.';};
-    img.src=url;
-  };
-  r.onerror=()=>{limparMapaPrevisoes();$('pMapaPrevInfo').textContent='Não foi possível ler a imagem.';};
-  r.readAsDataURL(f);
-};
+/* ---------------- v4.0: Evidência de Publicação (print da tela do SIMGE) ----------------
+   Substitui o antigo "Mapa de Previsões" e continua com o id pMapaPrev (assim a página antiga e a
+   nova convivem durante a troca de versão). Obrigatória nos dois turnos. Cada imagem é reduzida no navegador (JPEG, lado maior até 2000 px), como as "Outras imagens". */
+const PRINTS=[
+  {id:'pMapaPrev',info:'pMapaPrevInfo',titulo:'Evidência de Publicação (print da tela do SIMGE)',img:null}
+];
+const TXT_PRINT='Obrigatório para encerrar o plantão. Escolha o arquivo ou cole o print com Ctrl+V nesta aba.';
+function infoPrint(p,msg){
+  const el=$(p.info);if(!el)return;
+  if(msg){el.textContent=msg;return;}
+  if(!p.img){el.textContent=TXT_PRINT;return;}
+  el.innerHTML='Pronto: '+esc(p.img.nome)+' ('+Math.round(p.img.bytes/1024)+' KB). <a href="#" data-rmprint>Remover</a>';
+  el.querySelector('[data-rmprint]').onclick=e=>{e.preventDefault();limparPrint(p);};
+}
+function limparPrint(p){p.img=null;if($(p.id))$(p.id).value='';infoPrint(p);agendarRelatorio();}
+function limparPrints(){PRINTS.forEach(limparPrint);}
+async function definirPrint(p,f){
+  if(!f){limparPrint(p);return;}
+  if(!/^image\/(png|jpeg)$/.test(f.type)&&!/\.(png|jpe?g)$/i.test(f.name||'')){limparPrint(p);infoPrint(p,'Envie uma imagem PNG ou JPG.');return;}
+  if(f.size>25*1024*1024){limparPrint(p);infoPrint(p,'Imagem grande demais (máximo de 25 MB).');return;}
+  infoPrint(p,'Preparando '+(f.name||'imagem')+'…');
+  try{const r=await reduzirImagem(f);p.img={nome:f.name||'print',...r};infoPrint(p);}
+  catch(e){limparPrint(p);infoPrint(p,'Não foi possível ler a imagem.');return;}
+  agendarRelatorio();
+}
+PRINTS.forEach(p=>{const inp=$(p.id);if(inp)inp.onchange=()=>definirPrint(p,inp.files[0]);});
+// compatibilidade: o salvamento ainda chama limparMapaPrevisoes()
+const limparMapaPrevisoes=limparPrints;
 
 /* ---------------- v3.6: Outras imagens (várias; botão "+ Imagens" ou Ctrl+V de um print) ----------------
    Separadas do Mapa de Previsões. Cada imagem é redesenhada no navegador (lado maior até 2000 px, JPEG)
    e a soma fica limitada, para o PDF caber no Drive e no e-mail (24 MB) sem falhar. */
 const IMG_LADO_MAX=2000,IMG_QUALIDADE=0.88,IMG_TOTAL_MAX=12*1024*1024,IMG_ARQ_MAX=25*1024*1024;
-const TXT_OUTRAS='Opcional. Use “+ Imagens” ou cole um print com Ctrl+V nesta aba. Saem no relatório em PDF, depois do Mapa de Previsões.';
+const TXT_OUTRAS='Opcional. Use “+ Imagens” ou cole um print com Ctrl+V nesta aba (depois da Evidência de Publicação). Saem no fim dos anexos do relatório.';
 let imagensOutras=[];   // [{nome,url,w,h,bytes}]
 const imgBytes=()=>imagensOutras.reduce((a,i)=>a+i.bytes,0);
 function reduzirImagem(file){
@@ -818,10 +833,13 @@ document.addEventListener('paste',e=>{
   if(!itens.length)return;
   e.preventDefault();
   const p=n=>String(n).padStart(2,'0'),d=new Date();
-  const fs=itens.map((it,i)=>{const f=it.getAsFile();
+  let fs=itens.map((it,i)=>{const f=it.getAsFile();
     const nome='print_'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())+(itens.length>1?'_'+(i+1):'')+'.png';
-    try{return new File([f],nome,{type:f.type||'image/png'});}catch(x){f.name2=nome;return f;}});
-  adicionarOutras(fs.filter(Boolean));
+    try{return new File([f],nome,{type:f.type||'image/png'});}catch(x){f.name2=nome;return f;}}).filter(Boolean);
+  // v4.0: o print colado vai primeiro para a Evidência de Publicação, se ainda estiver vazia
+  PRINTS.forEach(pr=>{if(fs.length&&!pr.img&&$(pr.id)){definirPrint(pr,fs.shift());try{$(pr.info).scrollIntoView({block:'nearest'});}catch(x){}}});
+  if(!fs.length)return;
+  adicionarOutras(fs);
   try{$('pOutrasLista').scrollIntoView({block:'nearest'});}catch(x){}
 });
 listarOutras();
@@ -829,7 +847,51 @@ listarOutras();
 /* ---------------- plantão ---------------- */
 const CAMPOS_PLANTAO={responsavel:'pResp',data:'pData',inicio:'pInicio',fim:'pFim',intercorrencias:'pInter',alertas:'pAlertas',ferramentas:'pFerr',passagem:'pPassagem',
   intervaloInicio:'pIntIni',intervaloFim:'pIntFim',intervaloObs:'pIntObs',   // v3.7
-  pub1Periodo:'pPub1Per',pub1Hora:'pPub1Hora',pub2Periodo:'pPub2Per',pub2Hora:'pPub2Hora'};
+  pub1Periodo:'pPub1Per',pub1Hora:'pPub1Hora',pub2Periodo:'pPub2Per',pub2Hora:'pPub2Hora',
+  prodTS:'pProdTS',prodChuva:'pProdChuva',prodBoletim:'pProdBoletim',prodOutros:'pProdOutros'};   // v4.0
+/* v4.0: produtos do turno. Os fixos são campos de hora; "Outros" é uma lista [{nome,hora}] guardada
+   como JSON no campo oculto pProdOutros (assim entra no rascunho como os demais campos). */
+const PRODUTOS_FIXOS=[['prodTS','Mapa de Tempo Severo'],['prodChuva','Previsão de Chuva'],['prodBoletim','Boletim de chuva significativa']];
+function lerProdOutros(txt){
+  try{const v=JSON.parse(txt||'[]');return Array.isArray(v)?v.map(o=>({nome:String(o&&o.nome||''),hora:String(o&&o.hora||'')})):[];}catch(e){return [];}
+}
+function produtosOutros(c){return lerProdOutros(c&&c.prodOutros).filter(o=>o.nome.trim()||o.hora);}
+let prodOutros=[];
+function gravarProdOutros(){
+  if(!$('pProdOutros'))return;
+  $('pProdOutros').value=prodOutros.length?JSON.stringify(prodOutros):'';
+  clearTimeout(window._tRasc);window._tRasc=setTimeout(salvarRascunho,600);agendarRelatorio();
+}
+function desenharProdOutros(){
+  const box=$('prodOutrosLista');if(!box)return;
+  box.innerHTML='';
+  prodOutros.forEach((o,i)=>{
+    const d=document.createElement('div');d.className='pub-linha';d.style.gridTemplateColumns='1fr 130px auto';
+    d.innerHTML=`<label>Outro produto ${i+1}<input class="field" data-k="nome" placeholder="Nome do produto"></label>
+      <label>Horário de envio<input class="field" data-k="hora" type="time"></label>
+      <button type="button" class="btn small" data-rm>Remover</button>`;
+    d.querySelectorAll('[data-k]').forEach(el=>{el.value=o[el.dataset.k]||'';el.addEventListener('input',()=>{o[el.dataset.k]=el.value;gravarProdOutros();});});
+    d.querySelector('[data-rm]').onclick=()=>{prodOutros.splice(i,1);desenharProdOutros();gravarProdOutros();};
+    box.appendChild(d);
+  });
+}
+function carregarProdOutros(){prodOutros=lerProdOutros($('pProdOutros')&&$('pProdOutros').value);desenharProdOutros();if(typeof sincronizarProdutos==='function')sincronizarProdutos();}
+/* v4.0: cada produto é uma caixa de seleção; marcada, mostra o campo de horário. A marcação não é
+   guardada à parte: vem do próprio horário (rascunho, salvamento e relatório continuam iguais). */
+function sincronizarProdutos(){
+  document.querySelectorAll('.prod').forEach(c=>{const h=$(c.dataset.hora);if(!h)return;
+    if(h.value)c.checked=true;h.hidden=!c.checked;});
+}
+document.querySelectorAll('.prod').forEach(c=>c.addEventListener('change',()=>{
+  const h=$(c.dataset.hora);if(!h)return;
+  h.hidden=!c.checked;
+  if(c.checked)h.focus();else if(h.value){h.value='';h.dispatchEvent(new Event('change'));}
+}));
+function produtoSemHora(){return [...document.querySelectorAll('.prod')].find(c=>c.checked&&$(c.dataset.hora)&&!$(c.dataset.hora).value);}
+if($('prodOutrosAdd'))$('prodOutrosAdd').onclick=()=>{
+  prodOutros.push({nome:'',hora:''});desenharProdOutros();gravarProdOutros();
+  const n=$('prodOutrosLista').querySelectorAll('[data-k=nome]');if(n.length)n[n.length-1].focus();
+};
 /* v3.7: publicações da previsão diária [{periodo,hora}] e textos para o relatório */
 function publicacoesForm(c){
   c=c||{};
@@ -888,6 +950,8 @@ function mostrarAnterior(u){
   det.innerHTML='<summary>Ver o resto do plantão anterior</summary>'+
     [['Intervalo / revezamento',textoIntervalo(u)],
      ['Publicação da previsão diária',[u.pubManha?'Manhã: '+u.pubManha:'',u.pubTarde?'Tarde: '+u.pubTarde:''].filter(Boolean).join(' · ')],
+     ['Outros produtos',[u.prodTS?'Mapa de Tempo Severo: '+u.prodTS:'',u.prodChuva?'Previsão de Chuva: '+u.prodChuva:'',
+       u.prodBoletim?'Boletim de chuva significativa: '+u.prodBoletim:'',u.prodOutros||''].filter(Boolean).join(' · ')],   // v4.0
      ['Intercorrências',u.intercorrencias],['Alertas gerados',u.alertas],['Ferramentas utilizadas',u.ferramentas]]
       .filter(x=>x[1]).map(x=>`<b>${x[0]}</b><p>${esc(x[1])}</p>`).join('');
   if(det.querySelector('b'))box.appendChild(det);
@@ -951,96 +1015,261 @@ function quebrar(texto,larg,pt,bold,M){
 function dataHoraBR(d){const p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes());}
 function carimbo(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());}
 
+/* ===================== v4.0: RELATÓRIO DIÁRIO DE OPERAÇÃO E PLANTÃO =====================
+ * Novo modelo (22/10/2026), no formato aprovado pela equipe ("Opção C" com as correções):
+ *  cabeçalho com contrato, ID, data de geração e pasta do turno;
+ *  1 Identificação · 2 Escala e revezamento intraturno · 3 Entregas e produtos ·
+ *  4 Monitoramento e emissão de alertas + mapa · 5 Ocorrências operacionais e tecnológicas ·
+ *  6 Passagem de plantão · 7 Anexos (Evidência de Publicação) · 8 Termo de responsabilidade.
+ * A prévia (SVG) e o PDF (jsPDF) usam a mesma lista de itens em milímetros.
+ */
+const REL_AZUL='#1f3864', REL_CINZA='#4b5563', REL_ROTULO='#6b7280';
+const REL_CONTRATO='Contrato de Gestão nº 018/2026 – IGAM / APPA';
+const REL_CARGO='Meteorologista - APPA';
+const REL_TERMO='Declaro, sob as penas da lei e para fins de comprovação da execução do Contrato de Gestão nº 018/2026, a veracidade das informações prestadas neste relatório, confirmando que a Sala de Situação operou de forma ininterrupta e assistida durante o turno designado.';
+const REL_DIRETRIZ_4='Registro do monitoramento contínuo em tempo real de tempestades, níveis de rios e ocorrências críticas (Nowcasting).';
+
 /* dados do relatório a partir do formulário e dos alertas na tela */
 function dadosRelatorio(){
   const c={};Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>c[k]=$(id)?$(id).value:'');
   const ids=new Set(state.active.map(a=>a.id).filter(Boolean));
+  let inter=[];
+  try{inter=interItens.filter(it=>it.tipo).map(it=>({tipo:it.tipo,descricao:it.descricao||'',acao:it.acao||'',evidencia:it.evidencia||it.link||'',arquivo:it.arquivo?it.arquivo.name:'',img:it.arquivo&&it.imgRel?{...it.imgRel}:null}));}catch(e){}
   return {id:state.plantaoId||'',geradoEm:new Date(),campos:c,nAlertas:ids.size,turno:{...state.turno},
-    nArquivos:1,pastaUrl:state.pastaUrl||'',mapa:'',prev:mapaPrev.url?{...mapaPrev}:null,outras:imagensOutras.map(i=>({...i}))};
+    nArquivos:1,pastaUrl:state.pastaUrl||'',mapa:'',
+    prints:PRINTS.filter(p=>$(p.id)).map(p=>({titulo:p.titulo,img:p.img?{...p.img}:null})),
+    outras:imagensOutras.map(i=>({...i})),
+    municipios:[...municipiosAlertados()],inter};
 }
-function linhasDaTabela(d){
-  const c=d.campos;
-  return [
-    ['ID do plantão',d.id||'(criado ao salvar)'],
-    ['Responsável',c.responsavel],['Data do plantão',dataBR(c.data)],['Turno',d.turno&&d.turno.turno||''],['Início',c.inicio],['Fim',c.fim],
-    ['Intervalo / revezamento',textoIntervalo(c)],['Publicação da previsão diária',textoPublicacoes(c)],
-    ['Intercorrências',c.intercorrencias],['Ferramentas utilizadas',c.ferramentas],['Alertas gerados',c.alertas],
-    ['Passagem de plantão (áreas suscetíveis e pendências)',c.passagem],
-    ['Nº de alertas',String(d.nAlertas)],['Nº de arquivos',String(d.nArquivos)],
-    ['Link de acesso',d.pastaUrl,true]
-  ].map(([k,v,link])=>[k,String(v==null?'':v).trim()||'—',!!link&&/^https:\/\//.test(v||'')]);
-}
-/* monta as páginas: lista de itens {k:'t'|'rect'|'img'|'line'} em milímetros */
-function layoutRelatorio(d){
-  const M=medidor(),Wt=A4.w-2*A4.m,pages=[[]];
-  let pg=pages[0],y=A4.m;
-  const nova=()=>{pg=[];pages.push(pg);y=A4.m;};
-  const fundo=A4.h-A4.m;
-  const texto=(t,pt,b,antes)=>{
-    const lh=pt*PT*1.32;y+=antes||0;
-    quebrar(t,Wt,pt,b,M).forEach(l=>{if(y+lh>fundo)nova();y+=lh;pg.push({k:'t',t:l,x:A4.m,y:y-lh*0.24,pt,b});});
-  };
-  const secao=t=>{texto(t,13,true,5);y+=1.2;};
-  texto('Relatório do Monitoramento Meteorológico',16,true);
-  texto('ID do plantão: '+(d.id||'(criado ao salvar)'),10,true,2);
-  texto('Gerado em '+dataHoraBR(d.geradoEm),9,false,0.6);
-  secao('Dados do Plantão');
-  // tabela chave/valor
-  const pt=9,lh=pt*PT*1.25,px=4*PT,py=2*PT,c0=REL_COL0,c1=Wt-c0;
-  linhasDaTabela(d).forEach(([k,v,link])=>{
-    const l0=quebrar(k,c0-2*px,pt,true,M),l1=quebrar(v,c1-2*px,pt,false,M),n=Math.max(l0.length,l1.length);
-    let i=0;
-    while(i<n){
-      const cabem=Math.floor((fundo-y-2*py)/lh);
-      if(cabem<1){nova();continue;}
-      const q=Math.min(cabem,n-i),h=q*lh+2*py;
-      pg.push({k:'rect',x:A4.m,y,w:c0,h,fill:REL_DESTAQUE});
-      pg.push({k:'rect',x:A4.m+c0,y,w:c1,h,fill:null});
-      for(let j=0;j<q;j++){
-        const by=y+py+(j+1)*lh-lh*0.26;
-        if(l0[i+j])pg.push({k:'t',t:l0[i+j],x:A4.m+px,y:by,pt,b:true});
-        if(l1[i+j]){
-          const it={k:'t',t:l1[i+j],x:A4.m+c0+px,y:by,pt,b:false};
-          if(link){it.link=v;it.u=true;}
-          pg.push(it);
-        }
-      }
-      y+=h;i+=q;
-    }
+/* "Zona da Mata: Juiz de Fora, Muriaé. Campo das Vertentes: Barbacena." */
+function regioesAfetadas(nomes){
+  const g=new Map();
+  [...new Set(nomes||[])].sort((a,b)=>a.localeCompare(b,'pt-BR')).forEach(n=>{
+    const f=featureByName.get(n),m=(f&&f.properties&&f.properties.meso)||'Outras';
+    if(!g.has(m))g.set(m,[]);g.get(m).push(n);
   });
-  // mapa dos alertas
-  // v3.8: mapa no layout da Previsão diária (297 × 210 mm); se o layout não carregar, vale a foto antiga da tela (1000 × 760)
-  const mh=Wt*(d.mapaProp||760/1000);
-  if(d.mapa){y+=3;if(y+mh>fundo)nova();pg.push({k:'img',src:d.mapa,fmt:d.mapaFmt||'PNG',x:A4.m,y,w:Wt,h:mh});y+=mh;}
-  else texto(d.mapaPendente?'Gerando a imagem do mapa…':'Mapa não disponível (não foi possível capturar a imagem do mapa).',10,false,3);
-  // Mapa de Previsões
-  if(d.prev&&d.prev.url&&d.prev.w&&d.prev.h){
-    secao('Mapa de Previsões');
-    const maxH=A4.h-2*A4.m-60*PT,k=Math.min(Wt/d.prev.w,maxH/d.prev.h),w=d.prev.w*k,h=d.prev.h*k;
-    if(y+h>fundo)nova();
-    pg.push({k:'img',src:d.prev.url,fmt:'PNG',x:A4.m+(Wt-w)/2,y,w,h});y+=h;
-  }
-  // v3.6: outras imagens (prints etc.), cada uma em JPEG reduzido
-  const outras=(d.outras||[]).filter(p=>p&&p.url&&p.w&&p.h);
-  if(outras.length){
-    secao('Outras imagens');
-    outras.forEach((p,i)=>{
-      const maxH=A4.h-2*A4.m-60*PT,k=Math.min(Wt/p.w,maxH/p.h),w=p.w*k,h=p.h*k;
-      if(i)y+=3;
-      if(y+h>fundo)nova();
-      pg.push({k:'img',src:p.url,fmt:'JPEG',x:A4.m+(Wt-w)/2,y,w,h});y+=h;
+  return [...g.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([m,l])=>m+': '+l.join(', ')).join('. ')+(g.size?'.':'');
+}
+function horasDoPeriodo(c,per){return publicacoesForm(c).filter(p=>p.periodo===per).map(p=>p.hora).join(', ');}
+function rotuloTurnoRel(t){
+  const h=t&&TURNOS[t.turno];
+  return t&&t.turno?t.turno+(h?' ('+h.inicio.slice(0,2)+'h às '+h.fim.slice(0,2)+'h)':''):'';
+}
+
+/* quebra um parágrafo com trechos de estilos diferentes: segs=[{t,b,i,c,link,u}]
+   devolve linhas [[{t,x,b,i,c,link,u}]] com x relativo ao início da linha */
+function quebrarRico(segs,larg,pt,M){
+  const linhas=[[]];let w=0;
+  const nova=()=>{linhas.push([]);w=0;};
+  const por=(s,pal)=>{
+    const L=linhas[linhas.length-1],pw=M(pal,pt,!!s.b),sp=L.length?M(' ',pt,!!s.b):0;
+    if(L.length&&w+sp+pw>larg){nova();return por(s,pal);}
+    if(!L.length&&pw>larg&&pal.length>1){   // palavra maior que a linha: corta
+      let n=pal.length;while(n>1&&M(pal.slice(0,n),pt,!!s.b)>larg)n--;
+      por(s,pal.slice(0,n));nova();return por(s,pal.slice(n));
+    }
+    const ult=L[L.length-1];
+    if(ult&&ult.b===!!s.b&&ult.i===!!s.i&&ult.c===(s.c||'')&&ult.link===(s.link||'')&&ult.u===!!s.u){ult.t+=' '+pal;}
+    else L.push({t:pal,x:w+sp,b:!!s.b,i:!!s.i,c:s.c||'',link:s.link||'',u:!!s.u});
+    w+=sp+pw;
+  };
+  segs.forEach(s=>{
+    pdfSafe(s.t).split('\n').forEach((par,pi)=>{
+      if(pi>0)nova();
+      par.split(/ +/).filter(Boolean).forEach(pal=>por(s,pal));
     });
-  }
+  });
+  while(linhas.length>1&&!linhas[linhas.length-1].length)linhas.pop();
+  return linhas;
+}
+
+/* monta as páginas: itens {k:'t'|'rect'|'line'|'img'} em milímetros */
+function layoutRelatorio(d){
+  const M=medidor(),X0=A4.m,Wt=A4.w-2*A4.m,fundo=A4.h-A4.m,pages=[[]];
+  const c=d.campos||{};
+  let pg=pages[0],y=A4.m+2;
+  const nova=()=>{pg=[];pages.push(pg);y=A4.m+2;};
+  const cabe=h=>{if(y+h>fundo)nova();};
+  const add=it=>pg.push(it);
+  const altLinha=(pt,lh)=>pt*PT*(lh||1.35);
+  // parágrafo (com quebra de página entre linhas)
+  const par=(segs,o)=>{
+    o=o||{};const pt=o.pt||9.5,lh=altLinha(pt,o.lh),x=o.x!=null?o.x:X0,w=o.w||Wt;
+    y+=o.antes||0;
+    quebrarRico(segs,w,pt,M).forEach(l=>{
+      if(y+lh>fundo)nova();
+      y+=lh;
+      l.forEach(it=>add({k:'t',t:it.t,x:x+it.x,y:y-lh*0.27,pt,b:it.b,i:it.i,c:it.c||REL_TEXTO,link:it.link,u:it.u}));
+    });
+    y+=o.depois||0;
+  };
+  const altPar=(segs,o)=>{o=o||{};return quebrarRico(segs,o.w||Wt,o.pt||9.5,M).length*altLinha(o.pt||9.5,o.lh);};
+  const secao=(n,t,minimo)=>{
+    cabe(14+(minimo||8));y+=5;
+    const h=6.2;
+    add({k:'rect',x:X0,y,w:h,h,fill:REL_AZUL,stroke:null,r:1.1});
+    add({k:'t',t:String(n),x:X0+h/2,y:y+h/2+1.15,pt:9.5,b:true,c:'#ffffff',al:'c'});
+    add({k:'t',t:pdfSafe(t).toUpperCase(),x:X0+h+3,y:y+h/2+1.35,pt:11,b:true,c:REL_AZUL});
+    y+=h+2;
+  };
+  const diretriz=t=>par([{t:'Diretriz: '+t,i:true,c:REL_CINZA}],{pt:8.3,lh:1.4,depois:1.8});
+  // grade de 4 colunas: rótulo pequeno em cima, valor em negrito embaixo
+  const grade=cols=>{
+    const cw=Wt/4,ptV=10.5,lhV=altLinha(ptV,1.25);
+    const vals=cols.map(([r,v])=>r?quebrar(String(v||'—'),cw-4,ptV,true,M):[]);
+    const h=4+Math.max(...vals.map(l=>l.length))*lhV;
+    cabe(h+2);
+    cols.forEach(([r],i)=>{
+      if(!r)return;
+      const x=X0+i*cw;
+      add({k:'t',t:pdfSafe(r).toUpperCase(),x,y:y+2.6,pt:7,c:REL_ROTULO});
+      vals[i].forEach((l,j)=>add({k:'t',t:l,x,y:y+4+(j+1)*lhV-lhV*0.27,pt:ptV,b:true,c:REL_TEXTO}));
+    });
+    y+=h+1.5;
+  };
+  // lista em duas colunas "Produto ........ 09:42"
+  const produtos=itens=>{
+    const gap=8,cw=(Wt-gap)/2,pt=9.5,lh=altLinha(pt,1.75);
+    const meio=Math.ceil(itens.length/2),cols=[itens.slice(0,meio),itens.slice(meio)];
+    const linhasDe=([nome,hora])=>{const hw=M(hora||'—',pt,true);return quebrar(nome,cw-hw-8,pt,false,M);};
+    const altCol=col=>col.reduce((a,it)=>a+linhasDe(it).length*lh,0);
+    const h=Math.max(altCol(cols[0]),altCol(cols[1]));
+    cabe(Math.min(h,40));
+    const y0=y;let yMax=y;
+    cols.forEach((col,ci)=>{
+      let yy=y0;const x=X0+ci*(cw+gap);
+      col.forEach(it=>{
+        const ls=linhasDe(it),hora=it[1]||'—',hw=M(hora,pt,true);
+        ls.forEach((l,j)=>{
+          yy+=lh;const base=yy-lh*0.32;
+          add({k:'t',t:l,x,y:base,pt,c:REL_TEXTO});
+          if(j===ls.length-1){
+            const x1=x+M(l,pt,false)+1.6,x2=x+cw-hw-1.6;
+            if(x2>x1)add({k:'line',x1,y1:base,x2,y2:base,c:'#9aa3ad',w:0.2,dash:[0.3,0.9]});
+            add({k:'t',t:hora,x:x+cw,y:base,pt,b:true,c:REL_TEXTO,al:'r'});
+          }
+        });
+      });
+      yMax=Math.max(yMax,yy);
+    });
+    y=yMax+1.5;
+  };
+  // imagem com título, dentro da largura e de uma altura máxima
+  const imagem=(titulo,im,vazio,maxH)=>{
+    const tit=[{t:titulo,b:true,c:REL_TEXTO}],ht=altPar(tit,{pt:9.5})+1.2;
+    if(im&&im.url&&im.w&&im.h){
+      const k=Math.min(Wt/im.w,maxH/im.h),w=im.w*k,h=im.h*k;
+      cabe(ht+h+2);par(tit,{pt:9.5,depois:1.2});
+      add({k:'img',src:im.url,fmt:im.fmt||'JPEG',x:X0+(Wt-w)/2,y,w,h});y+=h+3;
+    }else{
+      const h=34;cabe(ht+h+2);par(tit,{pt:9.5,depois:1.2});
+      add({k:'rect',x:X0,y,w:Wt,h,fill:'#f7f8fa',stroke:'#9aa3ad',dash:[1,0.8]});
+      add({k:'t',t:pdfSafe(vazio),x:X0+Wt/2,y:y+h/2+1,pt:9,c:REL_ROTULO,al:'c'});
+      y+=h+3;
+    }
+  };
+
+  // ---------- cabeçalho ----------
+  par([{t:'Relatório Diário de Operação e Plantão Hidrometeorológico'.toUpperCase(),b:true,c:REL_AZUL}],{pt:16,lh:1.18});
+  par([{t:REL_CONTRATO,b:true,c:REL_TEXTO}],{pt:10,antes:1});
+  const t=d.turno||{},pastaRot=t.data?String(t.data).replace(/-/g,'')+'/'+(t.turno||''):'';
+  const temPasta=/^https:\/\//.test(d.pastaUrl||'');
+  par([{t:'ID do plantão:',c:REL_CINZA},{t:d.id||'(criado ao salvar)',b:true,c:REL_TEXTO},
+       {t:'·  Gerado em '+dataHoraBR(d.geradoEm)+'  ·  Pasta do turno:',c:REL_CINZA},
+       temPasta?{t:'abrir no Drive'+(pastaRot?' ('+pastaRot+')':''),c:REL_CINZA,link:d.pastaUrl,u:true}:{t:pastaRot||'—',c:REL_CINZA}],
+      {pt:8.5,antes:1.2});
+  y+=4;add({k:'line',x1:X0,y1:y,x2:X0+Wt,y2:y,c:REL_AZUL,w:0.5});y+=1;
+
+  // ---------- 1. Identificação ----------
+  secao(1,'Identificação do plantão');
+  grade([['Data da operação',dataBR(c.data)],['Turno de trabalho',rotuloTurnoRel(t)],['Meteorologista responsável',c.responsavel],['','']]);
+
+  // ---------- 2. Escala ----------
+  secao(2,'Escala e revezamento intraturno');
+  grade([['Entrada',c.inicio],['Início do descanso',c.intervaloInicio],['Retorno do descanso',c.intervaloFim],['Saída',c.fim]]);
+
+  // ---------- 3. Entregas ----------
+  secao(3,'Entregas e produtos meteorológicos');
+  produtos([['Previsão do tempo — manhã',horasDoPeriodo(c,'Manhã')],['Previsão do tempo — tarde',horasDoPeriodo(c,'Tarde')]]
+    .concat(PRODUTOS_FIXOS.map(([k,nome])=>[nome,c[k]||'']))
+    .concat(produtosOutros(c).map(o=>[o.nome.trim()||'Outro produto',o.hora||''])));
+
+  // ---------- 4. Alertas ----------
+  secao(4,'Monitoramento e emissão de alertas');
+  const rot=t=>({t,b:true,c:REL_AZUL});
+  par([rot('Sistemas utilizados no plantão:'),{t:c.ferramentas||'—'}],{depois:1.4});
+  par([rot('Alertas de tempo severo emitidos no turno:'),{t:String(d.nAlertas||0)}],{depois:1.4});
+  par([rot('Regiões/municípios afetados:'),{t:regioesAfetadas(d.municipios)||'Nenhum.'}],{depois:1.4});
+  par([rot('Alertas gerados:')]);
+  par([{t:(c.alertas||'').trim()||'Nenhum alerta emitido no turno.'}],{depois:1});
+  // mapa dos alertas (layout da Previsão diária; se não carregar, a foto da tela)
+  const mh=Wt*(d.mapaProp||760/1000);
+  if(d.mapa){
+    cabe(mh+9);y+=3;
+    add({k:'img',src:d.mapa,fmt:d.mapaFmt||'PNG',x:X0,y,w:Wt,h:mh});y+=mh;
+    par([{t:'Municípios com alerta emitido no turno (amarelo).',c:REL_CINZA}],{pt:7.5,antes:0.5});
+  }else par([{t:d.mapaPendente?'Gerando a imagem do mapa…':'Mapa não disponível (não foi possível gerar a imagem do mapa).',c:REL_CINZA}],{pt:9,antes:2});
+
+  // ---------- 5. Ocorrências ----------
+  secao(5,'Ocorrências operacionais e tecnológicas',14);
+  const inter=(d.inter||[]).filter(it=>it.tipo);
+  if(!inter.length)par([{t:'Não informado.',c:REL_CINZA}]);
+  inter.forEach(it=>{
+    if(it.tipo===SEM_INTER){par([{t:'Sem intercorrências no turno.'}],{depois:1});return;}
+    const xi=X0+4.5,wi=Wt-4.5;
+    const blocos=[[{t:it.tipo,b:true}]];
+    if(it.descricao.trim())blocos.push([{t:'Descrição:',b:true},{t:it.descricao.trim()}]);
+    if(it.acao.trim())blocos.push([{t:'Ação tomada:',b:true},{t:it.acao.trim()}]);
+    const links=String(it.evidencia||'').split(/\s*;\s*/).filter(u=>/^https?:\/\//i.test(u));
+    if(!it.img&&links.length)blocos.push([{t:'Evidência:',b:true}].concat(links.map((u,i)=>({t:'link'+(links.length>1?' '+(i+1):''),link:u,u:true}))));
+    const h=blocos.reduce((a,s)=>a+altPar(s,{w:wi}),0)+1.5;
+    cabe(Math.min(h,60));
+    let y0=y;const pg0=pg;
+    blocos.forEach(s=>par(s,{x:xi,w:wi}));
+    if(pg!==pg0)y0=A4.m+2;   // o bloco passou para a página seguinte
+    if(y>y0)add({k:'rect',x:X0,y:y0+0.8,w:0.9,h:y-y0+0.6,fill:REL_AZUL,stroke:null});
+    y+=3;
+  });
+
+  // ---------- 6. Passagem ----------
+  secao(6,'Passagem de plantão — áreas suscetíveis e pendências');
+  par([{t:(c.passagem||'').trim()||'—'}]);
+
+  // ---------- 7. Anexos ----------
+  // o título da seção vai junto com o primeiro anexo (não fica sozinho no pé da página)
+  const p1=(d.prints||[])[0],i1=p1&&p1.img;
+  secao(7,'Anexos',8+(i1&&i1.w&&i1.h?Math.min(Wt/i1.w,112/i1.h)*i1.h:34));
+  (d.prints||[]).forEach(p=>imagem(p.titulo,p.img,'[ '+p.titulo+' — anexe no formulário ]',112));
+  // v4.0: fotos de evidência das intercorrências (sem intercorrência ou sem foto, nada entra aqui)
+  (d.inter||[]).filter(it=>it.tipo&&it.tipo!==SEM_INTER&&it.img&&it.img.url).forEach(it=>
+    imagem('Evidência de intercorrência — '+it.tipo,it.img,'',150));
+  const outras=(d.outras||[]).filter(p=>p&&p.url&&p.w&&p.h);
+  outras.forEach((p,i)=>imagem(i?'Outras imagens ('+(i+1)+')':'Outras imagens',p,'',150));
+
+  // ---------- 8. Termo ----------
+  cabe(62);
+  y+=4;add({k:'line',x1:X0,y1:y,x2:X0+Wt,y2:y,c:REL_AZUL,w:0.5});
+  secao(8,'Termo de responsabilidade e validação');
+  par([{t:REL_TERMO}],{pt:9.5,lh:1.4});
+  y+=17;
+  add({k:'line',x1:X0,y1:y,x2:X0+Wt*0.53,y2:y,c:'#111111',w:0.25});
+  par([{t:(c.responsavel||'').trim()||'—',b:true}],{pt:9.5,antes:1});
+  par([{t:REL_CARGO}],{pt:9.5});
   return pages;
 }
+
 const f2=n=>(Math.round(n*100)/100).toString();
 function paginaSvg(page){
   const o=[`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${A4.w} ${A4.h}"><rect width="${A4.w}" height="${A4.h}" fill="#fff"/>`];
   page.forEach(it=>{
-    if(it.k==='rect')o.push(`<rect x="${f2(it.x)}" y="${f2(it.y)}" width="${f2(it.w)}" height="${f2(it.h)}" fill="${it.fill||'none'}" stroke="${REL_BORDA}" stroke-width="0.18"/>`);
+    if(it.k==='rect'){
+      const st=it.stroke===undefined?REL_BORDA:it.stroke;
+      o.push(`<rect x="${f2(it.x)}" y="${f2(it.y)}" width="${f2(it.w)}" height="${f2(it.h)}"${it.r?` rx="${f2(it.r)}"`:''} fill="${it.fill||'none'}" stroke="${st||'none'}" stroke-width="0.18"${it.dash?` stroke-dasharray="${it.dash.join(' ')}"`:''}/>`);
+    }else if(it.k==='line')o.push(`<line x1="${f2(it.x1)}" y1="${f2(it.y1)}" x2="${f2(it.x2)}" y2="${f2(it.y2)}" stroke="${it.c||'#000'}" stroke-width="${f2(it.w||0.2)}"${it.dash?` stroke-dasharray="${it.dash.join(' ')}"`:''}/>`);
     else if(it.k==='img')o.push(`<image href="${it.src}" xlink:href="${it.src}" x="${f2(it.x)}" y="${f2(it.y)}" width="${f2(it.w)}" height="${f2(it.h)}" preserveAspectRatio="none"/>`);
     else{
-      o.push(`<text x="${f2(it.x)}" y="${f2(it.y)}" font-family="Helvetica, Arial, sans-serif" font-size="${f2(it.pt*PT)}" font-weight="${it.b?700:400}" fill="${REL_TEXTO}"${it.u?' text-decoration="underline"':''}>${esc(it.t)}</text>`);
+      const anc=it.al==='c'?' text-anchor="middle"':it.al==='r'?' text-anchor="end"':'';
+      o.push(`<text x="${f2(it.x)}" y="${f2(it.y)}" font-family="Helvetica, Arial, sans-serif" font-size="${f2(it.pt*PT)}" font-weight="${it.b?700:400}"${it.i?' font-style="italic"':''}${anc} fill="${it.c||REL_TEXTO}"${it.u?' text-decoration="underline"':''}>${esc(it.t)}</text>`);
     }
   });
   o.push('</svg>');return o.join('');
@@ -1050,22 +1279,35 @@ function gerarPdf(d){
   if(!(window.jspdf&&window.jspdf.jsPDF))throw new Error('A biblioteca de PDF (jspdf) ainda não carregou. Aguarde alguns segundos ou recarregue a página.');
   const pages=layoutRelatorio(d);
   const pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4',compress:true});
+  const tracejado=dash=>{if(pdf.setLineDashPattern)pdf.setLineDashPattern(dash||[],0);};
   pages.forEach((pg,i)=>{
     if(i)pdf.addPage('a4','portrait');
     pg.forEach(it=>{
       if(it.k==='rect'){
-        pdf.setDrawColor(...hexRgb(REL_BORDA));pdf.setLineWidth(0.18);
-        if(it.fill){pdf.setFillColor(...hexRgb(it.fill));pdf.rect(it.x,it.y,it.w,it.h,'FD');}else pdf.rect(it.x,it.y,it.w,it.h,'S');
+        const st=it.stroke===undefined?REL_BORDA:it.stroke;
+        let modo='';
+        if(it.fill){pdf.setFillColor(...hexRgb(it.fill));modo+='F';}
+        if(st){pdf.setDrawColor(...hexRgb(st));pdf.setLineWidth(0.18);modo+='D';}
+        if(!modo)return;
+        tracejado(it.dash);
+        const m=modo==='FD'?'FD':modo==='F'?'F':'S';
+        if(it.r)pdf.roundedRect(it.x,it.y,it.w,it.h,it.r,it.r,m);else pdf.rect(it.x,it.y,it.w,it.h,m);
+        tracejado(null);
+      }else if(it.k==='line'){
+        pdf.setDrawColor(...hexRgb(it.c||'#000000'));pdf.setLineWidth(it.w||0.2);tracejado(it.dash);
+        pdf.line(it.x1,it.y1,it.x2,it.y2);tracejado(null);
       }else if(it.k==='img')pdf.addImage(it.src,it.fmt||'PNG',it.x,it.y,it.w,it.h,undefined,'FAST');
       else{
-        pdf.setFont('helvetica',it.b?'bold':'normal');pdf.setFontSize(it.pt);pdf.setTextColor(0,0,0);
-        pdf.text(it.t,it.x,it.y);
-        if(it.u){const w=pdf.getTextWidth(it.t);pdf.setDrawColor(0,0,0);pdf.setLineWidth(0.15);pdf.line(it.x,it.y+0.5,it.x+w,it.y+0.5);}
-        if(it.link){const w=pdf.getTextWidth(it.t);pdf.link(it.x,it.y-it.pt*PT,w,it.pt*PT*1.3,{url:it.link});}
+        pdf.setFont('helvetica',it.b&&it.i?'bolditalic':it.b?'bold':it.i?'italic':'normal');pdf.setFontSize(it.pt);
+        pdf.setTextColor(...hexRgb(it.c||REL_TEXTO));
+        const w=pdf.getTextWidth(it.t),x0=it.al==='c'?it.x-w/2:it.al==='r'?it.x-w:it.x;
+        pdf.text(it.t,x0,it.y);
+        if(it.u){pdf.setDrawColor(...hexRgb(it.c||REL_TEXTO));pdf.setLineWidth(0.15);pdf.line(x0,it.y+0.5,x0+w,it.y+0.5);}
+        if(it.link)pdf.link(x0,it.y-it.pt*PT,w,it.pt*PT*1.3,{url:it.link});
       }
     });
   });
-  pdf.setProperties({title:'Relatório do Monitoramento Meteorológico'+(d.id?' - '+d.id:''),author:'SIMGE/IGAM',creator:'Alertas SIMGE '+(window.VERSAO_APP||'')});
+  pdf.setProperties({title:'Relatório Diário de Operação e Plantão'+(d.id?' - '+d.id:''),author:'SIMGE/IGAM',creator:'Alertas SIMGE '+(window.VERSAO_APP||'')});
   return {blob:pdf.output('blob'),paginas:pages.length};
 }
 
@@ -1224,6 +1466,7 @@ async function relatorioFinal(snap,nomesLocais){
     await new Promise(ok=>google.script.run.withSuccessHandler(p=>{if(p&&/^https:\/\//.test(p.url))snap.pastaUrl=p.url;ok();})
       .withFailureHandler(()=>ok()).prepararPastaTurno(snap.turno.data,snap.turno.turno));
   }
+  snap.municipios=[...nomes];   // v4.0: "Regiões/municípios afetados" com os alertas de toda a equipe
   snap.mapa=await mapaDoRelatorio(nomes,true);snap.mapaFmt=mapaCache.fmt;snap.mapaProp=mapaCache.prop;
   await Promise.race([window.alertasJsPdf,new Promise(ok=>setTimeout(ok,15000))]).catch(()=>{});
   let r;
@@ -1331,6 +1574,7 @@ function lembrarEmailPlantao(id){
 function salvarPassagemAgora(){
   const d={};Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>d[k]=$(id)?$(id).value:'');
   d.publicacoes=publicacoesForm(d);   // v3.7
+  d.produtosOutros=produtosOutros(d);  // v4.0
   d.turno=state.turno.turno;d.dataTurno=state.turno.data;
   if(!d.responsavel.trim()){status('Preencha o campo "Responsável".','erro');$('pResp').focus();return;}
   if(!d.data){status('Preencha a data do plantão.','erro');$('pData').focus();return;}
@@ -1348,6 +1592,7 @@ function salvarPassagemAgora(){
       if(r&&r.alertas!=null)snap.nAlertas=r.alertas;
       if(r&&r.arquivos!=null)snap.nArquivos=r.arquivos+1;   // + relatório (o Mapa de Previsões vai dentro do PDF)
       Object.values(CAMPOS_PLANTAO).forEach(id=>{if($(id))$(id).value='';});padraoPublicacoes();
+      prodOutros=[];desenharProdOutros();document.querySelectorAll('.prod').forEach(c=>c.checked=false);sincronizarProdutos();   // v4.0
       turnoServidor=null;state.turno=turnoPeloRelogio();mostrarTurno();preencherHorariosTurno();
       state.active=[];state.dailyRows=[];state.plantaoId='';state.selected.clear();desenharAlertas();updateSelection();apagarRascunho();
       limparExtrasPlantao();
@@ -1373,10 +1618,21 @@ $('salvarPlantao').onclick=()=>{
   }
   if($('pPub1Per')&&$('pPub1Hora').value&&$('pPub2Hora').value&&$('pPub1Per').value===$('pPub2Per').value&&
     !confirm('As duas publicações estão marcadas como "'+$('pPub1Per').value+'". Salvar assim mesmo?'))return;
-  if(!mapaPrev.url&&state.turno.turno==='Diurno'){   // no plantão noturno o PNG é opcional
-    status('Anexe o Mapa de Previsões (PNG) antes de encerrar o plantão diurno.','erro');
-    aviso('Para encerrar o plantão <b>diurno</b>, anexe a imagem do <b>Mapa de Previsões (PNG)</b> no formulário.',true);
-    $('pMapaPrev').focus();return;
+  // v4.0: a Evidência de Publicação (print do SIMGE) é obrigatória nos dois turnos
+  const faltaPrint=PRINTS.find(p=>$(p.id)&&!p.img);
+  if(faltaPrint){
+    status('Anexe a '+faltaPrint.titulo+' antes de encerrar o plantão.','erro');
+    aviso('Para encerrar o plantão, anexe a <b>'+esc(faltaPrint.titulo)+'</b> no formulário (escolha o arquivo ou cole com Ctrl+V).',true);
+    try{$(faltaPrint.id).scrollIntoView({block:'center',behavior:'smooth'});}catch(e){}
+    $(faltaPrint.id).focus();return;
+  }
+  const semHora=produtoSemHora();
+  if(semHora){status('Informe o horário de envio de “'+semHora.parentElement.textContent.trim()+'” (ou desmarque).','erro');$(semHora.dataset.hora).focus();return;}
+  const prodInc=produtosOutros(dadosRelatorio().campos).findIndex(o=>!o.nome.trim()||!o.hora);
+  if(prodInc>=0){
+    status('Preencha o nome e o horário do outro produto '+(prodInc+1)+' (ou remova a linha).','erro');
+    const l=$('prodOutrosLista')&&$('prodOutrosLista').children[prodInc];if(l){const el=l.querySelector(prodOutros[prodInc]&&prodOutros[prodInc].nome.trim()?'[data-k=hora]':'[data-k=nome]');if(el)el.focus();}
+    return;
   }
   $('salvarPlantao').disabled=true;
   enviarEvidencias().then(okEv=>{if(!okEv){$('salvarPlantao').disabled=false;return;}   // v3.6
@@ -1682,17 +1938,8 @@ $('emit').onclick=()=>{
   });
 };
 
-/* ---- Mapa de Previsões: obrigatório para encerrar ---- */
-const TXT_MAPA_PREV='Obrigatório para encerrar o plantão diurno (no noturno é opcional). Sai no relatório em PDF, embaixo do mapa de alertas (não é salvo à parte no Drive).';
-(function ajustarRotuloMapaPrev(){
-  const inp=$('pMapaPrev');if(!inp)return;
-  const lab=document.querySelector('label[for="pMapaPrev"]')||inp.closest('label')||(inp.parentElement&&inp.parentElement.querySelector('label'));
-  if(lab){
-    const w=document.createTreeWalker(lab,NodeFilter.SHOW_TEXT);let n;
-    while((n=w.nextNode()))if(/opcional/i.test(n.nodeValue))n.nodeValue=n.nodeValue.replace(/,?\s*opcional/i,', obrigatório no diurno');
-  }
-  if(!mapaPrev.url&&$('pMapaPrevInfo'))$('pMapaPrevInfo').textContent=TXT_MAPA_PREV;
-})();
+/* ---- v4.0: Evidência de Publicação — texto inicial do campo ---- */
+PRINTS.forEach(p=>infoPrint(p));
 
 /* ---- botão "Trocar conta" ---- */
 function temAlertaNaoEmitido(){
@@ -1772,8 +2019,10 @@ function desenharIntercorrencias(){
       it.tipo=sel.value;desenharIntercorrencias();sincronizarExtras();
     };
     d.querySelectorAll('[data-k]').forEach(el=>{el.value=it[el.dataset.k]||'';el.addEventListener('input',()=>{it[el.dataset.k]=el.value;sincronizarExtras();});});
-    d.querySelector('input[type=file]').onchange=e=>{const f=e.target.files[0];if(f){it.arquivo=f;it.evidencia='';}desenharIntercorrencias();sincronizarExtras();};
-    const rmArq=d.querySelector('[data-rmarq]');if(rmArq)rmArq.onclick=e=>{e.preventDefault();it.arquivo=null;it.evidencia='';desenharIntercorrencias();sincronizarExtras();};
+    d.querySelector('input[type=file]').onchange=e=>{const f=e.target.files[0];if(f){it.arquivo=f;it.evidencia='';it.imgRel=null;
+      reduzirImagem(f).then(r=>{if(it.arquivo===f){it.imgRel=r;agendarRelatorio();}}).catch(()=>{});}   // v4.0: cópia reduzida para os Anexos do PDF
+      desenharIntercorrencias();sincronizarExtras();};
+    const rmArq=d.querySelector('[data-rmarq]');if(rmArq)rmArq.onclick=e=>{e.preventDefault();it.arquivo=null;it.imgRel=null;it.evidencia='';desenharIntercorrencias();sincronizarExtras();};
     d.querySelector('[data-rm]').onclick=()=>{interItens.splice(i,1);if(!interItens.length)interItens.push(novaIntercorrencia());desenharIntercorrencias();sincronizarExtras();};
     box.appendChild(d);
   });
@@ -1849,6 +2098,7 @@ function avisoIntercorrencias(r,d){
 
 /* ---------------- início ---------------- */
 const temRascunho=carregarRascunho();
+carregarProdOutros();   // v4.0
 if(temRascunho)carregarExtras();else{try{localStorage.removeItem(CHAVE_EXTRAS);}catch(e){}}
 if(!interItens.length)interItens=[novaIntercorrencia()];
 desenharIntercorrencias();$('ferrOutrosLbl').hidden=!$('ferrOutrosChk').checked;

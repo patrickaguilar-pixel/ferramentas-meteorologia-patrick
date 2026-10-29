@@ -1,3 +1,4 @@
+<!-- CÓPIA DE TESTE gerada de Alertas.html (Apps Script oficial). Não entregar à equipe. -->
 <!doctype html>
 <html lang="pt-BR">
 <head>
@@ -249,6 +250,8 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
 .idplantao b{font-family:Consolas,monospace;font-size:14px;color:var(--ink)}
 .par{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .pub-linha{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
+.prod-lista{display:grid;gap:6px}.prod-item{display:grid;grid-template-columns:1fr 130px;gap:10px;align-items:center;min-height:38px}
+.secbody .prod-chk{display:flex;gap:8px;align-items:center;font-weight:500;cursor:pointer}.prod-hora[hidden]{display:none}
 .secbody textarea.field.obs-curta{min-height:56px}
 .secbody textarea.field{min-height:84px}
 .campo-passagem textarea.field{border-color:var(--ambar);background:var(--ambar-fundo);color:#4a3206;min-height:110px}
@@ -401,7 +404,7 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
       <span><i style="background:#f29f54"></i>perto de vencer</span>
       <span><i style="background:#d9534f"></i>prazo vencido</span>
       <span><i class="ln"></i>limite de mesorregião</span>
-      <span class="ver">Versão 1.15y-20261022</span>
+      <span class="ver">Versão teste-20261029a</span>
     </div>
   </section>
 </main>
@@ -424,29 +427,32 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
       <div class="par">
         <label>Data<input class="field" id="pData" type="date"></label>
         <div class="par">
-          <label>Início<input class="field" id="pInicio" type="time"></label>
-          <label>Fim<input class="field" id="pFim" type="time"></label>
+          <label>Entrada<input class="field" id="pInicio" type="time"></label>
+          <label>Saída<input class="field" id="pFim" type="time"></label>
         </div>
       </div>
-      <fieldset class="grp" id="grpIntervalo"><legend>Intervalo / revezamento no turno</legend>
+      <fieldset class="grp" id="grpIntervalo"><legend>Escala e revezamento intraturno</legend>
         <div class="par">
-          <label>Início do intervalo<input class="field" id="pIntIni" type="time"></label>
-          <label>Fim do intervalo<input class="field" id="pIntFim" type="time"></label>
+          <label>Início do descanso<input class="field" id="pIntIni" type="time"></label>
+          <label>Retorno do descanso<input class="field" id="pIntFim" type="time"></label>
         </div>
-        <label>Observações<textarea class="field obs-curta" id="pIntObs" placeholder="Ex.: revezamento com outro plantonista, quem cobriu o intervalo…"></textarea></label>
       </fieldset>
-      <fieldset class="grp" id="grpPublicacao"><legend>Publicação da previsão diária</legend>
-        <div class="pub-linha">
-          <label>Período<select class="field" id="pPub1Per"><option value="Manhã" selected>Manhã</option><option value="Tarde">Tarde</option></select></label>
-          <label>Horário de publicação<input class="field" id="pPub1Hora" type="time"></label>
+      <fieldset class="grp" id="grpPublicacao"><legend>Entregas e produtos meteorológicos</legend>
+        <div class="prod-lista">
+          <div class="prod-item"><label class="prod-chk"><input type="checkbox" class="prod" id="chkPubManha" data-hora="pPub1Hora"> Previsão do tempo — manhã</label><input class="field prod-hora" id="pPub1Hora" type="time" aria-label="Horário de envio — Previsão do tempo — manhã" hidden></div>
+          <div class="prod-item"><label class="prod-chk"><input type="checkbox" class="prod" id="chkPubTarde" data-hora="pPub2Hora"> Previsão do tempo — tarde</label><input class="field prod-hora" id="pPub2Hora" type="time" aria-label="Horário de envio — Previsão do tempo — tarde" hidden></div>
+          <div class="prod-item"><label class="prod-chk"><input type="checkbox" class="prod" id="chkProdTS" data-hora="pProdTS"> Mapa de Tempo Severo</label><input class="field prod-hora" id="pProdTS" type="time" aria-label="Horário de envio — Mapa de Tempo Severo" hidden></div>
+          <div class="prod-item"><label class="prod-chk"><input type="checkbox" class="prod" id="chkProdChuva" data-hora="pProdChuva"> Previsão de Chuva</label><input class="field prod-hora" id="pProdChuva" type="time" aria-label="Horário de envio — Previsão de Chuva" hidden></div>
+          <div class="prod-item"><label class="prod-chk"><input type="checkbox" class="prod" id="chkProdBoletim" data-hora="pProdBoletim"> Boletim de chuva significativa</label><input class="field prod-hora" id="pProdBoletim" type="time" aria-label="Horário de envio — Boletim de chuva significativa" hidden></div>
         </div>
-        <div class="pub-linha">
-          <label>Período<select class="field" id="pPub2Per"><option value="Manhã">Manhã</option><option value="Tarde" selected>Tarde</option></select></label>
-          <label>Horário de publicação<input class="field" id="pPub2Hora" type="time"></label>
-        </div>
-        <div class="rascunho">Informe o horário em que cada previsão (manhã e tarde) foi publicada.</div>
+        <select id="pPub1Per" hidden aria-hidden="true" tabindex="-1"><option value="Manhã" selected>Manhã</option></select>
+        <select id="pPub2Per" hidden aria-hidden="true" tabindex="-1"><option value="Tarde" selected>Tarde</option></select>
+        <div id="prodOutrosLista" style="display:grid;gap:8px"></div>
+        <div><button class="btn small" id="prodOutrosAdd" type="button">+ Outro produto</button></div>
+        <textarea class="field" id="pProdOutros" hidden aria-hidden="true" tabindex="-1"></textarea>
+        <div class="rascunho">Marque os produtos enviados no turno e informe o horário de envio de cada um.</div>
       </fieldset>
-      <fieldset class="grp" id="grpInter"><legend>Intercorrências <span class="obr" title="Obrigatório">*</span></legend>
+      <fieldset class="grp" id="grpInter"><legend>Ocorrências operacionais e tecnológicas <span class="obr" title="Obrigatório">*</span></legend>
         <div id="interLista"></div>
         <div><button class="btn small" id="interAdd" type="button">+ Intercorrência</button></div>
         <div class="rascunho">Cada intercorrência vira uma linha na planilha de intercorrências, ligada ao ID do plantão. Se não houve nenhuma, escolha “Sem intercorrências”.</div>
@@ -461,14 +467,16 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
           <label><input type="checkbox" class="ferr" value="Tropical Tidbits"> Tropical Tidbits</label>
           <label><input type="checkbox" class="ferr" value="CPTEC"> CPTEC</label>
           <label><input type="checkbox" class="ferr" value="INMET"> INMET</label>
+          <label><input type="checkbox" class="ferr" value="QGIS/Projetos IGAM"> QGIS/Projetos IGAM</label>
+          <label><input type="checkbox" class="ferr" value="Radar (Cemaden/Cemig)"> Radar (Cemaden/Cemig)</label>
           <label><input type="checkbox" class="ferr" value="Outros" id="ferrOutrosChk"> Outros</label>
         </div>
         <label id="ferrOutrosLbl" hidden>Descreva as outras ferramentas<input class="field" id="ferrOutros"></label>
         <textarea class="field" id="pFerr" hidden aria-hidden="true" tabindex="-1"></textarea>
       </fieldset>
       <label class="campo-passagem">Passagem de plantão — áreas suscetíveis e pendências<textarea class="field" id="pPassagem" placeholder="O que o próximo plantonista precisa acompanhar"></textarea></label>
-      <label>Mapa de Previsões (PNG, opcional)<input class="field" id="pMapaPrev" type="file" accept="image/png,.png"></label>
-      <div class="rascunho" id="pMapaPrevInfo">Sai no relatório em PDF, embaixo do mapa de alertas.</div>
+      <label>Evidência de Publicação (print da tela do SIMGE — PNG ou JPG) <span class="obr" style="color:#e5484d" title="Obrigatório">*</span><input class="field" id="pMapaPrev" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg"></label>
+      <div class="rascunho" id="pMapaPrevInfo">Obrigatória para encerrar o plantão.</div>
       <div style="display:grid;gap:6px">
         <span style="font-weight:600;font-size:14px">Outras imagens (PNG ou JPG, opcional)</span>
         <div class="img-lista" id="pOutrasLista"></div>
@@ -491,7 +499,7 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
     </header>
     <div class="msg" id="relMsg" hidden role="status" aria-live="polite"></div>
     <div class="pages" id="relPages"></div>
-    <div class="vbar">Versão 1.15y-20261022</div>
+    <div class="vbar">Versão teste-20261029a</div>
   </section>
 </main>
 
@@ -545,7 +553,7 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
   window.diagFaixa=faixa;
   window.addEventListener('error',function(e){
     var t=e.target;
-    if(t&&t!==window&&(t.src||t.href)){if(/fonts\.(googleapis|gstatic)\.com/.test(t.src||t.href))return;faixa('Falhou ao carregar: '+(t.src||t.href));return;}
+    if(t&&t!==window&&(t.src||t.href)){if(/fonts\.(googleapis|gstatic)\.com|tile\.openstreetmap\.|tiles\.openfreemap\.org/.test(t.src||t.href))return;  /* mapa de fundo: a ferramenta avisa sozinha */faixa('Falhou ao carregar: '+(t.src||t.href));return;}
     faixa('Erro: '+e.message+(e.lineno?' (linha '+e.lineno+')':''));
   },true);
   function carregar(url){
@@ -568,15 +576,16 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
     info.innerHTML='<b>Minas Gerais</b> • carregando '+falta.map(function(k){return nomes[k];}).join(' e ')+'… ('+s+' s)'+
       (s>=20?'<br><span style="color:#b3261e">Está demorando. Confira a internet e recarregue com Ctrl+F5. Arquivo: '+BASE+'alertas/data/'+falta[0]+'.js</span>':'');
   },1000);
-  window.BASE_DADOS=BASE;window.VERSAO_APP='1.15y-20261022';
+  window.BASE_DADOS=BASE;window.VERSAO_APP='teste-20261029a';
   window.alertasDados=Promise.all([
     carregar(BASE+'alertas/data/municipios.js').then(function(){pendentes.municipios=false;}),
     carregar(BASE+'alertas/data/mesorregioes.js').then(function(){pendentes.mesorregioes=false;},function(){pendentes.mesorregioes=false;}),  // opcional
-    carregar(BASE+'alertas/app-drive.js?v=sm-20261028')     // código da página (GitHub Pages)
+    carregar(BASE+'alertas/app-drive.js?v=teste-20261029a')     // código da página (GitHub Pages)
   ]);
   // jsPDF só é usado no relatório: carrega depois, sem atrasar o mapa
-  window.alertasJsPdf=window.alertasDados.catch(function(){}).then(function(){return carregar(BASE+'previsao/lib/jspdf.umd.min.js?v=1.15y-20261022');});
+  window.alertasJsPdf=window.alertasDados.catch(function(){}).then(function(){return carregar(BASE+'previsao/lib/jspdf.umd.min.js?v=teste-20261029a');});
 })();
 </script>
+<script src="../assets/planner-teste.js?v=teste-20261029a"></script>   <!-- Planner da semana (botão na barra) -->
 </body>
 </html>
