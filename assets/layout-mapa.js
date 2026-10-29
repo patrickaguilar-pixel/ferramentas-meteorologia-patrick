@@ -47,7 +47,7 @@
   var NAVY = '#092b6a';
   var FONT = "Arial, 'Liberation Sans', Helvetica, sans-serif";
   var RODAPE = 'Iniciativa realizada com recursos do Acordo de Reparação do Rio Doce, firmado em decorrência do rompimento da Barragem de Fundão, da Samarco S.A. O rompimento, ocorrido em 5 de novembro de 2015, tirou a vida de 19 pessoas.';
-  var CREDITOS_FIXOS = ['Limites municipais e mesorregiões - IBGE', 'Base cartográfica: IBGE', 'Projeção: Latitude/Longitude - Datum SIRGAS 2000'];
+  var CREDITOS_FIXOS = ['Limites municipais e mesorregiões - IBGE', 'Base cartográfica: IBGE', 'Sistema de Coordenadas Geográficas', 'Sistema geodésico de referência: Sirgas2000'];
   var LOGO_SLOTS = ['igam', 'simge', 'appa', 'riodoce'];
   var LOGO_Y = 196.35, LOGO_H = 10, LOGO_X0 = 10.5, LOGO_X1 = 196.4;
   var PT_R = 0.65, NOME_TAM = 3.5;                  // ponto da sede com metade do tamanho anterior (igual à Previsão)
@@ -435,7 +435,7 @@
     o.push('<rect x="' + f2(COL - LIN_W / 2) + '" y="170.345" width="' + LIN_W + '" height="0.256388" fill="rgb(138,187,228)"/>');
     var cred = [op.credito || 'SIMGE/IGAM'].concat(CREDITOS_FIXOS);
     if (F) cred.push('Mapa base: ' + F.credito);   // mesmo formato de crédito da Previsão
-    o.push(textBlock({ lines: cred, x: COL, yTop: 172.909, h: 13.3322, size: fitSize(cred, 6.68628 * PT, 62, 400), fill: navy, anchor: 'middle' }));
+    o.push(textBlock({ lines: cred, x: COL, yTop: 172.909, h: 13.3322, size: Math.min(fitSize(cred, 6.68628 * PT, 62, 400), 13.3322 / (cred.length * LH)), fill: navy, anchor: 'middle' }));
 
     /* ---- rodapé ---- */
     [[4.30732, 194.2, 289.001, 14.3, 3.28177], [4.51243, 194.4, 288.59, 13.9, 3.07666], [4.71754, 194.6, 288.18, 13.5, 2.87155]]

@@ -865,7 +865,7 @@ const NONE = "sem informação";
 const DEFAULT_TEXTS = {
   region: "Minas Gerais",
   footer: "Iniciativa realizada com recursos do Acordo de Reparação\ndo Rio Doce, firmado em decorrência do rompimento da\nBarragem de Fundão, da Samarco S.A. O rompimento, ocorrido\nem 5 de novembro de 2015, tirou a vida de 19 pessoas.",
-  credits: "Previsão de Tempo - SIMGE/IGAM, {ano}\nLimites municipais e mesorregiões - IBGE\nBase cartográfica: IBGE\nProjeção: Latitude/Longitude - Datum SIRGAS 2000"
+  credits: "Previsão de Tempo - SIMGE/IGAM, {ano}\nLimites municipais e mesorregiões - IBGE\nBase cartográfica: IBGE\nSistema de Coordenadas Geográficas\nSistema geodésico de referência: Sirgas2000"
 };
 // textos iniciais do boletim (exemplo enviado pela equipe; tudo editável)
 const BUL_DEFAULT = () => ({
@@ -985,7 +985,9 @@ function parseValidity(t){
 let S = store.get(LS.draft, null);
 if (!S || !Array.isArray(S.rows)) S = defaultState();
 S.rows.forEach(r => { r.id = "r"+(++uid); });
+const migraCred = t => typeof t === "string" ? t.replace(/^[ \t]*Proje[çc][ãa]o:\s*Latitude\/Longitude\s*-\s*Datum\s*SIRGAS\s*2000[ \t]*$/gim, "Sistema de Coordenadas Geográficas\nSistema geodésico de referência: Sirgas2000") : t;
 S.texts = {...DEFAULT_TEXTS, ...(S.texts||{})};
+S.texts.credits = migraCred(S.texts.credits);  // créditos salvos antes de 29/10/2026
 S.bul = {...BUL_DEFAULT(), ...(S.bul||{})};
 S.opts = {...defaultState().opts, ...(S.opts||{})};
 if (!S.val) S.val = parseValidity(S.validity) || {time:"10:00", date:addDays(S.date,1), auto:true};
@@ -1297,7 +1299,7 @@ function renderSVG({forExport=false} = {}){
   o.push(`<rect x="232.338" y="170.345" width="51.2776" height="0.256388" fill="rgb(138,187,228)"/>`);
   const year = (S.date || todayISO()).slice(0,4);
   const cred = (S.texts.credits || "").replace(/\{ano\}/g, year).split("\n");
-  o.push(textBlock({lines:cred, x:228.723+59.3284/2, yTop:172.909, h:13.3322, size:fitSize(cred,6.68628*PT,62,400), fill:navy, anchor:"middle"}));
+  o.push(textBlock({lines:cred, x:228.723+59.3284/2, yTop:172.909, h:13.3322, size:Math.min(fitSize(cred,6.68628*PT,62,400),13.3322/(cred.length*LH)), fill:navy, anchor:"middle"}));
 
   /* ---- rodapé ---- */
   [[4.30732,200.393,289.001,20.511,3.28177],[4.51243,200.598,288.59,20.1008,3.07666],[4.71754,200.803,288.18,19.6906,2.87155]]
@@ -1648,7 +1650,7 @@ function applyData(o){
   if (Array.isArray(o.rows)){
     S.rows = o.rows.filter(r => r && MUN.has(r.name)).map(r => ({...makeRow(r.name), ...r, id:"r"+(++uid), tempo: CAT[r.tempo] ? r.tempo : NONE, tmax: r.tmax==null ? "" : String(r.tmax), tmin: r.tmin==null ? "" : String(r.tmin)}));
   }
-  if (o.texts) S.texts = {...DEFAULT_TEXTS, ...o.texts};
+  if (o.texts) { S.texts = {...DEFAULT_TEXTS, ...o.texts}; S.texts.credits = migraCred(S.texts.credits); }
   if (o.opts) S.opts = {...S.opts, ...o.opts}; applyTempsUI();
   dateEl.value = S.date; fillVal(); fillTexts(); fillOpts();
   renderRows(); drawPreview(); updateNotice();

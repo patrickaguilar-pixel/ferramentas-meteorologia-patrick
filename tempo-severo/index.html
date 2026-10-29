@@ -55,7 +55,7 @@
 <div id="printSheet">
   <div id="printTitle"></div>
   <div id="printMap"><canvas id="printCanvas" width="1508" height="882"></canvas><div id="printLegend"></div><div id="printValidity"></div><div id="printNorth">N ↑</div></div>
-  <div id="printFooter"><div id="printLogos"><img src="assets/logo_igam.png"><img src="assets/logo_simge.png"></div><div id="printCredits">Projeção: Latitude/Longitude - Datum SIRGAS2000<br>MESORREGIÕES/MG - IGAM, 2009<br>Previsão Probabilística de Tempo Severo - SIMGE/IGAM</div></div>
+  <div id="printFooter"><div id="printLogos"><img src="assets/logo_igam.png"><img src="assets/logo_simge.png"></div><div id="printCredits">Sistema de Coordenadas Geográficas<br>Sistema geodésico de referência: Sirgas2000<br>MESORREGIÕES/MG - IGAM, 2009<br>Previsão Probabilística de Tempo Severo - SIMGE/IGAM</div></div>
 </div>
 <div class="modal" id="modelModal"><div class="modal-box"><button class="btn close" id="closeModel">Fechar</button><h3>Mapa de referência enviado</h3><img src="assets/modelo_referencia.png"></div></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -324,7 +324,7 @@ async function generatePNG(){
   let validity='';
   if(dt){const hh=String(dt.getHours()).padStart(2,'0'); const dd=String(dt.getDate()).padStart(2,'0'); const mm=String(dt.getMonth()+1).padStart(2,'0'); const yy=dt.getFullYear(); validity=`*Válido até às ${hh}h do dia ${dd}/${mm}/${yy}.`;}
   document.getElementById('printValidity').textContent=validity;
-  document.getElementById('printCredits').innerHTML='Projeção: Latitude/Longitude - Datum SIRGAS2000<br>MESORREGIÕES/MG - IGAM, 2009<br>Previsão Probabilística de Tempo Severo - SIMGE/IGAM, 2026';
+  document.getElementById('printCredits').innerHTML='Sistema de Coordenadas Geográficas<br>Sistema geodésico de referência: Sirgas2000<br>MESORREGIÕES/MG - IGAM, 2009<br>Previsão Probabilística de Tempo Severo - SIMGE/IGAM, 2026';
   sheet.style.display='block';
   await new Promise(r=>setTimeout(r,100));
   const out=await html2canvas(sheet,{backgroundColor:'#fff',scale:1,useCORS:true});

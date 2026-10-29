@@ -28,7 +28,7 @@ const NONE = "sem informação";
 const DEFAULT_TEXTS = {
   region: "Minas Gerais",
   footer: "Iniciativa realizada com recursos do Acordo de Reparação do Rio Doce, firmado em decorrência do rompimento da Barragem de Fundão, da Samarco S.A. O rompimento, ocorrido em 5 de novembro de 2015, tirou a vida de 19 pessoas.",
-  credits: "Previsão de Tempo - SIMGE/IGAM, {ano}\nLimites municipais e mesorregiões - IBGE\nBase cartográfica: IBGE\nProjeção: Latitude/Longitude - Datum SIRGAS 2000"
+  credits: "Previsão de Tempo - SIMGE/IGAM, {ano}\nLimites municipais e mesorregiões - IBGE\nBase cartográfica: IBGE\nSistema de Coordenadas Geográficas\nSistema geodésico de referência: Sirgas2000"
 };
 // textos iniciais do boletim completo (exemplo enviado pela equipe; tudo editável).
 // Marcação nos textos: **negrito**, [amarelo]…[/amarelo], [verde]…[/verde], [laranja]…[/laranja], [vermelho]…[/vermelho].
@@ -161,7 +161,9 @@ function parseValidity(t){
 let S = store.get(LS.draft, null);
 if (!S || !Array.isArray(S.rows)) S = defaultState();
 S.rows.forEach(r => { r.id = "r"+(++uid); });
+const migraCred = t => typeof t === "string" ? t.replace(/^[ \t]*Proje[çc][ãa]o:\s*Latitude\/Longitude\s*-\s*Datum\s*SIRGAS\s*2000[ \t]*$/gim, "Sistema de Coordenadas Geográficas\nSistema geodésico de referência: Sirgas2000") : t;
 S.texts = {...DEFAULT_TEXTS, ...(S.texts||{})};
+S.texts.credits = migraCred(S.texts.credits);  // créditos salvos antes de 29/10/2026
 S.bul = {...BUL_DEFAULT(), ...(S.bul||{})};
 // boletim antigo (PDF simples) -> boletim completo: os parágrafos antigos viram o texto do bloco de ícones
 if (!Array.isArray(S.bul.blocks) || S.bul.v !== 2){ const velho = S.bul, novo = BUL_DEFAULT();
@@ -949,7 +951,7 @@ function renderSVG({forExport=false} = {}){
       if (i >= 0) cred[i] = `Mapa base: ${ab.credito}`;
       else { const j = cred.findIndex(l => /^\s*Base cartográfica\s*:/i.test(l)); cred.splice(j >= 0 ? j + 1 : cred.length, 0, `Mapa base: ${ab.credito}`); }
     } }
-  o.push(textBlock({lines:cred, x:COL, yTop:172.909, h:13.3322, size:fitSize(cred,6.68628*PT,62,400), fill:navy, anchor:"middle"}));
+  o.push(textBlock({lines:cred, x:COL, yTop:172.909, h:13.3322, size:Math.min(fitSize(cred,6.68628*PT,62,400),13.3322/(cred.length*LH)), fill:navy, anchor:"middle"}));
 
   /* ---- rodapé ---- */
   [[4.30732,194.2,289.001,14.3,3.28177],[4.51243,194.4,288.59,13.9,3.07666],[4.71754,194.6,288.18,13.5,2.87155]]
@@ -1530,7 +1532,7 @@ function applyData(o){
   if (Array.isArray(o.rows)){
     S.rows = o.rows.filter(r => r && MUN.has(r.name)).map(r => ({...makeRow(r.name), ...r, id:"r"+(++uid), tempo: CAT[r.tempo] ? r.tempo : NONE, tmax: r.tmax==null ? "" : String(r.tmax), tmin: r.tmin==null ? "" : String(r.tmin)}));
   }
-  if (o.texts) S.texts = {...DEFAULT_TEXTS, ...o.texts};
+  if (o.texts) { S.texts = {...DEFAULT_TEXTS, ...o.texts}; S.texts.credits = migraCred(S.texts.credits); }
   if (o.opts) S.opts = {...S.opts, ...o.opts}; applyTempsUI();
   dateEl.value = S.date; fillVal(); fillTexts(); fillOpts();
   renderRows(); drawPreview(); updateNotice();
