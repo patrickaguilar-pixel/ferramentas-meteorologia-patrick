@@ -53,9 +53,9 @@ async function shot(p,name,sels){const boxes=[];for(const s of sels){const loc=p
  await p.click('#cancel');await p.waitForTimeout(300);
  await p.click('#abaPlantao');await p.waitForTimeout(2500);
  await shot(p,'al_plantao1',['#pResp','#pData','#pInicio','#grpIntervalo','#relPages','#salvarPlantao','#smBotao','#smNavegador']);
- await p.evaluate(()=>document.querySelector('#grpPublicacao').scrollIntoView({block:'start'}));await p.waitForTimeout(500);
+ await p.evaluate(()=>{const b=document.querySelector('body > .bar');const h=b?b.offsetHeight:0;const t=document.querySelector('#grpPublicacao').getBoundingClientRect().top+scrollY;window.scrollTo(0,t-h-12);});await p.waitForTimeout(500);
  await shot(p,'al_plantao2',['#grpPublicacao','#grpInter','#salvarPlantao','#prodOutrosAdd']);
- await p.evaluate(()=>document.querySelector('#grpFerr').scrollIntoView({block:'start'}));await p.waitForTimeout(500);
+ await p.evaluate(()=>{const b=document.querySelector('body > .bar');const h=b?b.offsetHeight:0;const t=document.querySelector('#grpFerr').getBoundingClientRect().top+scrollY;window.scrollTo(0,t-h-12);});await p.waitForTimeout(500);
  await shot(p,'al_plantao3',['#pPassagem','#pMapaPrev','label:has(#pOutras)','#salvarPlantao','#grpFerr']);
  console.log('errs',p.errs);}
 {const p=await page(b);await p.goto(B+'reservatorios/plataforma.html');await p.waitForTimeout(800);
