@@ -72,6 +72,8 @@
     '.res.and,#smJanela .resumo.and,#smAviso.and{background:#eaf3fb!important;border-color:#7fb3e0!important;color:#0b3a75!important}',
     '#smJanela .res a,#smAviso a{color:inherit;font-weight:700;text-decoration:underline}',
     '#smJanela .mini,#smAviso .mini{margin-left:6px;border:1px solid currentColor;background:#fff;color:inherit;border-radius:7px;padding:3px 9px;font:700 13px "Barlow",Arial,sans-serif;cursor:pointer}',
+    '#smJanela .res ul.fora{margin:6px 0 8px;padding-left:20px}',
+    '#smJanela .res ul.fora li{margin:2px 0}',
     '#smJanela .resumo{font-size:14px;color:#3d5a8a;flex:1;min-width:220px;border:1px solid transparent;border-radius:9px;padding:7px 10px}',
     '#smAviso{border:1px solid transparent}',
     '#smAviso .x{float:right;margin-left:10px;border:0;background:none;color:inherit;font-size:18px;line-height:1;cursor:pointer}',
@@ -117,7 +119,10 @@
     '#smAviso.on{display:block}',
     '.sm-oculto{display:none!important}',
     'body.smFlutua{padding-bottom:100px}',
-    '@media print{#smBotao,#smAviso,#smDica{display:none!important}}',
+    '@media print{#smBotao,#smAviso,#smDica,#smTeste{display:none!important}}',
+    '#smTeste{position:relative;z-index:6;background:#fff3e0;color:#7a3e00;border-bottom:2px solid #e07b00;padding:6px 14px 6px 30px;font:500 13.5px/1.35 "Barlow",Arial,sans-serif;text-align:center}',
+    '#smTeste::before{content:"";position:absolute;left:0;top:0;bottom:0;width:16px;background:repeating-linear-gradient(135deg,#ffb703 0 8px,#092b6a 8px 16px)}',
+    '#smTeste b{color:#b71c1c;letter-spacing:.03em}',
     '@keyframes smGira{to{transform:rotate(360deg)}}',
     '@media (prefers-reduced-motion:reduce){#smJanela .st .and .ic{animation:none}}'
   ].join('');
@@ -325,6 +330,9 @@
       var b = el.querySelector('.salvar');
       if (b) b.onclick = function () { gerar(m); };
       ligarAcoes(el, r);
+      var ma = el.querySelector('[data-a=assim]'), mc = el.querySelector('[data-a=corrigir]');
+      if (ma) ma.onclick = function () { gerar(m, true); };
+      if (mc) mc.onclick = function () { delete RES[chave(m)]; fechar(); };
       mats.appendChild(el);
     });
   }
@@ -332,9 +340,19 @@
     var t = el.querySelector('[data-a=drive2]');
     if (t && r && r.it) t.onclick = function () { salvarAmbos(r.it, r.k, true); };
   }
-  function gerar(m) {
+  function gerar(m, mesmoAssim) {
     var s = situacao(m); if (!s.ok) { desenharMateriais(); return; }
-    var k = chave(m), meu = esperando = { m: m, k: k };
+    var k = chave(m);
+    if (!mesmoAssim) {   // confere o padrão antes de salvar
+      var fora = foraDoPadrao(m);
+      if (fora.length) {
+        RES[k] = { estado: 'parcial', html: '<b>Atenção: fora do padrão.</b><ul class="fora">' + fora.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' +
+          '<button type="button" class="mini" data-a="corrigir">Voltar e corrigir</button> <button type="button" class="mini" data-a="assim">Salvar assim mesmo</button>' };
+        desenharMateriais();
+        return;
+      }
+    }
+    var meu = esperando = { m: m, k: k };
     RES[k] = { estado: 'and', html: 'Gerando o arquivo e salvando no PC e no Drive…' };
     desenharMateriais();
     setTimeout(function () {   // aviso de validação da ferramenta fica na página, atrás do painel
@@ -349,6 +367,58 @@
     }, 60000);
     s.b.click();
   }
+
+  /* ---------------- conferência do padrão (antes de salvar) ---------------- */
+  // Padrões do Guia Rápido: mapa base OSM padrão; validade às 10h do dia seguinte; nenhuma cidade "Sem informação";
+  // imagens do CPC com menos de 36 h. Fora do padrão, o painel avisa e pede confirmação antes de salvar.
+  var NOME_FUNDO = { '': 'Nenhum', osm: 'OSM padrão', osmfr: 'OSM França', osmde: 'OSM Alemanha', ofm: 'OpenFreeMap (sem nomes)' };
+  function valor(id) { var e = document.getElementById(id); return e ? e.value : null; }
+  function maisUmDia(iso) { var d = new Date(iso + 'T12:00:00'); if (isNaN(d)) return ''; d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); }
+  function br(iso) { var p = String(iso || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] : iso; }
+  function fundoAtual() {
+    if (FERRAMENTA() === 'previsao') {
+      var r = document.querySelector('input[name=bgsel]:checked'); if (!r) return null;
+      var t = r.parentNode ? r.parentNode.textContent.trim() : '';
+      return { id: r.value, nome: NOME_FUNDO[r.value] || t || r.value };
+    }
+    var sel = document.getElementById('layoutFundo'); if (!sel) return null;
+    return { id: sel.value, nome: NOME_FUNDO[sel.value] || (sel.options[sel.selectedIndex] || {}).text || sel.value };
+  }
+  function ehMapa(m) { return /^(PNG|PDF|SVG)$/.test(m.tipo) && !/cidade/i.test(m.nome) && !(FERRAMENTA() === 'alertas' && m.tipo !== 'PDF'); }
+  function foraDoPadrao(m) {
+    var f = [], fer = FERRAMENTA();
+    if (ehMapa(m) && fer !== 'reservatorios') {
+      var fu = fundoAtual();
+      if (fu && fu.id !== 'osm') f.push('Mapa base: <b>' + esc(fu.nome) + '</b> (padrão: OSM padrão).');
+    }
+    if (fer === 'previsao' && ehMapa(m)) {
+      var d = valor('date'), vt = valor('valTime'), vd = valor('valDate');
+      if (d && vt != null && vd != null && (vt !== '10:00' || vd !== maisUmDia(d)))
+        f.push('Validade: <b>' + esc(vt || '—') + ' do dia ' + esc(br(vd)) + '</b> (padrão: 10h do dia ' + esc(br(maisUmDia(d))) + ').');
+      if (/Mapa do dia/.test(m.nome)) {
+        var sem = [].slice.call(document.querySelectorAll('#rows .trow')).filter(function (r) { return /Sem informa/i.test(r.textContent); }).length;
+        if (sem) f.push('<b>' + sem + ' cidade' + (sem > 1 ? 's' : '') + '</b> em “Sem informação”.');
+      }
+    }
+    if ((fer === 'tempo-severo' || fer === 'chuva') && m.tipo === 'PNG') {
+      var tend = fer === 'chuva' && (document.querySelector('#tabTend[aria-selected=true], #tabTend.active, #tabTend.on') || /tend/i.test(String(window.product || '')));
+      var base = tend ? valor('trendDate2') : valor('forecastDate'), vu = valor('validUntil');
+      if (base && vu && vu.slice(0, 16) !== maisUmDia(base) + 'T10:00')
+        f.push('Válido até: <b>' + esc(br(vu.slice(0, 10)) + ' ' + vu.slice(11, 16)) + '</b> (padrão: 10h do dia ' + esc(br(maisUmDia(base))) + (tend ? ', dia seguinte ao 2º dia' : '') + ').');
+    }
+    if (fer === 'reservatorios' && document.querySelector('#cpcVersao .warn')) f.push('Imagens do CPC com <b>mais de 36 h</b>. Confira o ciclo e busque de novo.');
+    return f;
+  }
+  // aviso na hora em que alguém escolhe um mapa base diferente do OSM padrão
+  function avisoFundo() {
+    setTimeout(function () {
+      var fu = fundoAtual();
+      if (fu && fu.id !== 'osm' && FERRAMENTA() !== 'reservatorios')
+        avisar('<b>Atenção:</b> o mapa base padrão é o <b>OSM padrão</b>. Você escolheu <b>' + esc(fu.nome) + '</b>.', 'parcial', 9000);
+    }, 50);
+  }
+  document.addEventListener('layoutfundo', avisoFundo);
+  document.addEventListener('change', function (e) { if (e.target && e.target.name === 'bgsel') avisoFundo(); }, true);
 
   var tAviso;
   function avisar(html, estado, ms) {   // aviso fora do painel (ex.: KML salvo ao emitir o alerta)
@@ -482,7 +552,17 @@
     t.src = (window.BASE_DADOS || '../') + 'assets/tutorial.js?v=tu2-20261028';
     document.head.appendChild(t);
   }
+  // faixa "versão de testes": só no painel de testes do Patrick (e no computador de quem desenvolve)
+  function faixaTeste() {
+    if (window.__SEM_FAIXA_TESTE || document.getElementById('smTeste')) return;
+    if (!/^(patrickaguilar-pixel\.github\.io|localhost|127\.0\.0\.1)$/.test(location.hostname)) return;
+    var f = document.createElement('div');
+    f.id = 'smTeste'; f.setAttribute('role', 'note');
+    f.innerHTML = '<b>⚠ VERSÃO DE TESTES</b> — não é a plataforma oficial. Nada feito aqui vale como produto oficial e os arquivos não vão para o Drive da equipe.';
+    document.body.insertBefore(f, document.body.firstChild);
+  }
   function iniciar() {
+    faixaTeste();
     carregarTutorial();
     esconderBotoes();
     padronizarNavegador();
