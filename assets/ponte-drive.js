@@ -30,6 +30,7 @@
  */
 (function () {
   if (window.SalvarMaterial) return;
+  var VER = (function () { var c = document.currentScript; var m = c && /[?&]v=([^&]+)/.exec(c.src || ''); return m ? m[1] : 'tu3'; })();
   var temAppsScript = function () { return !!(window.google && google.script && google.script.run); };
   var FERRAMENTA = function () { return window.FERRAMENTA || ''; };
 
@@ -110,7 +111,7 @@
     '#smBotao.topo.pend{animation:smPulso2 1.8s ease-in-out infinite}',
     '@keyframes smPulso2{0%,100%{box-shadow:0 0 0 1px #092b6a,0 4px 12px rgba(9,43,106,.3)}50%{box-shadow:0 0 0 1px #092b6a,0 0 0 8px rgba(255,183,3,.45)}}',
     'body.smTopo .bar .actions{margin-right:196px!important}',
-    'body.smTopo header .badge{margin-right:190px}',
+    'body.smTopo header .top{padding-right:190px}',   /* Reservatórios: espaço para o botão (o Planner entra no fim de .top) */
     '#smJanela .cab .mapa{display:block;font:600 14px/1.3 "Barlow",Arial,sans-serif;color:#3d5a8a;margin-top:3px}',
     '#smDica.topo{position:absolute;bottom:auto}',
     '#smDica.topo::after{bottom:auto;top:-8px;border-top:0;border-bottom:8px solid #092b6a;border-left-color:transparent;border-right-color:transparent}',
@@ -372,7 +373,25 @@
         desenharMateriais();
       }
     }, 60000);
+    var antes = avisosDaPagina();
     s.b.click();
+    // a ferramenta recusou (falta preencher algo)? mostra o aviso dela aqui, em vermelho, sem esperar
+    [700, 1600, 3000].forEach(function (t) {
+      setTimeout(function () {
+        if (esperando !== meu) return;
+        var novo = avisosDaPagina().filter(function (x) { return antes.indexOf(x) < 0; })[0];
+        if (!novo) return;
+        esperando = null;
+        RES[k] = { estado: 'erro', html: '<b>Não foi salvo:</b> ' + esc(novo) };
+        desenharMateriais();
+      }, t);
+    });
+  }
+  // mensagens de erro visíveis na página da ferramenta (ex.: "Escreva pelo menos um parágrafo")
+  function avisosDaPagina() {
+    return [].slice.call(document.querySelectorAll('.err, .erro, .error, [class*="msg"].err, [role="alert"]')).filter(function (e) {
+      return !e.closest('#smFundo, #smAviso, #smTeste, #tuCamada, #smTestePop') && e.getClientRects().length && e.textContent.trim().length > 3;
+    }).map(function (e) { return e.textContent.replace(/\s+/g, ' ').trim().slice(0, 300); });
   }
 
   /* ---------------- conferência do padrão (antes de salvar) ---------------- */
@@ -446,6 +465,11 @@
     var pc = soDrive ? it.pcOk : false;
     if (!soDrive && !it.semPc) { try { baixarNoPc(it.nome, it.blob); pc = true; } catch (e) { pc = false; } }
     it.pcOk = pc;
+    if (it.soPc) {   // tipo que o Drive da equipe não recebe (ex.: .txt dos alertas do dia)
+      if (pc) fim(k, it, 'ok', '✓ <b>' + esc(it.nome) + '</b> salvo no PC (pasta Downloads). Este tipo de arquivo fica só no PC.');
+      else fim(k, it, 'erro', '<b>' + esc(it.nome) + ' não foi salvo.</b>');
+      return;
+    }
     var r = RES[k] = { estado: 'and', html: 'Salvando <b>' + esc(it.nome) + '</b> no Drive…', it: it, k: k };
     atualizar(r);
     var p;
@@ -494,7 +518,8 @@
     montar();
     var k = esperando ? esperando.k : 'auto:' + (o.nome || 'arquivo');
     esperando = null;
-    var it = { nome: o.nome || 'arquivo', blob: o.blob, salvarDrive: o.salvarDrive || null, driveFeito: o.driveFeito || null, drivePromessa: o.drivePromessa || null, semPc: !!o.semPc };
+    var it = { nome: o.nome || 'arquivo', blob: o.blob, salvarDrive: o.salvarDrive || null, driveFeito: o.driveFeito || null, drivePromessa: o.drivePromessa || null, semPc: !!o.semPc,
+      soPc: !o.driveFeito && !o.drivePromessa && !o.salvarDrive && !/\.(png|kml|pdf|svg|csv)$/i.test(o.nome || '') };   // salvarArquivo (SalvarArquivo.gs) só aceita PNG, KML, PDF, SVG e CSV
     salvarAmbos(it, k);
     return it;
   }
@@ -516,6 +541,8 @@
       if (ref && ref.parentElement) {
         var b = document.createElement('button');
         b.type = 'button'; b.className = 'btn'; b.id = 'smNavegador';
+        b.setAttribute('data-view', 'plantao');   // aparece na aba Plantão e relatório (o Alertas mostra/esconde pelo data-view)
+        var vp = document.getElementById('viewPlantao'); b.hidden = !(vp && vp.getClientRects().length);
         b.innerHTML = IC_SALVAR + ' Salvar neste navegador';
         b.title = 'Guarda o plantão (alertas e campos do relatório) neste navegador (não gera arquivo)';
         b.onclick = function () { window.salvarNoNavegador(); avisar('✓ Plantão guardado neste navegador.', 'ok', 3500); };
@@ -557,7 +584,7 @@
   function carregarTutorial() {
     if (window.TutorialFerramentas || document.getElementById('tuScript')) return;
     var t = document.createElement('script'); t.id = 'tuScript';
-    t.src = (window.BASE_DADOS || '../') + 'assets/tutorial.js?v=tu2-20261028';
+    t.src = (window.BASE_DADOS || '../') + 'assets/tutorial.js?v=' + VER;
     document.head.appendChild(t);
   }
   // faixa "versão de testes": só no painel de testes do Patrick (e no computador de quem desenvolve)

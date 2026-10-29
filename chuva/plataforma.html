@@ -1,3 +1,4 @@
+<!-- CÓPIA DE TESTE gerada de Chuva.html (Apps Script oficial). Não entregar à equipe. -->
 <!doctype html>
 <html lang="pt-BR">
 <head>
@@ -13,7 +14,7 @@
   }
   window.addEventListener('error',function(e){
     var t=e.target;
-    if(t&&t!==window&&(t.src||t.href)){if(/fonts\.(googleapis|gstatic)\.com/.test(t.src||t.href))return;faixa('Falhou ao carregar: '+(t.src||t.href));return;}
+    if(t&&t!==window&&(t.src||t.href)){if(/fonts\.(googleapis|gstatic)\.com|tile\.openstreetmap\.|tiles\.openfreemap\.org/.test(t.src||t.href))return;  /* mapa de fundo: a ferramenta avisa sozinha */faixa('Falhou ao carregar: '+(t.src||t.href));return;}
     faixa('Erro: '+e.message+(e.lineno?' (linha '+e.lineno+')':''));
   },true);
   window.addEventListener('DOMContentLoaded',function(){
@@ -302,15 +303,16 @@ main.tool{grid-template-columns:minmax(360px,440px) 1fr}
         <div class="legend" id="legend"></div>
       </div>
     </div>
-    <div class="vbar">Chuva + Tendência v0.3 · mapa no layout da Previsão · 1.15y-20261022</div>
+    <div class="vbar">Chuva + Tendência v0.3 · mapa no layout da Previsão · teste-20261029a</div>
   </section>
 </main>
 
 <script src="../assets/lib/leaflet-1.9.4/leaflet.js"></script><script src="../assets/lib/leaflet.draw-1.0.4/leaflet.draw.js"></script><script src="../assets/lib/turf-7.4.0/turf.min.js"></script><script src="../chuva/data/meso.js"></script><script src="../chuva/data/cidades.js"></script><script src="../chuva/data/brasil_estados.js"></script>
 <script>window.BASE_DADOS='../';window.FERRAMENTA='chuva';window.PONTE_SELO='PNG é salvo no Drive';</script>
-<script src="../previsao/data/geo.js?v=1.15y-20261022"></script>
-<script src="../assets/layout-mapa.js?v=1.15y-20261022"></script>
-<script src="../chuva/app-drive.js?v=1.15y-20261022"></script>
-<script src="../assets/ponte-drive.js?v=sm17-20261029"></script>
+<script src="../previsao/data/geo.js?v=teste-20261029a"></script>
+<script src="../assets/layout-mapa.js?v=teste-20261029a"></script>
+<script src="../chuva/app-drive.js?v=teste-20261029a"></script>
+<script src="../assets/ponte-drive.js?v=teste-20261029a"></script>
+<script src="../assets/planner-teste.js?v=teste-20261029a"></script>   <!-- Planner da semana (botão na barra) -->
 </body>
 </html>

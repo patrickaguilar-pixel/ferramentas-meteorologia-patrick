@@ -28,6 +28,17 @@
   var SALVAR = { s: '#smBotao', t: 'Opções de salvamento', d: 'Salva o mapa e os arquivos desta aba no PC e no Drive ao mesmo tempo. A mensagem fica verde quando salvou nos dois.' };
   var NAVEGADOR = { s: '#btnSave, #saveBtn, #smNavegador', t: 'Salvar neste navegador', d: 'Guarda o que você preencheu ou desenhou neste computador. Não gera arquivo.' };
   var FUNDO = { s: fundo, t: 'Fundo do mapa', d: 'Use OSM padrão nos mapas de Minas.' };
+  var PLANNER = { s: '#plannerBtn', t: 'Planner da semana', d: 'Quadro com os produtos de cada dia e turno, feriados e anotações da equipe.' };
+  // itens do quadro do Planner (aparecem quando ele está aberto)
+  var QUADRO = [
+    { s: '.pln-sem', t: 'Semana', d: '‹ e › trocam de semana. ● volta para a semana atual.' },
+    { s: '.pln-leg', t: 'Legenda', d: 'Fixo, extra do dia e especial (com data). “Envio: só CEDEC” quando a entrega cai em fim de semana ou feriado.' },
+    { s: '.pln-cel.agora', t: 'Turno atual', d: 'O que precisa ser feito agora.' },
+    { s: '.pln-cel.n .pln-ent', t: 'Noturno', d: 'Fica no dia em que começa. “Entrega” mostra para qual manhã é o boletim.' },
+    { s: '.pln-anot', t: 'Anotações', d: 'Regras que valem para todos os produtos.' },
+    { s: '[data-modo=editar]', t: 'Editar', d: 'Só para quem está autorizado: muda produtos, feriados e anotações na planilha.' },
+    { s: '.pln-modal [data-fechar]', t: 'Fechar', d: 'Ou tecla Esc.' }
+  ];
   // itens do painel "Opções de salvamento" (aparecem quando ele está aberto)
   var PAINEL = [
     { s: '#smJanela .prev', t: 'Prévia', d: 'O mapa da aba aberta, como vai ser salvo.' },
@@ -118,18 +129,18 @@
   /* ---------------- estilo ---------------- */
   var css = document.createElement('style');
   css.textContent = [
-    '#tuBotao{position:fixed;right:12px;bottom:12px;z-index:99970;width:34px;height:34px;border-radius:50%;border:1px solid rgba(9,43,106,.25);background:rgba(255,255,255,.85);color:#5f7393;font:700 17px/1 "Barlow",Arial,sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(9,43,106,.15);display:grid;place-items:center;opacity:.7;transition:opacity .15s}',
+    '#tuBotao{position:fixed;right:12px;bottom:12px;z-index:100001;width:34px;height:34px;border-radius:50%;border:1px solid rgba(9,43,106,.25);background:rgba(255,255,255,.85);color:#5f7393;font:700 17px/1 "Barlow",Arial,sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(9,43,106,.15);display:grid;place-items:center;opacity:.7;transition:opacity .15s}',
     '#tuBotao:hover,#tuBotao:focus-visible{opacity:1}',
     '#tuBotao.on{background:#092b6a;color:#ffb703;border-color:#092b6a;opacity:1}',
     '#tuBotao .rot{position:absolute;right:42px;white-space:nowrap;background:#092b6a;color:#fff;font:600 12.5px/1 "Barlow",Arial,sans-serif;padding:6px 9px;border-radius:7px;opacity:0;pointer-events:none;transition:opacity .15s}',
     '#tuBotao:hover .rot,#tuBotao:focus-visible .rot{opacity:1}',
-    '#tuCamada{position:fixed;inset:0;z-index:99995;pointer-events:none}',
+    '#tuCamada{position:fixed;inset:0;z-index:100010;pointer-events:none}',
     '#tuCamada .tuN{position:fixed;width:22px;height:22px;border-radius:50%;background:#ffb703;color:#092b6a;border:2px solid #092b6a;font:800 12px/18px "Barlow",Arial,sans-serif;text-align:center;cursor:help;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.25)}',
     '#tuCamada .tuN:hover,#tuCamada .tuN.ativo{background:#092b6a;color:#ffb703;border-color:#ffb703}',
     '#tuCamada .tuAlvo{position:fixed;border:2px dashed #ffb703;border-radius:8px;box-shadow:0 0 0 3px rgba(9,43,106,.25);display:none}',
     '#tuCamada .tuBalao{position:fixed;max-width:280px;background:#092b6a;color:#fff;border-radius:10px;padding:10px 13px;font:400 14px/1.4 "Barlow",Arial,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3);display:none}',
     '#tuCamada .tuBalao b{display:block;color:#ffb703;font-weight:700;margin-bottom:2px}',
-    '#tuAviso{position:fixed;right:54px;bottom:12px;z-index:99971;max-width:300px;background:#092b6a;color:#fff;border-radius:10px;padding:10px 13px;font:400 14px/1.4 "Barlow",Arial,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3)}',
+    '#tuAviso{position:fixed;right:54px;bottom:12px;z-index:100002;max-width:300px;background:#092b6a;color:#fff;border-radius:10px;padding:10px 13px;font:400 14px/1.4 "Barlow",Arial,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3)}',
     '#tuAviso b{color:#ffb703}',
     '@media print{#tuBotao,#tuCamada,#tuAviso{display:none!important}}'
   ].join('');
@@ -160,7 +171,7 @@
     if (!ligado) return;
     var topo = janelaAberta(), n = 0, usados = [];
     [].slice.call(camada.querySelectorAll('.tuN')).forEach(function (x) { x.remove(); });
-    (PASSOS[FERR()] || []).concat(PAINEL).forEach(function (p) {
+    (PASSOS[FERR()] || []).concat([PLANNER], PAINEL, QUADRO).forEach(function (p) {
       var el = achar(p);
       if (!el || usados.indexOf(el) >= 0) return;
       if (topo && !topo.contains(el)) return;
