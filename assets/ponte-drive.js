@@ -58,6 +58,11 @@
     '#smJanela .sec h3{margin:0 0 8px;font:700 13px/1.2 "Barlow Semi Condensed","Barlow",Arial,sans-serif;letter-spacing:.07em;text-transform:uppercase;color:#3d5a8a}',
     '#smJanela .mats{display:grid;gap:10px}',
     '#smJanela .mat{border:1px solid #c9dbee;border-radius:12px;background:#fff;padding:10px 12px}',
+    '#smJanela .mat.info{background:#f3f8fd;border-style:dashed}',
+    '#smJanela .mat.info .tipo{background:#5f7393}',
+    '#smJanela .mat .ir{padding:8px 14px;border-color:#006cbf;color:#006cbf;background:#fff;font-weight:700}',
+    '.sm-destaque{outline:4px solid #ffb703!important;outline-offset:3px;animation:smPisca2 .7s ease-in-out 4}',
+    '@keyframes smPisca2{50%{outline-color:#092b6a}}',
     '#smJanela .mat.off{background:#f6f8fb;border-style:dashed;color:#7d8fab}',
     '#smJanela .mat.off .tipo{background:#9fb2c8}',
     '#smJanela .mat .lin{display:flex;align-items:center;gap:10px;flex-wrap:wrap}',
@@ -196,11 +201,13 @@
       { id: 'pngBtn', nome: 'Mapa de chuva e tendência', tipo: 'PNG', desc: 'Imagem 300 dpi' }
     ],
     'alertas': [
-      { id: 'downloadKml', nome: 'Municípios selecionados', tipo: 'KML', desc: 'Contorno dos municípios selecionados no mapa', vista: '#viewMapa', requer: 'create', precisa: 'Selecione os municípios no mapa' },
+      // o KML do alerta e o relatório final são salvos pelos próprios botões do Alertas: aqui só o aviso de onde fazer
+      { info: true, alvo: '#create', tipo: 'KML', nome: 'KML do alerta', vista: '#viewMapa',
+        desc: 'É salvo ao emitir o alerta (Drive e PC). Use Criar alerta › Emitir alerta.', botao: 'Ir para Criar alerta' },
       { id: 'downloadTxt', nome: 'Alertas do dia', tipo: 'TXT', desc: 'Registro do plantão', vista: '#viewMapa' },
-      { seletor: '.alert-card .download-kml', tipo: 'KML', nome: 'KML do alerta', vista: '#viewMapa',   // um item por alerta ativo
-        rotulo: function (b) { var c = b.closest('.alert-card'); var t = c && c.querySelector('b'); var h = c && c.querySelector('b + div'); return 'KML do alerta: ' + (t ? t.textContent : '') + (h ? ' · ' + h.textContent.split('•')[0].trim() : ''); } },
-      { id: 'baixarRel', nome: 'Prévia do relatório do plantão', tipo: 'PDF', desc: 'Não encerra o plantão', onde: 'Plantão e relatório', aba: '#abaPlantao' }
+      { id: 'baixarRel', nome: 'Prévia do relatório do plantão', tipo: 'PDF', desc: 'Não encerra o plantão', onde: 'Plantão e relatório', aba: '#abaPlantao' },
+      { info: true, alvo: '#salvarPlantao', tipo: 'PDF', nome: 'Relatório final do plantão', vista: '#viewPlantao',
+        desc: 'É salvo ao encerrar o plantão (Drive, PC e e-mail). Use Salvar passagem e gerar relatório.', botao: 'Ir para o botão' }
     ],
     'reservatorios': [
       { id: 'resPng', nome: 'Reservatórios', tipo: 'PNG', desc: 'Mapa Week 1', onde: 'Reservatórios · Week 1', aba: '.tab[data-tab=reserv]', precisa: 'Clique em “Gerar mapa” na aba Reservatórios' },
@@ -224,6 +231,10 @@
   }
   function visivel(el) { return !!(el && el.getClientRects().length); }
   function situacao(m) {
+    if (m.info) {
+      var a = document.querySelector(m.alvo);
+      return (m.vista ? visivel(document.querySelector(m.vista)) : true) && a ? { ok: true, info: true, b: a } : { fora: true };
+    }
     var b = m.el || document.getElementById(m.id);
     if (!b) return { fora: true };
     var aqui = m.vista ? visivel(document.querySelector(m.vista)) : (!b.hidden && visivel(b.parentElement));
@@ -282,7 +293,9 @@
     box.className = 'prev' + (achou > 1 ? ' duas' : '');
     box.hidden = !achou;
   }
+  var SEMPRE_ESCONDER = { 'alertas': ['#downloadKml', '.alert-card .download-kml'] };   // salvos pelo Criar alerta
   function esconderBotoes() {
+    (SEMPRE_ESCONDER[FERRAMENTA()] || []).forEach(function (q) { [].slice.call(document.querySelectorAll(q)).forEach(function (b) { if (!b.classList.contains('sm-oculto')) b.classList.add('sm-oculto'); }); });
     materiais().forEach(function (m) { var b = m.el || document.getElementById(m.id); if (b && !b.classList.contains('sm-oculto')) b.classList.add('sm-oculto'); });
   }
 
@@ -329,6 +342,15 @@
     if (!lst.length) { mats.innerHTML = '<p class="vazio">Nesta aba não há material para salvar. Os materiais aparecem de acordo com a aba aberta.</p>'; return; }
     lst.forEach(function (m) {
       var s = situacao(m), r = RES[chave(m)], andando = r && r.estado === 'and';
+      if (s.info) {   // material salvo por outro botão da ferramenta: só o aviso e o atalho
+        var ei = document.createElement('div');
+        ei.className = 'mat info';
+        ei.innerHTML = '<div class="lin"><span class="tipo">' + esc(m.tipo) + '</span><span class="tx">' + esc(m.nome) + '<small>' + esc(m.desc) + '</small></span>' +
+          '<button type="button" class="bt ir">' + esc(m.botao) + ' ›</button></div>';
+        ei.querySelector('.ir').onclick = function () { irPara(s.b); };
+        mats.appendChild(ei);
+        return;
+      }
       var el = document.createElement('div');
       el.className = 'mat' + (s.ok ? '' : ' off');
       el.innerHTML = '<div class="lin"><span class="tipo">' + esc(m.tipo) + '</span><span class="tx">' + esc(m.nome) +
@@ -347,6 +369,13 @@
   function ligarAcoes(el, r) {
     var t = el.querySelector('[data-a=drive2]');
     if (t && r && r.it) t.onclick = function () { salvarAmbos(r.it, r.k, true); };
+  }
+  function irPara(b) {   // fecha o painel e destaca o botão certo da ferramenta
+    fechar();
+    try { b.scrollIntoView({ block: 'center' }); } catch (e) { }
+    b.classList.add('sm-destaque');
+    try { b.focus(); } catch (e) { }
+    setTimeout(function () { b.classList.remove('sm-destaque'); }, 3500);
   }
   function gerar(m, mesmoAssim) {
     var s = situacao(m); if (!s.ok) { desenharMateriais(); return; }
