@@ -51,10 +51,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs.t00z.totp.day5.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs_precip_day5_samerica.html",
       "texto_alternativo": "GFS 5-day Total Precp",
-      "atualizado_no_cpc": "2026-11-01T06:44:54+00:00",
-      "baixado_em": "2026-11-01T08:54:50+00:00",
-      "bytes": 68616,
-      "sha256": "dd5156bcdb76946eaa29bd2a628c9012a6f9f3fc422aa7d18eeda92260fb8d2e"
+      "atualizado_no_cpc": "2026-11-02T06:32:07+00:00",
+      "baixado_em": "2026-11-02T07:35:24+00:00",
+      "bytes": 67970,
+      "sha256": "f7ab96aead0fa9eb3ea8176cb655e4248cf5db745c0a8eca1bbbfcec9e02e773"
     },
     "prob100_week1": {
       "descricao": "GEFS prob. >100 mm Week 1",
@@ -79,5 +79,5 @@
       "sha256": "8853caa477d81510a5f29e1cb1bef2f04bcc07323456551165d7243aa7731e25"
     }
   },
-  "atualizado_em": "2026-11-01T08:54:50+00:00"
+  "atualizado_em": "2026-11-02T07:35:24+00:00"
 }
