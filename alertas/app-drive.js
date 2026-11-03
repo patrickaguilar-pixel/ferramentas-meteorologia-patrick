@@ -66,6 +66,19 @@ const svg=$('mapSvg'),layer=$('munLayer'),mesoLayer=$('mesoLayer'),labels=$('lab
 const PAD=28,W=1000,H=760;
 const CHAVE_RASCUNHO='simge-plantao-rascunho-v2';
 const temServidor=!!(window.google&&google.script&&google.script.run);
+/* v4.1.1 (03/11/2026): plataforma de TESTE (sem Apps Script). As chamadas ao servidor respondem aqui mesmo, na hora,
+   para nada ficar esperando o Drive: o alerta entra só na tela, o KML e o relatório baixam no PC e o Drive aparece
+   como "não ligado". Na plataforma oficial (temServidor) gsRun() é o próprio gsRun() — nada muda lá. */
+const SEM_DRIVE='esta plataforma de teste não está ligada ao Drive';
+function gsRun(){
+  if(temServidor)return google.script.run;
+  const mk=(ok,no)=>new Proxy({},{get:(_,k)=>k==='withSuccessHandler'?f=>mk(f,no):k==='withFailureHandler'?f=>mk(ok,f):
+    ()=>{setTimeout(()=>{
+      if(/^(salvarRelatorio|salvarEvidencia|enviarRelatorio|salvarArquivo)/.test(k)){if(no)no(new Error(SEM_DRIVE));return;}
+      const r=/^(registrarAlerta|salvarPlantao)/.test(k)?{id:'local_'+Date.now()}:/^excluirAlerta/.test(k)?{kmlNaLixeira:true}:null;
+      if(ok)ok(r);},0);}});
+  return mk(null,null);
+}
 
 /* ---------------- salvar no PC (além do Drive) ---------------- */
 const CHAVE_PC='ferramentas-meteorologia:baixar-no-pc';
@@ -490,7 +503,7 @@ function applyAlertPreset(){
 function buildMessage(){
   const type=$('type').value,t=$('time').value,dur=$('duration').value,ph=fenomenos();
   const cities=[...state.selected].sort((a,b)=>a.localeCompare(b,'pt-BR'));
-  $('message').value=`Alerta de ${type}${ph.length?' com '+textList(ph):''} às ${t}h com duração de ${dur}h. Cidades: ${textList(cities)}. FONTE: SIMGE/IGAM`;
+  $('message').value=(state.renovando?'RENOVAÇÃO — ':'')+`Alerta de ${type}${ph.length?' com '+textList(ph):''} às ${t}h com duração de ${dur}h. Cidades: ${textList(cities)}. FONTE: SIMGE/IGAM`;
 }
 function emitStatus(texto,tipo){$('emitStatus').className='st'+(tipo?' '+tipo:'');$('emitStatus').textContent=texto;}
 function openModal(){
@@ -503,7 +516,7 @@ function openModal(){
   applyAlertPreset();$('modalback').style.display='flex';
 }
 $('create').onclick=openModal;
-$('cancel').onclick=()=>$('modalback').style.display='none';
+$('cancel').onclick=()=>{$('modalback').style.display='none';if(state.renovando){fimRenovacao();state.selected.clear();updateSelection();}};
 $('type').addEventListener('change',applyAlertPreset);
 ['duration','time'].forEach(id=>$(id).addEventListener('change',buildMessage));
 document.querySelectorAll('.phen').forEach(x=>x.addEventListener('change',buildMessage));
@@ -550,7 +563,7 @@ $('downloadTxt').onclick=()=>{
   if(temFuncao('alertasDoTurno')){
     const t={...state.turno},btn=$('downloadTxt');
     btn.disabled=true;
-    google.script.run
+    gsRun()
       .withSuccessHandler(r=>{
         btn.disabled=false;
         const rows=((r&&r.linhas)||[]).map(x=>[dataTxt(x.registradoEm),hhmm(x.horario)||x.horario,hhmm(x.duracao)||x.duracao,x.municipio].join('\t'));
@@ -578,22 +591,23 @@ $('emit').onclick=()=>{
   }
   const folder=kmlStamp();
   const a={id:'',kmlUrl:'',type:$('type').value,owner:$('owner').value.trim()||$('pResp').value.trim()||'Sem identificação',
-    start,end:endTime(start,dur),duration:dur,cities,phen:fenomenos(),message:$('message').value,folder};
+    start,end:endTime(start,dur),duration:dur,cities,phen:fenomenos(),message:$('message').value,folder,renovaDe:state.renovando?(state.renovando.id||''):''};
   const payload={
     data:$('pData').value||hojeLocal(),horario:a.start,duracao:a.duration,fim:a.end,tipo:a.type,
     fenomenos:a.phen,responsavel:a.owner,mensagem:a.message,
     municipios:cities.map(n=>{const p=featureByName.get(n).properties;return{nome:n,meso:p.meso||'',lat:p.label_lat,lon:p.label_lon};}),
     kml:montarKml(cities,folder),
-    turno:state.turno.turno,dataTurno:state.turno.data
+    turno:state.turno.turno,dataTurno:state.turno.data,
+    renovacaoDe:a.renovaDe   // v4.1: ID do alerta renovado (o Apps Script pode ignorar)
   };
   $('emit').disabled=true;emitStatus('Salvando o KML no Drive e o alerta na planilha…');
-  google.script.run
+  gsRun()
     .withSuccessHandler(r=>{
       $('emit').disabled=false;
       a.id=(r&&r.id)||('local_'+Date.now());a.kmlUrl=(r&&r.kmlUrl)||'';
       a.meu=true;a.emitidoEm=Date.now();if(r&&r.plantaoId)state.plantaoId=r.plantaoId;
       a.expiresAt=expiryTimestamp(a.start,a.duration);
-      a.linha=`${a.start}–${a.end} ${a.type}${a.phen.length?' ('+a.phen.join(', ')+')':''}: ${a.cities.join(', ')}`;
+      a.linha=(a.renovaDe?'(renovação) ':'')+`${a.start}–${a.end} ${a.type}${a.phen.length?' ('+a.phen.join(', ')+')':''}: ${a.cities.join(', ')}`;
       if(r&&r.turno)aplicarTurnoDoServidor(r.turno);
       if(r&&r.avisoPasta)aviso(esc(r.avisoPasta),true);
       if(r&&r.plantaoId)carregarContexto();
@@ -602,11 +616,11 @@ $('emit').onclick=()=>{
       cities.forEach(city=>state.dailyRows.push({alertId:a.id,date,time:a.start,duration:a.duration,city}));
       $('pAlertas').value=($('pAlertas').value.trim()?$('pAlertas').value.trim()+'\n':'')+a.linha;
       // 2026.10.28: o KML já foi salvo no Drive na emissão; a ponte baixa no PC (se "baixar no PC" estiver marcado) e mostra o resultado em cores
-      if(window.SalvarMaterial)salvarMaterial(folder+'.kml',kmlBlob(cities,folder),{driveFeito:{url:a.kmlUrl,nome:folder+'.kml',texto:'(ao emitir o alerta)'},semPc:!querPc()});
+      if(window.SalvarMaterial)salvarMaterial(folder+'.kml',kmlBlob(cities,folder),temServidor?{driveFeito:{url:a.kmlUrl,nome:folder+'.kml',texto:'(ao emitir o alerta)'},semPc:!querPc()}:{});   // teste: só PC
       else if(querPc())baixarKml(cities,folder);
       state.selected.clear();drawLine.style.display='none';HIST_SEL.length=0;atualizarDesfazer();
       desenharAlertas();updateSelection();salvarRascunho();
-      $('modalback').style.display='none';
+      $('modalback').style.display='none';fimRenovacao();
       sincronizarAlertas();
     })
     .withFailureHandler(err=>{
@@ -626,11 +640,13 @@ function desenharAlertas(){
   state.active.forEach(a=>{
     const card=document.createElement('div');card.className='alert-card';
     const meu=podeExcluir(a);
-    card.innerHTML=`<b>${esc(a.type)}</b><div>${esc(a.start)}–${esc(a.end)} • ${esc(a.owner)}${meu?'':' (outro plantonista)'}</div><div class="alert-status">Vigente</div>`+
+    const ehRenov=!!a.renovaDe||/^RENOVAÇÃO/.test(a.message||'');
+    card.innerHTML=`<b>${esc(a.type)}${ehRenov?' <span style="font-weight:600;font-size:11px;color:#0b4f7a;background:#e3f1fa;border-radius:4px;padding:1px 6px;margin-left:4px">↻ renovação</span>':''}</b><div>${esc(a.start)}–${esc(a.end)} • ${esc(a.owner)}${meu?'':' (outro plantonista)'}</div><div class="alert-status">Vigente</div>`+
       `<div>${a.cities.length} município(s): ${esc(a.cities.join(', '))}</div>`+
       (/^https:\/\//.test(a.kmlUrl||'')?`<div><a href="${esc(a.kmlUrl)}" target="_blank" rel="noopener">Abrir KML no Drive</a></div>`:'')+
-      `<div class="r"><button type="button" class="btn small download-kml">Baixar KML no PC</button>`+(meu?`<button type="button" class="btn small ghost delete-alert" style="color:var(--err)">Excluir alerta</button>`:'')+`</div>`;
+      `<div class="r"><button type="button" class="btn small renovar-alerta">↻ Renovar</button><button type="button" class="btn small download-kml">Baixar KML no PC</button>`+(meu?`<button type="button" class="btn small ghost delete-alert" style="color:var(--err)">Excluir alerta</button>`:'')+`</div>`;
     card.querySelector('.download-kml').onclick=()=>baixarKml(a.cities,a.folder,/^https:\/\//.test(a.kmlUrl||'')?{driveFeito:{url:a.kmlUrl,nome:a.folder+'.kml',texto:'(salvo ao emitir o alerta)'}}:null);   // 2026.10.28: KML da emissão já está no Drive
+    card.querySelector('.renovar-alerta').onclick=()=>renovarAlerta(a);
     if(meu)card.querySelector('.delete-alert').onclick=()=>{if(confirmarExclusao(a))deleteAlert(a);};
     a.cardEl=card;box.appendChild(card);
   });
@@ -659,7 +675,7 @@ function deleteAlert(a){
   if(!a.id||/^local_/.test(a.id)){removerAlertaDaTela(a);return;}   // nunca chegou à planilha
   const btn=a.cardEl&&a.cardEl.querySelector('.delete-alert');
   if(btn){btn.disabled=true;btn.textContent='Excluindo…';}
-  google.script.run
+  gsRun()
     .withSuccessHandler(r=>{
       removerAlertaDaTela(a);sincronizarAlertas();
       if(r&&!r.kmlNaLixeira)alert('Alerta marcado como excluído, mas o KML não pôde ir para a lixeira. Se precisar, apague-o na pasta do turno no Drive.');
@@ -1378,8 +1394,9 @@ function opcoesMapaAlertas(nomes){
     titulo:'Alertas - '+dataTxt+(turno?' ('+turno+')':''),
     textoValidade:'Alertas emitidos no plantão'+(turno?' '+turno.toLowerCase():'')+(data?' de '+dataTxt:''),
     credito:'Alertas - SIMGE/IGAM, '+((data||new Date().toISOString()).slice(0,4)),
-    areas:[...nomes].map(n=>featureByName.get(n)).filter(Boolean).map(f=>({geometry:f.geometry,fill:'#f1c34d',opacity:0.75,stroke:'#9b6800',strokeWidth:0.12})),
-    legenda:[{fill:'#f5d47f',label:'Município com alerta no plantão'},{fill:'#ffffff',label:'Sem alerta'}],
+    // v4.1.1: amarelo forte e opaco, com contorno escuro — com o mapa base (OSM) por baixo, o amarelo translúcido sumia
+    areas:[...nomes].map(n=>featureByName.get(n)).filter(Boolean).map(f=>({geometry:f.geometry,fill:'#ffc107',opacity:1,stroke:'#5c3a00',strokeWidth:0.3})),
+    legenda:[{fill:'#ffc107',label:'Município com alerta no plantão'},{fill:'#ffffff',label:'Sem alerta'}],
     cidadesNomes:CIDADES_REF
   };
 }
@@ -1460,10 +1477,10 @@ async function relatorioFinal(snap,nomesLocais){
   aviso('Gerando o relatório do plantão <b>'+esc(snap.id)+'</b> em PDF…');
   const nomes=new Set(nomesLocais||[]);
   if(temServidor){
-    await new Promise(ok=>google.script.run.withSuccessHandler(l=>{(l||[]).forEach(n=>nomes.add(n));ok();}).withFailureHandler(()=>ok()).municipiosDoPlantao(snap.id));
+    await new Promise(ok=>gsRun().withSuccessHandler(l=>{(l||[]).forEach(n=>nomes.add(n));ok();}).withFailureHandler(()=>ok()).municipiosDoPlantao(snap.id));
   }
   if(temServidor&&temFuncao('prepararPastaTurno')&&snap.turno){
-    await new Promise(ok=>google.script.run.withSuccessHandler(p=>{if(p&&/^https:\/\//.test(p.url))snap.pastaUrl=p.url;ok();})
+    await new Promise(ok=>gsRun().withSuccessHandler(p=>{if(p&&/^https:\/\//.test(p.url))snap.pastaUrl=p.url;ok();})
       .withFailureHandler(()=>ok()).prepararPastaTurno(snap.turno.data,snap.turno.turno));
   }
   snap.municipios=[...nomes];   // v4.0: "Regiões/municípios afetados" com os alertas de toda a equipe
@@ -1477,7 +1494,7 @@ async function relatorioFinal(snap,nomesLocais){
   const b64=await new Promise((ok,no)=>{const fr=new FileReader();fr.onload=()=>ok(String(fr.result).split(',')[1]||'');fr.onerror=no;fr.readAsDataURL(r.blob);});
   const t=snap.turno||turnoPeloRelogio();
   // 1) Drive: salva sempre (em segundo plano, enquanto a pergunta do e-mail está na tela)
-  const drive=new Promise(ok=>google.script.run
+  const drive=new Promise(ok=>gsRun()
     .withSuccessHandler(s=>ok({ok:true,s}))
     .withFailureHandler(e=>ok({ok:false,e}))
     [temFuncao('salvarRelatorioPlantaoTurno')?'salvarRelatorioPlantaoTurno':'salvarRelatorioPlantao']
@@ -1496,7 +1513,7 @@ async function relatorioFinal(snap,nomesLocais){
   const janela=()=>salvarMaterial(nome,r.blob,{
     nota:'Relatório do plantão '+snap.id+'. Vai para o Drive sozinho ao salvar a passagem.',
     drivePromessa:d.ok?Promise.resolve({url:d.s&&d.s.url,nome:(d.s&&d.s.nome)||nome,texto:'(pasta do plantão)'}):Promise.reject(d.e),
-    salvarDrive:(blob,b64)=>new Promise((ok,no)=>google.script.run.withSuccessHandler(s=>ok({url:s&&s.url,nome:(s&&s.nome)||nome,texto:'(pasta do plantão)'})).withFailureHandler(no)
+    salvarDrive:(blob,b64)=>new Promise((ok,no)=>gsRun().withSuccessHandler(s=>ok({url:s&&s.url,nome:(s&&s.nome)||nome,texto:'(pasta do plantão)'})).withFailureHandler(no)
       [temFuncao('salvarRelatorioPlantaoTurno')?'salvarRelatorioPlantaoTurno':'salvarRelatorioPlantao'](snap.id,nome,b64,'',t.data||'',t.turno||''))
   });
   const salvarAcao=['Baixar de novo no PC',pc];
@@ -1524,7 +1541,7 @@ async function relatorioFinal(snap,nomesLocais){
 /* ---- v3.4: envio do relatório por e-mail (função enviarRelatorioPorEmail do Email.gs) ---- */
 const NOMES_EMAIL_PLANTAO='Flávia, Laís e Paula';   // só o texto da pergunta; os endereços ficam no Email.gs
 function enviarEmailRelatorio(id,nome,b64,t){
-  return new Promise(ok=>google.script.run
+  return new Promise(ok=>gsRun()
     .withSuccessHandler(x=>ok({ok:true,x}))
     .withFailureHandler(e=>ok({ok:false,e}))
     .enviarRelatorioPorEmail(id,nome,b64,t.data||'',t.turno||''));
@@ -1585,7 +1602,7 @@ function salvarPassagemAgora(){
   const snap=dadosRelatorio();     // retrato do formulário antes de limpar
   const nomesLocais=[...municipiosAlertados()];
   $('salvarPlantao').disabled=true;status('Salvando a passagem de plantão…');
-  google.script.run
+  gsRun()
     .withSuccessHandler(r=>{
       $('salvarPlantao').disabled=false;
       snap.id=(r&&r.id)||snap.id;snap.geradoEm=new Date();
@@ -1650,7 +1667,7 @@ $('salvarPlantao').onclick=()=>{
 function carregarContexto(){
   // fora do Apps Script (página de teste no GitHub): sem conta, sem Drive e sem planilha — o resto funciona
   if(!temServidor){$('quem').textContent='Modo de teste (sem Drive)';return;}
-  google.script.run
+  gsRun()
     .withSuccessHandler(ctx=>{
       $('quem').dataset.email=ctx.email||'';
       $('quem').textContent=$('pResp').value.trim()||ctx.email||'';$('quem2').textContent=ctx.email||'—';
@@ -1693,7 +1710,7 @@ function sincronizarAlertas(cb){
   if(!temServidor){fimSync();return;}
   if(sincronizando)return;
   sincronizando=true;
-  google.script.run
+  gsRun()
     .withSuccessHandler(r=>{
       sincronizando=false;if(!r){fimSync();return;}
       if(r.turno)aplicarTurnoDoServidor(r.turno);
@@ -1827,7 +1844,7 @@ function alterarTurno(novo){
     if(!confirm('O plantão '+state.plantaoId+' já está como '+rotuloTurno(antes)+'.\n\n'+
       'Mudar para '+rotuloTurno(novo)+' vale para toda a equipe neste plantão. Os próximos arquivos irão para a nova pasta '+
       '(os já salvos continuam onde estão).\n\nConfirmar a mudança?')){mostrarTurno();return;}
-    google.script.run.withSuccessHandler(t=>{aplicarTurnoDoServidor(t);status('Turno do plantão alterado para '+rotuloTurno(t)+'.','ok');})
+    gsRun().withSuccessHandler(t=>{aplicarTurnoDoServidor(t);status('Turno do plantão alterado para '+rotuloTurno(t)+'.','ok');})
       .withFailureHandler(e=>{state.turno=antes;mostrarTurno();preencherHorariosTurno();status('Não foi possível alterar o turno: '+(e&&e.message||e),'erro');})
       .definirTurnoPlantao(state.plantaoId,novo.data,novo.turno);
   }
@@ -1856,6 +1873,7 @@ function alertasVigentesEm(cities){
   const t=Date.now(),alvo=new Set(cities),out=[];
   state.active.concat(herdadosVigentes(t)).forEach(a=>{
     if(a.expiresAt&&a.expiresAt<=t)return;            // vencido: pode emitir de novo
+    if(state.renovando&&(a===state.renovando||(a.id&&a.id===state.renovando.id)))return;   // v4.1: é o próprio alerta sendo renovado
     const em=(a.cities||[]).filter(n=>alvo.has(n));
     if(em.length)out.push({a,em});
   });
@@ -1880,7 +1898,7 @@ function carregarHerdados(cb){
   let feito=false;const fim=()=>{if(!feito){feito=true;if(typeof cb==='function')cb();}};
   if(!temFuncao('alertasVigentesAnteriores')){fim();return;}
   setTimeout(fim,15000);
-  google.script.run
+  gsRun()
     .withSuccessHandler(r=>{
       state.herdados=((r&&r.alertas)||[]).map(sv=>{
         const start=hhmm(sv.start),duration=hhmm(sv.duration)||'02:00';
@@ -1913,11 +1931,43 @@ function desenharHerdados(){
     card.innerHTML=`<b>${esc(a.type)}</b><div>${esc(a.start)}–${esc(a.end)} • ${esc(a.owner)}</div>`+
       `<div class="alert-status">${c==='expiring'?'Perto de vencer':'Vigente'} · plantão anterior</div>`+
       `<div>${a.cities.length} município(s): ${esc(a.cities.join(', '))}</div>`+
-      (/^https:\/\//.test(a.kmlUrl||'')?`<div><a href="${esc(a.kmlUrl)}" target="_blank" rel="noopener">Abrir KML no Drive</a></div>`:'');
+      (/^https:\/\//.test(a.kmlUrl||'')?`<div><a href="${esc(a.kmlUrl)}" target="_blank" rel="noopener">Abrir KML no Drive</a></div>`:'')+
+      `<div class="r"><button type="button" class="btn small renovar-alerta">↻ Renovar</button></div>`;
+    card.querySelector('.renovar-alerta').onclick=()=>renovarAlerta(a);
     box.appendChild(card);
   });
 }
 setInterval(desenharHerdados,30000);   // tira da lista quem venceu (o mapa já é repintado a cada 30 s)
+
+/* ---- v4.1: Renovar alerta ----
+   Abre a janela de emissão já preenchida com os mesmos municípios, tipo e fenômenos do alerta escolhido.
+   Horário = agora (editável) e a duração é escolhida de novo (1, 2 ou 3 h). Ao emitir, a renovação vira um
+   alerta NOVO (nova linha na planilha, novo KML, nova mensagem com "RENOVAÇÃO"); o alerta original fica como está. */
+function renovarAlerta(a){
+  if($('modalback').style.display==='flex')return;
+  const validos=(a.cities||[]).filter(n=>featureByName.has(n));
+  if(!validos.length){alert('Este alerta não tem municípios reconhecidos para renovar.');return;}
+  if(state.selected.size&&!confirm('Há municípios selecionados no mapa. Trocar a seleção pelos municípios deste alerta para renovar?'))return;
+  state.renovando=a;
+  state.selected=new Set(validos);updateSelection();
+  openModal();
+  if([...$('type').options].some(o=>o.value===a.type||o.text===a.type)){$('type').value=a.type;}
+  applyAlertPreset();
+  if(Array.isArray(a.phen)&&a.phen.length)document.querySelectorAll('.phen').forEach(b=>b.checked=a.phen.includes(b.value));
+  $('duration').value='01:00';
+  $('tituloModal').textContent='Renovar alerta';
+  $('emit').textContent='Emitir renovação';
+  buildMessage();
+  emitStatus('Renovação do alerta '+a.start+'–'+a.end+' ('+(a.owner||'')+'). Escolha a nova duração e confira o horário de início. '+
+    'Será registrado como um alerta novo, com KML próprio; o original continua na lista.');
+  $('duration').focus();
+}
+function fimRenovacao(){
+  state.renovando=null;
+  $('tituloModal').textContent='Novo alerta';
+  $('emit').textContent='Emitir alerta';
+}
+state.renovando=null;
 
 const emitirAgora=$('emit').onclick;
 $('emit').onclick=()=>{
@@ -1947,7 +1997,7 @@ function temAlertaNaoEmitido(){
 }
 (function criarTrocarConta(){
   if(!temFuncao('urlDoApp')||!$('quem'))return;
-  google.script.run.withSuccessHandler(url=>{
+  gsRun().withSuccessHandler(url=>{
     if(!/^https:\/\//.test(url||''))return;
     const a=document.createElement('a');
     a.id='trocarConta';a.className='btn small';a.target='_top';a.rel='noopener';
@@ -2073,13 +2123,14 @@ async function enviarEvidencias(){
   interItens.forEach(it=>{if(it.tipo===SEM_INTER)it.evidencia='';else if(!it.arquivo)it.evidencia=it.link.trim();});
   const pend=interItens.filter(it=>it.tipo&&it.tipo!==SEM_INTER&&it.arquivo&&!it.evidencia);
   if(!pend.length)return true;
+  if(!temServidor){pend.forEach(it=>{it.evidencia=(it.link.trim()?it.link.trim()+' ; ':'')+it.arquivo.name+' (plataforma de teste: imagem não enviada ao Drive)';});return true;}
   if(!temFuncao('salvarEvidenciaIntercorrencia')){status('O Apps Script ainda não tem o arquivo Intercorrencias.gs; não dá para enviar a imagem de evidência.','erro');return false;}
   for(let i=0;i<pend.length;i++){
     const it=pend[i];status('Enviando evidência '+(i+1)+' de '+pend.length+'…');
     try{
       const r=await reduzirImagem(it.arquivo);
       const nome=String(state.turno.data||'').replace(/-/g,'')+'_'+String(state.turno.turno||'').toLowerCase()+'_'+it.arquivo.name.replace(/\.[^.]+$/,'')+'.jpg';
-      const s=await new Promise((ok,no)=>google.script.run.withSuccessHandler(ok).withFailureHandler(no)
+      const s=await new Promise((ok,no)=>gsRun().withSuccessHandler(ok).withFailureHandler(no)
         .salvarEvidenciaIntercorrencia(nome,'image/jpeg',r.url.split(',')[1]));
       const url=s&&s.url||'';
       it.evidencia=it.link.trim()?it.link.trim()+' ; '+url:url;
@@ -2089,7 +2140,7 @@ async function enviarEvidencias(){
 }
 /* plantão salvo, mas a planilha de intercorrências falhou: oferece tentar de novo */
 function avisoIntercorrencias(r,d){
-  const tentar=()=>google.script.run
+  const tentar=()=>gsRun()
     .withSuccessHandler(x=>aviso('Intercorrências gravadas na planilha ('+((x&&x.linhas)||0)+' linha(s)).'))
     .withFailureHandler(e=>aviso('As intercorrências <b>não</b> foram gravadas ('+esc(e&&e.message||e)+').',true,[['Tentar de novo',tentar]]))
     .registrarIntercorrencias(r.id,d);
