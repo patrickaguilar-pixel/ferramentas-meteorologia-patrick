@@ -76,8 +76,9 @@
       "atualizado_no_cpc": "2026-11-03T12:44:51+00:00",
       "baixado_em": "2026-11-03T14:59:46+00:00",
       "bytes": 24215,
-      "sha256": "0c8a4cd9ffccac41fc90ac74198745aff5ec283e851e691952f0be028f5f466c"
+      "sha256": "0c8a4cd9ffccac41fc90ac74198745aff5ec283e851e691952f0be028f5f466c",
+      "erro": "<urlopen error [Errno 111] Connection refused>"
     }
   },
-  "atualizado_em": "2026-11-03T14:59:46+00:00"
+  "atualizado_em": "2026-11-03T20:55:46+00:00"
 }
