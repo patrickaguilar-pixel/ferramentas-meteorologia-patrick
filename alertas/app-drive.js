@@ -448,6 +448,7 @@ function atualizarCards(){
     a.cardEl.classList.toggle('expiring',c==='expiring');a.cardEl.classList.toggle('expired',c==='expired');
     const s=a.cardEl.querySelector('.alert-status');
     if(s)s.textContent=c==='expired'?'Prazo vencido':(c==='expiring'?'Perto de vencer':'Vigente');
+    const ed=a.cardEl.querySelector('.editar-alerta');if(ed)ed.hidden=c==='expired';   // v4.2: só edita alerta vigente
   });
 }
 setInterval(()=>{pintarMapa();atualizarCards();},30000);
@@ -503,7 +504,7 @@ function applyAlertPreset(){
 function buildMessage(){
   const type=$('type').value,t=$('time').value,dur=$('duration').value,ph=fenomenos();
   const cities=[...state.selected].sort((a,b)=>a.localeCompare(b,'pt-BR'));
-  $('message').value=(state.renovando?'RENOVAÇÃO — ':'')+`Alerta de ${type}${ph.length?' com '+textList(ph):''} às ${t}h com duração de ${dur}h. Cidades: ${textList(cities)}. FONTE: SIMGE/IGAM`;
+  $('message').value=(state.renovando?'RENOVAÇÃO — ':(state.editando?'RETIFICAÇÃO — ':''))+`Alerta de ${type}${ph.length?' com '+textList(ph):''} às ${t}h com duração de ${dur}h. Cidades: ${textList(cities)}. FONTE: SIMGE/IGAM`;
 }
 function emitStatus(texto,tipo){$('emitStatus').className='st'+(tipo?' '+tipo:'');$('emitStatus').textContent=texto;}
 function openModal(){
@@ -515,8 +516,8 @@ function openModal(){
   $('kmlStatus').textContent='Sem preenchimento e com contorno vermelho fino, como o QGIS.';
   applyAlertPreset();$('modalback').style.display='flex';
 }
-$('create').onclick=openModal;
-$('cancel').onclick=()=>{$('modalback').style.display='none';if(state.renovando){fimRenovacao();state.selected.clear();updateSelection();}};
+$('create').onclick=()=>state.editando?abrirEdicao():openModal();
+$('cancel').onclick=()=>{$('modalback').style.display='none';if(state.renovando){fimRenovacao();state.selected.clear();updateSelection();}if(state.editando){fimEdicao();state.selected.clear();updateSelection();}};
 $('type').addEventListener('change',applyAlertPreset);
 ['duration','time'].forEach(id=>$(id).addEventListener('change',buildMessage));
 document.querySelectorAll('.phen').forEach(x=>x.addEventListener('change',buildMessage));
@@ -589,16 +590,17 @@ $('emit').onclick=()=>{
   if(!/^([01]?\d|2[0-3]):[0-5]\d$/.test(start)){
     emitStatus('Horário inválido. Use o formato HH:MM, por exemplo 15:40.','erro');$('time').focus();return;
   }
-  const folder=kmlStamp();
+  const folder=kmlStamp(),orig=state.editando;   // v4.2: alerta sendo editado (é substituído depois que o novo for registrado)
   const a={id:'',kmlUrl:'',type:$('type').value,owner:$('owner').value.trim()||$('pResp').value.trim()||'Sem identificação',
-    start,end:endTime(start,dur),duration:dur,cities,phen:fenomenos(),message:$('message').value,folder,renovaDe:state.renovando?(state.renovando.id||''):''};
+    start,end:endTime(start,dur),duration:dur,cities,phen:fenomenos(),message:$('message').value,folder,renovaDe:state.renovando?(state.renovando.id||''):(orig&&orig.renovaDe)||'',editaDe:orig?(orig.id||''):''};
   const payload={
     data:$('pData').value||hojeLocal(),horario:a.start,duracao:a.duration,fim:a.end,tipo:a.type,
     fenomenos:a.phen,responsavel:a.owner,mensagem:a.message,
     municipios:cities.map(n=>{const p=featureByName.get(n).properties;return{nome:n,meso:p.meso||'',lat:p.label_lat,lon:p.label_lon};}),
     kml:montarKml(cities,folder),
     turno:state.turno.turno,dataTurno:state.turno.data,
-    renovacaoDe:a.renovaDe   // v4.1: ID do alerta renovado (o Apps Script pode ignorar)
+    renovacaoDe:a.renovaDe,   // v4.1: ID do alerta renovado (o Apps Script pode ignorar)
+    edicaoDe:a.editaDe        // v4.2: ID do alerta editado (o Apps Script pode ignorar; o original é excluído pelo excluirAlerta)
   };
   $('emit').disabled=true;emitStatus('Salvando o KML no Drive e o alerta na planilha…');
   gsRun()
@@ -621,6 +623,7 @@ $('emit').onclick=()=>{
       state.selected.clear();drawLine.style.display='none';HIST_SEL.length=0;atualizarDesfazer();
       desenharAlertas();updateSelection();salvarRascunho();
       $('modalback').style.display='none';fimRenovacao();
+      if(orig){fimEdicao();concluirEdicao(orig,a);}
       sincronizarAlertas();
     })
     .withFailureHandler(err=>{
@@ -644,9 +647,10 @@ function desenharAlertas(){
     card.innerHTML=`<b>${esc(a.type)}${ehRenov?' <span style="font-weight:600;font-size:11px;color:#0b4f7a;background:#e3f1fa;border-radius:4px;padding:1px 6px;margin-left:4px">↻ renovação</span>':''}</b><div>${esc(a.start)}–${esc(a.end)} • ${esc(a.owner)}${meu?'':' (outro plantonista)'}</div><div class="alert-status">Vigente</div>`+
       `<div>${a.cities.length} município(s): ${esc(a.cities.join(', '))}</div>`+
       (/^https:\/\//.test(a.kmlUrl||'')?`<div><a href="${esc(a.kmlUrl)}" target="_blank" rel="noopener">Abrir KML no Drive</a></div>`:'')+
-      `<div class="r"><button type="button" class="btn small renovar-alerta">↻ Renovar</button><button type="button" class="btn small download-kml">Baixar KML no PC</button>`+(meu?`<button type="button" class="btn small ghost delete-alert" style="color:var(--err)">Excluir alerta</button>`:'')+`</div>`;
+      `<div class="r">`+(meu?`<button type="button" class="btn small editar-alerta" title="Corrigir municípios, tipo, fenômenos, horário ou duração deste alerta">✎ Editar</button>`:'')+`<button type="button" class="btn small renovar-alerta">↻ Renovar</button><button type="button" class="btn small download-kml">Baixar KML no PC</button>`+(meu?`<button type="button" class="btn small ghost delete-alert" style="color:var(--err)">Excluir alerta</button>`:'')+`</div>`;
     card.querySelector('.download-kml').onclick=()=>baixarKml(a.cities,a.folder,/^https:\/\//.test(a.kmlUrl||'')?{driveFeito:{url:a.kmlUrl,nome:a.folder+'.kml',texto:'(salvo ao emitir o alerta)'}}:null);   // 2026.10.28: KML da emissão já está no Drive
     card.querySelector('.renovar-alerta').onclick=()=>renovarAlerta(a);
+    if(meu)card.querySelector('.editar-alerta').onclick=()=>editarAlerta(a);
     if(meu)card.querySelector('.delete-alert').onclick=()=>{if(confirmarExclusao(a))deleteAlert(a);};
     a.cardEl=card;box.appendChild(card);
   });
@@ -1874,6 +1878,7 @@ function alertasVigentesEm(cities){
   state.active.concat(herdadosVigentes(t)).forEach(a=>{
     if(a.expiresAt&&a.expiresAt<=t)return;            // vencido: pode emitir de novo
     if(state.renovando&&(a===state.renovando||(a.id&&a.id===state.renovando.id)))return;   // v4.1: é o próprio alerta sendo renovado
+    if(state.editando&&(a===state.editando||(a.id&&a.id===state.editando.id)))return;      // v4.2: é o próprio alerta sendo editado
     const em=(a.cities||[]).filter(n=>alvo.has(n));
     if(em.length)out.push({a,em});
   });
@@ -1968,6 +1973,90 @@ function fimRenovacao(){
   $('emit').textContent='Emitir alerta';
 }
 state.renovando=null;
+
+/* ---- v4.2 (03/11/2026): Editar alerta vigente ----
+   Só para alertas do próprio plantonista e ainda vigentes. Abre a janela de emissão preenchida com o alerta
+   (municípios, tipo, fenômenos, horário e duração); "Ajustar municípios no mapa" deixa incluir/retirar municípios.
+   Ao salvar, a versão editada é registrada como um alerta NOVO (nova linha na planilha e KML novo, mensagem com
+   "RETIFICAÇÃO") e o original é excluído (excluirAlerta: fica na planilha como "Excluído" e o KML vai para a lixeira).
+   Não precisa mudar nada no Apps Script. */
+state.editando=null;state.editForm=null;
+function editarAlerta(a){
+  if($('modalback').style.display==='flex')return;
+  if(a.expiresAt&&a.expiresAt<=Date.now()){alert('Este alerta já venceu. Para valer de novo, use "↻ Renovar".');return;}
+  const validos=(a.cities||[]).filter(n=>featureByName.has(n));
+  if(!validos.length){alert('Este alerta não tem municípios reconhecidos para editar.');return;}
+  if(state.selected.size&&!confirm('Há municípios selecionados no mapa. Trocar a seleção pelos municípios deste alerta para editar?'))return;
+  fimRenovacao();
+  state.editando=a;state.editForm=null;
+  state.selected=new Set(validos);updateSelection();
+  abrirEdicao();
+}
+function abrirEdicao(){
+  const a=state.editando;if(!a)return;
+  if(!state.selected.size){alert('Selecione pelo menos um município no mapa.');return;}
+  barraEdicao(false);
+  openModal();
+  const f=state.editForm||{type:a.type,phen:a.phen||[],time:a.start,duration:a.duration,owner:a.owner};
+  if([...$('type').options].some(o=>o.value===f.type)){$('type').value=f.type;}
+  applyAlertPreset();
+  document.querySelectorAll('.phen').forEach(b=>b.checked=(f.phen||[]).includes(b.value));
+  if(f.duration&&![...$('duration').options].some(o=>o.value===f.duration)){const o=document.createElement('option');o.value=f.duration;o.textContent=f.duration+' h';$('duration').appendChild(o);}
+  if(f.duration)$('duration').value=f.duration;
+  if(f.time)$('time').value=f.time;
+  if(f.owner)$('owner').value=f.owner;
+  $('tituloModal').textContent='Editar alerta';
+  $('emit').textContent='Salvar edição';
+  buildMessage();
+  emitStatus('Editando o alerta '+a.start+'–'+a.end+'. Ao salvar, a versão corrigida entra como alerta novo (KML novo, mensagem com "RETIFICAÇÃO") '+
+    'e o original é excluído: fica na planilha como "Excluído" e sai do mapa, do .txt e do relatório. Reenvie a mensagem corrigida.');
+  botaoAjustar().hidden=false;
+}
+function botaoAjustar(){
+  let b=$('ajustarMunicipios');
+  if(!b){
+    b=document.createElement('button');b.type='button';b.id='ajustarMunicipios';b.className='btn small';b.style.marginTop='7px';
+    b.textContent='Ajustar municípios no mapa';b.title='Fecha esta janela para você incluir ou retirar municípios clicando no mapa';
+    b.onclick=()=>{
+      state.editForm={type:$('type').value,phen:fenomenos(),time:$('time').value,duration:$('duration').value,owner:$('owner').value};
+      $('modalback').style.display='none';barraEdicao(true);
+    };
+    $('chips').insertAdjacentElement('afterend',b);
+  }
+  return b;
+}
+function barraEdicao(mostrar){
+  let bar=$('barraEdicao');
+  if(!bar){
+    bar=document.createElement('div');bar.id='barraEdicao';
+    const casa=svg.parentElement;if(getComputedStyle(casa).position==='static')casa.style.position='relative';   // fica sobre o mapa, abaixo do selo "Minas Gerais"
+    bar.style.cssText='position:absolute;left:50%;top:54px;transform:translateX(-50%);z-index:500;background:#0b3a75;color:#fff;border-radius:10px;'+
+      'padding:7px 8px 7px 14px;box-shadow:0 8px 24px rgba(9,43,106,.3);display:none;gap:8px;align-items:center;font:600 13.5px/1.3 Barlow,sans-serif;white-space:nowrap;max-width:calc(100% - 24px)';
+    bar.innerHTML='<span id="barraEdicaoTxt"></span><button type="button" class="btn small" id="barraEdicaoOk" style="background:#ffb703;color:#092b6a;border:0">Continuar edição</button>'+
+      '<button type="button" class="btn small" id="barraEdicaoCancelar" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6)">Cancelar</button>';
+    casa.appendChild(bar);
+    $('barraEdicaoOk').onclick=abrirEdicao;
+    $('barraEdicaoCancelar').onclick=()=>{fimEdicao();state.selected.clear();updateSelection();};
+  }
+  if(mostrar&&state.editando)$('barraEdicaoTxt').textContent='✎ Editando '+state.editando.start+'–'+state.editando.end+': clique nos municípios para incluir ou retirar';
+  bar.style.display=mostrar?'flex':'none';
+}
+function fimEdicao(){
+  state.editando=null;state.editForm=null;barraEdicao(false);
+  const b=$('ajustarMunicipios');if(b)b.hidden=true;
+  $('tituloModal').textContent='Novo alerta';$('emit').textContent='Emitir alerta';
+}
+/* depois que a versão editada foi registrada: exclui o original (planilha + KML na lixeira) e tira da tela */
+function concluirEdicao(orig,novo){
+  const acha=()=>state.active.find(x=>x===orig)||(orig.id?state.active.find(x=>x.id===orig.id):null);
+  const ok=()=>aviso('Alerta editado: a versão corrigida ('+esc(novo.start)+'–'+esc(novo.end)+') substituiu o alerta original. Reenvie a mensagem corrigida.',false);
+  if(!orig.id||/^local_/.test(orig.id)){const o=acha();if(o)removerAlertaDaTela(o);ok();return;}   // nunca chegou à planilha
+  gsRun()
+    .withSuccessHandler(()=>{const o=acha();if(o)removerAlertaDaTela(o);sincronizarAlertas();ok();})
+    .withFailureHandler(err=>{alert('A versão corrigida foi registrada como alerta novo, mas o alerta original ('+orig.start+'–'+orig.end+') não pôde ser excluído: '+
+      (err&&err.message?err.message:err)+'\n\nExclua o original pelo botão "Excluir alerta" no card dele.');})
+    .excluirAlerta(orig.id);
+}
 
 const emitirAgora=$('emit').onclick;
 $('emit').onclick=()=>{

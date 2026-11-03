@@ -97,6 +97,7 @@
       { s: '#searchCity', t: 'Localizar município', d: 'Digite o nome e clique em Ir.' },
       { s: '#create', t: 'Criar alerta', d: 'Abre a janela do alerta com os municípios selecionados.' },
       { s: '#activeList', t: 'Alertas ativos', d: 'Alertas do plantão. A cor muda conforme o prazo.' },
+      { s: '#activeList .editar-alerta:not([hidden])', t: 'Editar alerta', d: 'Corrige um alerta seu ainda vigente (municípios, tipo, horário, duração). A versão corrigida substitui a original.' },
       { s: '#type', t: 'Tipo', d: 'Tipo do alerta.' },
       { s: '#duration', t: 'Duração', d: 'Padrão: 2 h.' },
       { s: '#time', t: 'Horário', d: 'Início do alerta (HH:MM).' },
