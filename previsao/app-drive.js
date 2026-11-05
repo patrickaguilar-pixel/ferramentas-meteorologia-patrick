@@ -148,13 +148,13 @@ function defaultState(){
 }
 function addDays(iso, n){ if (!iso) return ""; const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate()+n);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
-// 05/11/2026: "VÁLIDO: 09h 05/11 às 09h 06/11 BRT" — início = data da previsão (ou o dia anterior ao fim), mesma hora do fim
+// 05/11/2026: "VÁLIDO: 09h 05/11 às 09h 06/11, hora local" — início = data da previsão (ou o dia anterior ao fim), mesma hora do fim
 function validityText(v = S.val){
   if (!v || !v.date || !v.time) return "";
   const [h, m] = v.time.split(":"), hh = String(+h).padStart(2, "0") + "h" + (m && m !== "00" ? m : "");
   const dm = iso => { const [, mm, dd] = String(iso).slice(0, 10).split("-"); return `${dd}/${mm}`; };
   const ini = S.date && S.date < v.date ? S.date : addDays(v.date, -1);
-  return `VÁLIDO: ${hh} ${dm(ini)} às ${hh} ${dm(v.date)} BRT`;
+  return `VÁLIDO: ${hh} ${dm(ini)} às ${hh} ${dm(v.date)}, hora local`;
 }
 function parseValidity(t){
   const m = /(\d{1,2})\s*(?:h|:)\s*(\d{2})?[^\d]*(\d{2})\/(\d{2})\/(\d{4})/.exec(t || "");
@@ -943,7 +943,7 @@ function renderSVG({forExport=false} = {}){
   }
   o.push(`<rect x="${f2(COL-LIN_W/2)}" y="159.499" width="${LIN_W}" height="0.256388" fill="rgb(138,187,228)"/>`);
   const vt = validityText(), val = vt || "Validade não informada";
-  o.push(textBlock({lines:[val], x:COL, yTop:160.906, h:8.28892, size:fitSize([val],10*PT,67.7,400), fill: vt ? navy : "#8a97a8", anchor:"middle"}));
+  o.push(textBlock({lines:[val], x:COL, yTop:160.906, h:8.28892, size:fitSize([val],10*PT,62,400), fill: vt ? navy : "#8a97a8", anchor:"middle"}));
   o.push(`<rect x="${f2(COL-LIN_W/2)}" y="170.345" width="${LIN_W}" height="0.256388" fill="rgb(138,187,228)"/>`);
   const year = (S.date || todayISO()).slice(0,4);
   let cred = (S.texts.credits || "").replace(/\{ano\}/g, year).split("\n")
@@ -1660,7 +1660,7 @@ function bulDate(){ return S.bul.dateAuto ? longDate(S.date).toUpperCase() : S.b
 function bulVal(){
   if (!S.bul.valAuto) return S.bul.valText;
   const v = S.val; if (!v || !v.time || !v.date) return "";
-  return `Período de Vigência: ${v.time.replace(":", "h")} LT do dia ${ddmm(v.date)}`;
+  return validityText(v);   // 05/11/2026: o mesmo texto do mapa — "VÁLIDO: 09h 05/11 às 09h 06/11, hora local"
 }
 function joinPt(list){ return list.length < 2 ? (list[0] || "") : list.slice(0,-1).join(", ") + " e " + list[list.length-1]; }
 const cidadesTxt = () => joinPt(S.rows.map(r => r.name).sort((a,b) => a.localeCompare(b, "pt-BR", {sensitivity:"base"})));
@@ -1677,7 +1677,7 @@ function novoMapa(modelo){
   const b = {id:bid(), tipo:"mapa", titulo:"", sub:"", novaPagina:true, mapa:{auto:false}, paras:[""], obs:OBS_CIDADES};
   if (modelo === "tendencia"){
     b.titulo = `TENDÊNCIA – ${ddmm(d1)} e ${ddmm(d2)}`;
-    b.sub = `Válida até às 09:00hrs LT do dia ${fmtDateBR(d3)}.`;
+    b.sub = `VÁLIDO: 09h ${ddmm(d1)} às 09h ${ddmm(d3)}, hora local`;
     b.paras = ["A tendência é de aumento da instabilidade atmosférica sobre Minas Gerais. Favor acompanhar as próximas atualizações da previsão do tempo."];
     b.mapa = {auto:true, prefixo:PREFIXO.tendencia};
   } else if (modelo === "sabado" || modelo === "domingo"){
