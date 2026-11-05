@@ -167,6 +167,8 @@ const migraCred = t => typeof t === "string" ? t.replace(/^[ \t]*Proje[çc][ãa]
 S.texts = {...DEFAULT_TEXTS, ...(S.texts||{})};
 S.texts.credits = migraCred(S.texts.credits);  // créditos salvos antes de 29/10/2026
 S.bul = {...BUL_DEFAULT(), ...(S.bul||{})};
+if (Array.isArray(S.bul.blocks)) S.bul.blocks.forEach(b => { if (typeof b.sub === "string") b.sub = b.sub.replace(/\bLT\b/g, "hora local"); });   // 05/11/2026
+if (typeof S.bul.valText === "string") S.bul.valText = S.bul.valText.replace(/\bLT\b/g, "hora local");
 // boletim antigo (PDF simples) -> boletim completo: os parágrafos antigos viram o texto do bloco de ícones
 if (!Array.isArray(S.bul.blocks) || S.bul.v !== 2){ const velho = S.bul, novo = BUL_DEFAULT();
   if (Array.isArray(velho.paras) && velho.paras.some(t => t.trim())) novo.blocks[0].paras = velho.paras.slice();
@@ -801,7 +803,7 @@ function baseCartoSVG(){
 }
 
 /* ================= desenho do layout (SVG em milímetros) ================= */
-function renderSVG({forExport=false} = {}){
+function renderSVG({forExport=false, semValidade=false} = {}){
   const o = [];
   const navy = NAVY;
   o.push(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${PAGE.w}mm" height="${PAGE.h}mm" viewBox="0 0 ${PAGE.w} ${PAGE.h}">`);
@@ -943,8 +945,10 @@ function renderSVG({forExport=false} = {}){
   }
   o.push(`<rect x="${f2(COL-LIN_W/2)}" y="159.499" width="${LIN_W}" height="0.256388" fill="rgb(138,187,228)"/>`);
   const vt = validityText(), val = vt || "Validade não informada";
-  o.push(textBlock({lines:[val], x:COL, yTop:160.906, h:8.28892, size:fitSize([val],10*PT,67.7,400), fill: vt ? navy : "#8a97a8", anchor:"middle"}));
-  o.push(`<rect x="${f2(COL-LIN_W/2)}" y="170.345" width="${LIN_W}" height="0.256388" fill="rgb(138,187,228)"/>`);
+  if (!semValidade){   // 05/11/2026: no boletim (PDF) a validade fica só no cabeçalho
+    o.push(textBlock({lines:[val], x:COL, yTop:160.906, h:8.28892, size:fitSize([val],10*PT,67.7,400), fill: vt ? navy : "#8a97a8", anchor:"middle"}));
+    o.push(`<rect x="${f2(COL-LIN_W/2)}" y="170.345" width="${LIN_W}" height="0.256388" fill="rgb(138,187,228)"/>`);
+  }
   const year = (S.date || todayISO()).slice(0,4);
   let cred = (S.texts.credits || "").replace(/\{ano\}/g, year).split("\n")
     .map(l => baseOn() && /^\s*Base cartográfica\s*:/i.test(l) ? `Base cartográfica: ${BASE.credito}` : l);
@@ -1592,10 +1596,10 @@ async function preflight(){
   const go = await ask("Conferir antes de exportar", `<ul style="margin:0;padding-left:18px">${issues.map(i => `<li>${esc(i)}</li>`).join("")}</ul>`, [["Voltar e completar", false, "ghost"], ["Exportar assim mesmo", true, "primary"]]);
   return !!go;
 }
-async function svgToCanvas(dpi){
+async function svgToCanvas(dpi, opc = {}){
   { const L = liveById(S.bgActive); if (L && !L.src && !L.failed){ try { await liveLoad(L); } catch(e){} } }
   return new Promise((res, rej) => {
-    const svg = renderSVG({forExport:true});
+    const svg = renderSVG({forExport:true, semValidade:!!opc.semValidade});
     const W = Math.round(PAGE.w/25.4*dpi), H = Math.round(PAGE.h/25.4*dpi);
     const img = new Image();
     img.onload = () => { const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
@@ -1660,7 +1664,7 @@ function bulDate(){ return S.bul.dateAuto ? longDate(S.date).toUpperCase() : S.b
 function bulVal(){
   if (!S.bul.valAuto) return S.bul.valText;
   const v = S.val; if (!v || !v.time || !v.date) return "";
-  return `Período de Vigência: ${v.time.replace(":", "h")} LT do dia ${ddmm(v.date)}`;
+  return `Período de Vigência: ${v.time.replace(":", "h")} hora local do dia ${ddmm(v.date)}`;
 }
 function joinPt(list){ return list.length < 2 ? (list[0] || "") : list.slice(0,-1).join(", ") + " e " + list[list.length-1]; }
 const cidadesTxt = () => joinPt(S.rows.map(r => r.name).sort((a,b) => a.localeCompare(b, "pt-BR", {sensitivity:"base"})));
@@ -1677,7 +1681,7 @@ function novoMapa(modelo){
   const b = {id:bid(), tipo:"mapa", titulo:"", sub:"", novaPagina:true, mapa:{auto:false}, paras:[""], obs:OBS_CIDADES};
   if (modelo === "tendencia"){
     b.titulo = `TENDÊNCIA – ${ddmm(d1)} e ${ddmm(d2)}`;
-    b.sub = `Válida até às 09:00hrs LT do dia ${fmtDateBR(d3)}.`;
+    b.sub = `Válida até às 09:00hrs hora local do dia ${fmtDateBR(d3)}.`;
     b.paras = ["A tendência é de aumento da instabilidade atmosférica sobre Minas Gerais. Favor acompanhar as próximas atualizações da previsão do tempo."];
     b.mapa = {auto:true, prefixo:PREFIXO.tendencia};
   } else if (modelo === "sabado" || modelo === "domingo"){
@@ -1752,9 +1756,29 @@ function paraJpeg(src, nome){
   return new Promise((ok, no) => { const im = new Image();
     im.onload = () => { const k = Math.min(1, 2200 / im.naturalWidth), c = document.createElement("canvas");
       c.width = Math.round(im.naturalWidth*k); c.height = Math.round(im.naturalHeight*k);
-      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
+      const g = c.getContext("2d", {willReadFrequently:true}); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
+      try { tirarValidade(g, c.width, c.height); } catch(e){}
       ok({src:c.toDataURL("image/jpeg", 0.9), w:c.width, h:c.height, nome}); };
     im.onerror = () => no(new Error("imagem inválida")); im.src = src; });
+}
+/* 05/11/2026: no boletim a validade fica só no cabeçalho do PDF. Nos mapas no layout padrão (297 × 210 mm, mesmas
+   linhas azuis da coluna da legenda), apaga o texto da validade e a 2ª linha; a 1ª linha continua. Outras imagens não mudam. */
+function tirarValidade(g, W, H){
+  if (Math.abs(W/H - PAGE.w/PAGE.h) > 0.015) return false;
+  const k = W/PAGE.w, px = mm => Math.round(mm*k);
+  // linha azul-clara (rgb 138,187,228, mais clara nas bordas por causa do antisserrilhado): procura numa faixa de ±0,6 mm
+  const azul = d => d[0] > 95 && d[0] < 215 && d[2] - d[0] > 30 && d[1] - d[0] > 15;
+  const linha = y => { for (let yy = px(y - 0.6); yy <= px(y + 0.9); yy++){ let n = 0;
+      for (let i = -8; i <= 8; i++) if (azul(g.getImageData(px(COL + i*LIN_W*0.055), yy, 1, 1).data)) n++;
+      if (n >= 13) return true; }
+    return false; };
+  if (!linha(159.499 + 0.128) || !linha(170.345 + 0.128)) return false;
+  const y0 = px(159.95), y1 = px(170.85), xa = px(COL - 36), xb = px(COL + 36), w = xb - xa;
+  const d = g.getImageData(xa, y0, w, y1 - y0).data;
+  let mn = px(COL - LIN_W/2 - 0.4) - xa, mx = px(COL + LIN_W/2 + 0.4) - xa;
+  for (let i = 0; i < d.length; i += 4) if (d[i] < 120 && d[i+2] - d[i] > 35){ const x = (i/4) % w; if (x < mn) mn = x; if (x > mx) mx = x; }
+  g.fillStyle = "#fff"; g.fillRect(xa + mn - px(0.6), y0, mx - mn + px(1.2), y1 - y0);
+  return true;
 }
 const prefixoDe = b => b.mapa && (b.mapa.prefixo || PREFIXO[b.tipo]);
 function maisRecente(b){ const p = prefixoDe(b); if (!p || !DRIVE_LIST) return null;
@@ -1855,7 +1879,7 @@ function renderBulletinSVG(page){
   for (const it of page){
     if (it.k === "img") o.push(`<image href="${it.src}" xlink:href="${it.src}" x="${f2(it.x)}" y="${f2(it.y)}" width="${f2(it.w)}" height="${f2(it.h)}" preserveAspectRatio="none"/>`);
     else if (it.k === "map"){
-      const m = renderSVG({forExport:true}).replace(/mapclip/g, "mapclipB")
+      const m = renderSVG({forExport:true, semValidade:true}).replace(/mapclip/g, "mapclipB")
         .replace(`width="${PAGE.w}mm" height="${PAGE.h}mm"`, `x="${f2(it.x)}" y="${f2(it.y)}" width="${f2(it.w)}" height="${f2(it.h)}"`);
       o.push(m);
     } else if (it.k === "falta") o.push(`<rect x="${f2(it.x)}" y="${f2(it.y)}" width="${f2(it.w)}" height="${f2(it.h)}" fill="#f4f9fd" stroke="#8fb3d6" stroke-width=".5" stroke-dasharray="3 2"/><text x="${f2(it.x + it.w/2)}" y="${f2(it.y + it.h/2)}" text-anchor="middle" font-family="Arial" font-size="5" fill="#3d5a8a">${esc(it.t)}</text>`);
@@ -2061,7 +2085,7 @@ $("#btnBulPdf").addEventListener("click", e => busy(e.currentTarget, async () =>
   try {
     const JsPDF = await loadJsPdf();
     const pages = layoutBulletin();
-    const mapJpg = usaIcone ? (await svgToCanvas(300)).toDataURL("image/jpeg", 0.92) : null;
+    const mapJpg = usaIcone ? (await svgToCanvas(300, {semValidade:true})).toDataURL("image/jpeg", 0.92) : null;
     const pdf = new JsPDF({orientation:"portrait", unit:"mm", format:"a4", compress:true});
     addFonts(pdf);
     pages.forEach((pg, i) => {
