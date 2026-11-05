@@ -928,7 +928,7 @@ function renderSVG({forExport=false} = {}){
   const credSize = Math.min(fitSize(cred, 6.68628*PT, LEG_MAXW, 400), 20/(Math.max(1, cred.length)*LH));
   const credH = cred.length*credSize*LH, credTop = LEG.y + LEG.h - 2.6 - credH;
   const linVal2 = credTop - 2.2, linVal1 = linVal2 - 9.2;
-  const vt = validityText(), val = vt || "Validade não informada";
+  const vt = validityText(S.val, true), val = vt || "Validade não informada";   // 05/11/2026: mapa também com ", hora local"
 
   o.push(textBlock({lines:["Legenda"], x:COL, yTop:LEG.y + 2.4, h:6.78946, size:16*PT, weight:700, fill:navy, anchor:"middle"}));
   o.push(`<rect x="${f2(COL-LIN_W/2)}" y="${f2(LEG.y + 11.2)}" width="${f2(LIN_W)}" height="0.266644" fill="rgb(138,187,228)"/>`);
@@ -964,7 +964,7 @@ function renderSVG({forExport=false} = {}){
     });
   }
   o.push(`<rect x="${f2(COL-LIN_W/2)}" y="${f2(linVal1)}" width="${f2(LIN_W)}" height="0.256388" fill="rgb(138,187,228)"/>`);
-  o.push(textBlock({lines:[val], x:COL, yTop:linVal1 + 0.25, h:linVal2 - linVal1 - 0.25, size:fitSize([val],10*PT,LEG_MAXW,400), fill: vt ? navy : "#8a97a8", anchor:"middle"}));
+  o.push(textBlock({lines:[val], x:COL, yTop:linVal1 + 0.25, h:linVal2 - linVal1 - 0.25, size:fitSize([val],11*PT,LEG.w-4,400), fill: vt ? navy : "#8a97a8", anchor:"middle"}));
   o.push(`<rect x="${f2(COL-LIN_W/2)}" y="${f2(linVal2)}" width="${f2(LIN_W)}" height="0.256388" fill="rgb(138,187,228)"/>`);
   o.push(textBlock({lines:cred, x:COL, yTop:credTop, h:credH, size:credSize, fill:navy, anchor:"middle"}));
 
