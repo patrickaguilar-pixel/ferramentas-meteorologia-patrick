@@ -1,4 +1,8 @@
-/* Alertas e passagem de plantão — código da página (v4.0, 22/10/2026).
+/* Alertas e passagem de plantão — código da página (v4.2, 04/11/2026).
+   v4.2: data de início e turno do plantão começam vazios e são obrigatórios; aviso ao abrir a página;
+   aviso fixo e "o último plantão foi…" com sugestão do plantão seguinte; horários padrão travados
+   (07:00–19:00 / 19:00–07:00); no 1º alerta a página confere data/turno com a hora e avisa antes de enviar
+   (a emissão em si não mudou); o rascunho não guarda mais data, turno, horários nem responsável.
    v4.0: novo modelo do relatório ("Relatório Diário de Operação e Plantão Hidrometeorológico", seções 1 a 8);
    entregas com Mapa de Tempo Severo, Previsão de Chuva, Boletim de chuva significativa e "Outros" (nome + horário);
    "Observações" do intervalo saem do formulário e do relatório; o Mapa de Previsões vira "Evidência de Publicação
@@ -448,7 +452,7 @@ function atualizarCards(){
     a.cardEl.classList.toggle('expiring',c==='expiring');a.cardEl.classList.toggle('expired',c==='expired');
     const s=a.cardEl.querySelector('.alert-status');
     if(s)s.textContent=c==='expired'?'Prazo vencido':(c==='expiring'?'Perto de vencer':'Vigente');
-    const ed=a.cardEl.querySelector('.editar-alerta');if(ed)ed.hidden=c==='expired';   // v4.2: só edita alerta vigente
+    const ed=a.cardEl.querySelector('.editar-alerta');if(ed)ed.hidden=c==='expired';   // v4.3: só edita alerta vigente
   });
 }
 setInterval(()=>{pintarMapa();atualizarCards();},30000);
@@ -590,7 +594,7 @@ $('emit').onclick=()=>{
   if(!/^([01]?\d|2[0-3]):[0-5]\d$/.test(start)){
     emitStatus('Horário inválido. Use o formato HH:MM, por exemplo 15:40.','erro');$('time').focus();return;
   }
-  const folder=kmlStamp(),orig=state.editando;   // v4.2: alerta sendo editado (é substituído depois que o novo for registrado)
+  const folder=kmlStamp(),orig=state.editando;   // v4.3: alerta sendo editado (é substituído depois que o novo for registrado)
   const a={id:'',kmlUrl:'',type:$('type').value,owner:$('owner').value.trim()||$('pResp').value.trim()||'Sem identificação',
     start,end:endTime(start,dur),duration:dur,cities,phen:fenomenos(),message:$('message').value,folder,renovaDe:state.renovando?(state.renovando.id||''):(orig&&orig.renovaDe)||'',editaDe:orig?(orig.id||''):''};
   const payload={
@@ -600,7 +604,7 @@ $('emit').onclick=()=>{
     kml:montarKml(cities,folder),
     turno:state.turno.turno,dataTurno:state.turno.data,
     renovacaoDe:a.renovaDe,   // v4.1: ID do alerta renovado (o Apps Script pode ignorar)
-    edicaoDe:a.editaDe        // v4.2: ID do alerta editado (o Apps Script pode ignorar; o original é excluído pelo excluirAlerta)
+    edicaoDe:a.editaDe        // v4.3: ID do alerta editado (o Apps Script pode ignorar; o original é excluído pelo excluirAlerta)
   };
   $('emit').disabled=true;emitStatus('Salvando o KML no Drive e o alerta na planilha…');
   gsRun()
@@ -865,6 +869,7 @@ document.addEventListener('paste',e=>{
 listarOutras();
 
 /* ---------------- plantão ---------------- */
+const FORA_DO_RASCUNHO=['responsavel','data','inicio','fim'];   // v4.2: evita levar nome/data/turno de outra aba ou sessão
 const CAMPOS_PLANTAO={responsavel:'pResp',data:'pData',inicio:'pInicio',fim:'pFim',intercorrencias:'pInter',alertas:'pAlertas',ferramentas:'pFerr',passagem:'pPassagem',
   intervaloInicio:'pIntIni',intervaloFim:'pIntFim',intervaloObs:'pIntObs',   // v3.7
   pub1Periodo:'pPub1Per',pub1Hora:'pPub1Hora',pub2Periodo:'pPub2Per',pub2Hora:'pPub2Hora',
@@ -937,8 +942,9 @@ window.salvarNoNavegador=()=>salvarRascunho();   // 2026.10.28: botão padrão "
 function salvarRascunho(){
   try{
     const active=state.active.map(a=>{const c={...a};delete c.cardEl;return c;});
-    const r={campos:{},active,dailyRows:state.dailyRows,plantaoId:state.plantaoId,turno:state.turno,salvoEm:new Date().toISOString()};
-    Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>r.campos[k]=$(id)?$(id).value:'');
+    const r={campos:{},active,dailyRows:state.dailyRows,plantaoId:state.plantaoId,salvoEm:new Date().toISOString()};
+    // v4.2: data, turno, horários e responsável NÃO vão para o rascunho (vêm vazios a cada abertura da página)
+    Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>{if(!FORA_DO_RASCUNHO.includes(k))r.campos[k]=$(id)?$(id).value:'';});
     localStorage.setItem(CHAVE_RASCUNHO,JSON.stringify(r));
     $('rascunhoInfo').textContent='Rascunho guardado neste navegador às '+now()+'.';
   }catch(e){}
@@ -946,12 +952,12 @@ function salvarRascunho(){
 function carregarRascunho(){
   try{
     const r=JSON.parse(localStorage.getItem(CHAVE_RASCUNHO)||'null');if(!r)return false;
-    Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>{if($(id)&&r.campos&&r.campos[k]!=null)$(id).value=r.campos[k];});
+    Object.entries(CAMPOS_PLANTAO).forEach(([k,id])=>{if(!FORA_DO_RASCUNHO.includes(k)&&$(id)&&r.campos&&r.campos[k]!=null)$(id).value=r.campos[k];});
     padraoPublicacoes();
     if(Array.isArray(r.active))state.active=r.active.filter(a=>a&&Array.isArray(a.cities));
     if(Array.isArray(r.dailyRows))state.dailyRows=r.dailyRows;
     if(r.plantaoId)state.plantaoId=r.plantaoId;
-    if(r.plantaoId&&r.turno&&r.turno.turno&&r.turno.data)state.turno=r.turno;   // turno do rascunho só vale com plantão em andamento
+    // v4.2: o turno não é mais restaurado do rascunho; com plantão em andamento ele volta do servidor (sincronizarAlertas)
     $('rascunhoInfo').textContent='Rascunho recuperado deste navegador.';
     return true;
   }catch(e){return false;}
@@ -1496,7 +1502,7 @@ async function relatorioFinal(snap,nomesLocais){
   ultimoRelatorio={nome,blob:r.blob};
   const pc=()=>baixarLocal(nome,r.blob);
   const b64=await new Promise((ok,no)=>{const fr=new FileReader();fr.onload=()=>ok(String(fr.result).split(',')[1]||'');fr.onerror=no;fr.readAsDataURL(r.blob);});
-  const t=snap.turno||turnoPeloRelogio();
+  const t=(snap.turno&&snap.turno.turno&&snap.turno.data)?snap.turno:turnoPeloRelogio();
   // 1) Drive: salva sempre (em segundo plano, enquanto a pergunta do e-mail está na tela)
   const drive=new Promise(ok=>gsRun()
     .withSuccessHandler(s=>ok({ok:true,s}))
@@ -1614,7 +1620,7 @@ function salvarPassagemAgora(){
       if(r&&r.arquivos!=null)snap.nArquivos=r.arquivos+1;   // + relatório (o Mapa de Previsões vai dentro do PDF)
       Object.values(CAMPOS_PLANTAO).forEach(id=>{if($(id))$(id).value='';});padraoPublicacoes();
       prodOutros=[];desenharProdOutros();document.querySelectorAll('.prod').forEach(c=>c.checked=false);sincronizarProdutos();   // v4.0
-      turnoServidor=null;state.turno=turnoPeloRelogio();mostrarTurno();preencherHorariosTurno();
+      turnoServidor=null;state.turno=turnoVazio();mostrarTurno();preencherHorariosTurno();   // v4.2: o próximo plantão começa sem data/turno
       state.active=[];state.dailyRows=[];state.plantaoId='';state.selected.clear();desenharAlertas();updateSelection();apagarRascunho();
       limparExtrasPlantao();
       status('Passagem do plantão '+(snap.id||'')+' salva. O próximo plantonista verá este registro ao abrir.','ok');
@@ -1631,7 +1637,8 @@ function salvarPassagemAgora(){
     [temFuncao('salvarPlantaoComIntercorrencias')?'salvarPlantaoComIntercorrencias':'salvarPlantao'](d);
 }
 $('salvarPlantao').onclick=()=>{
-  if(!$('pResp').value.trim()){status('Preencha o campo "Responsável".','erro');$('pResp').focus();return;}
+  if(!turnoCompleto()){status('Marque a data de início e o turno do plantão.','erro');$(state.turno.data?'pTurno':'pData').focus();return;}   // v4.2
+  if(!$('pResp').value.trim()){status('Preencha o campo "Responsável".','erro');$('pResp').style.boxShadow='0 0 0 2px #b42318';$('pResp').focus();return;}
   if(!conferirObrigatorios())return;   // v3.6: ferramentas e intercorrências (os dois turnos)
   if($('pIntIni')&&(!$('pIntIni').value)!==(!$('pIntFim').value)){   // v3.7: intervalo pela metade
     status('Preencha o início e o fim do intervalo (ou deixe os dois em branco).','erro');
@@ -1677,6 +1684,7 @@ function carregarContexto(){
       $('quem').textContent=$('pResp').value.trim()||ctx.email||'';$('quem2').textContent=ctx.email||'—';
       if(ctx.pastaAlertasUrl)state.pastaUrl=ctx.pastaAlertasUrl;
       mostrarAnterior(ctx.ultimo);
+      mostrarUltimoTurno(ctx.ultimo);   // v4.2: aviso "o último plantão foi…" e sugestão
       mostrarIdPlantao(ctx.plantaoAtual);
     })
     .withFailureHandler(err=>{
@@ -1774,77 +1782,173 @@ function partesMG(d){
 function isoMG(d){const o=partesMG(d);return o.year+'-'+o.month+'-'+o.day;}
 function hhmmMG(d){const o=partesMG(d);return o.hour+o.minute;}
 
-/* ---- turno do plantão ---- */
+/* ---- turno do plantão (v4.2) ----
+   Regras:
+   - até 07:00 = Noturno do dia ANTERIOR; 07:01–19:00 = Diurno do dia; depois das 19:00 = Noturno do dia.
+     (o noturno sempre conta pela data em que começou, mesmo depois da meia-noite)
+   - data e turno começam VAZIOS a cada abertura da página e são obrigatórios;
+   - sugestão = plantão seguinte ao último encerrado (obterContexto().ultimo);
+   - no 1º alerta do plantão a página confere data/turno com a hora; se não baterem, AVISA e não envia
+     (os municípios marcados continuam). Depois do 1º alerta vale a pasta gravada no plantão. */
 const TURNOS={Diurno:{inicio:'07:00',fim:'19:00'},Noturno:{inicio:'19:00',fim:'07:00'}};
-/* 7h–19h = Diurno do dia; 19h–24h = Noturno do dia; 0h–7h = Noturno do dia anterior (data de início). */
-function turnoPeloRelogio(){
-  const agora=new Date(),h=Number(partesMG(agora).hour);
-  if(h>=7&&h<19)return {turno:'Diurno',data:isoMG(agora)};
-  return {turno:'Noturno',data:isoMG(h<7?new Date(agora.getTime()-12*3600000):agora)};
+function turnoVazio(){return {turno:'',data:''};}
+function turnoCompleto(t){t=t||state.turno;return !!(t&&t.turno&&t.data);}
+function maisDiasIso(iso,n){const[y,m,d]=String(iso).split('-').map(Number);const x=new Date(Date.UTC(y,m-1,d+n));return x.toISOString().slice(0,10);}
+function turnoPeloRelogio(agora){
+  const o=partesMG(agora||new Date()),min=Number(o.hour)*60+Number(o.minute),hoje=o.year+'-'+o.month+'-'+o.day;
+  if(min<=420)return {turno:'Noturno',data:maisDiasIso(hoje,-1)};   // 00:00–07:00
+  if(min<=1140)return {turno:'Diurno',data:hoje};                   // 07:01–19:00
+  return {turno:'Noturno',data:hoje};                               // 19:01–23:59
 }
 function rotuloTurno(t){return t&&t.turno?dataBR(t.data)+' – '+t.turno:'(turno não escolhido)';}
+function rotuloTurnoCurto(t){return t&&t.turno?t.turno+' de '+dataBR(t.data):'';}
 function nomeRelatorio(snap){
-  const t=snap.turno||turnoPeloRelogio();
+  const t=turnoCompleto(snap.turno)?snap.turno:turnoPeloRelogio();
   return 'relatorio_'+String(t.data||isoMG()).replace(/-/g,'')+'_'+String(t.turno||'turno').toLowerCase()+'_'+hhmmMG(snap.geradoEm||new Date())+'.pdf';
 }
-state.turno=turnoPeloRelogio();
+state.turno=turnoVazio();
 let turnoServidor=null;   // turno gravado no plantão (por quem emitiu o primeiro alerta)
+let ultimoTurno=null;     // último plantão encerrado, deduzido de obterContexto().ultimo
+let ultimoTurnoBruto=null;
+let ignorarConferenciaHora=false;   // "Manter e emitir mesmo assim" (vale para um clique)
+
+/* "dd/mm/aaaa" ou "aaaa-mm-dd" -> "aaaa-mm-dd" */
+function isoDeData(s){
+  s=String(s||'').trim();let m=/^(\d{4})-(\d{2})-(\d{2})/.exec(s);if(m)return m[1]+'-'+m[2]+'-'+m[3];
+  m=/^(\d{2})\/(\d{2})\/(\d{4})/.exec(s);return m?m[3]+'-'+m[2]+'-'+m[1]:'';
+}
+/* turno do último plantão pelo horário de entrada (07:00 = Diurno, 19:00 = Noturno) */
+function turnoDoUltimo(u){
+  if(!u)return null;
+  const data=isoDeData(u.data);if(!data)return null;
+  const m=/(\d{1,2}):(\d{2})/.exec(String(u.inicio||''));
+  if(!m)return {data,turno:'',responsavel:u.responsavel||''};
+  const h=Number(m[1]);
+  return {data,turno:(h>=7&&h<19)?'Diurno':'Noturno',responsavel:u.responsavel||''};
+}
+function sucessorTurno(u){
+  if(!turnoCompleto(u))return null;
+  return u.turno==='Diurno'?{data:u.data,turno:'Noturno'}:{data:maisDiasIso(u.data,1),turno:'Diurno'};
+}
 
 /* seletor "Plantão": linha própria ACIMA da grade Data/Início/Fim, para não desalinhar a grade.
    Criado aqui para não precisar mexer no Alertas.html; copia o visual do campo "Início". */
 (function criarSeletorTurno(){
-  if($('pTurno')||!$('pInicio'))return;
-  const celula=$('pInicio').parentElement,grade=celula.parentElement;
-  const labRef=celula.querySelector('label')||grade.querySelector('label');
-  const linha=document.createElement('div');
-  linha.id='linhaTurno';
-  linha.style.cssText='display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:0 0 12px';
-  const lab=document.createElement('label');
-  lab.htmlFor='pTurno';lab.textContent='Plantão';
-  if(labRef)lab.className=labRef.className;
-  lab.style.margin='0';
+  if($('pTurno')||!$('pInicio')||!$('pData'))return;
+  // estrutura do Alertas.html: <label>Responsável…</label> <div.par>[<label>Data…</label> <div.par>[Entrada][Saída]]</div>
+  const labData=$('pData').closest('label'),parExterna=labData&&labData.parentElement;
+  const parHoras=$('pInicio').closest('.par');
+  if(!labData||!parExterna||!parHoras)return;
+  const cor='color:#b42318;margin-left:2px';
+  /* título do campo + asterisco num único <span> (o <label> é grid: cada filho vira uma linha) */
+  function tituloObrigatorio(label,texto){
+    if(!label)return;
+    const tx=[...label.childNodes].find(n=>n.nodeType===3&&n.textContent.trim());
+    const s=document.createElement('span');s.innerHTML=texto+'<span style="'+cor+'" aria-hidden="true">*</span>';
+    if(tx)label.replaceChild(s,tx);else label.insertBefore(s,label.firstChild);
+  }
+  tituloObrigatorio($('pResp').closest('label'),'Responsável');
+  $('pResp').required=true;
+  $('pResp').addEventListener('input',()=>{if($('pResp').value.trim())$('pResp').style.boxShadow='';});
+  tituloObrigatorio(labData,'Data de início do plantão');
+  $('pData').required=true;$('pData').value='';
+  // avisos: linha própria, entre o Responsável e a grade de Data/Turno
+  const bloco=document.createElement('div');
+  bloco.id='blocoTurno';bloco.style.cssText='display:flex;flex-direction:column;gap:8px;margin:2px 0 10px';
+  const fixo=document.createElement('div');
+  fixo.id='pTurnoFixo';fixo.setAttribute('role','note');
+  fixo.style.cssText='font-size:13px;font-weight:600;color:#6b4a00;background:#fff4d6;border-left:4px solid #e0b33a;padding:8px 10px;border-radius:4px';
+  fixo.textContent='⚠ O salvamento correto dos arquivos (alertas, KML e relatório) depende da data de início e do turno marcados abaixo.';
+  const ult=document.createElement('div');
+  ult.id='pTurnoUltimo';ult.style.cssText='display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:13px';
+  bloco.append(fixo,ult);
+  parExterna.parentElement.insertBefore(bloco,parExterna);
+  // Turno: mesmo formato do campo Data, na mesma linha (no lugar de Entrada/Saída, que descem uma linha)
+  const labTurno=document.createElement('label');
   const sel=document.createElement('select');
-  sel.id='pTurno';sel.className=$('pInicio').className;
-  sel.innerHTML='<option value="Diurno">Diurno (7h às 19h)</option><option value="Noturno">Noturno (19h às 7h)</option>';
-  try{   // mesmo visual do campo de hora
-    const cs=getComputedStyle($('pInicio'));
-    ['border','borderRadius','padding','fontFamily','fontSize','fontWeight','color','backgroundColor','lineHeight']
-      .forEach(k=>{if(cs[k])sel.style[k]=cs[k];});
-  }catch(e){}
-  sel.style.width='auto';sel.style.minWidth='190px';sel.style.margin='0';sel.style.cursor='pointer';
-  const info=document.createElement('span');
-  info.id='pTurnoInfo';info.style.cssText='font-size:12px;opacity:.75';
-  linha.append(lab,sel,info);
-  grade.parentElement.insertBefore(linha,grade);
+  sel.id='pTurno';sel.className=$('pData').className;sel.required=true;sel.style.cursor='pointer';
+  sel.innerHTML='<option value="">— escolha —</option><option value="Diurno">Diurno (07:00 às 19:00)</option><option value="Noturno">Noturno (19:00 às 07:00)</option>';
+  labTurno.append(document.createTextNode('Turno do plantão'),sel);
+  tituloObrigatorio(labTurno,'Turno do plantão');
+  parExterna.insertBefore(labTurno,parHoras);
+  // pasta do Drive logo abaixo da linha Data/Turno; Entrada/Saída em linha própria
+  const info=document.createElement('p');
+  info.id='pTurnoInfo';info.style.cssText='margin:6px 0 10px;font-size:12px;opacity:.75';
+  parExterna.after(info);
+  info.after(parHoras);
+  // horários padrão: preenchidos pelo turno, sem edição
+  ['pInicio','pFim'].forEach(id=>{$(id).readOnly=true;$(id).value='';$(id).style.cursor='not-allowed';$(id).style.opacity='.8';$(id).title='Horário padrão do turno';});
 })();
+
+/* aviso que trava a tela ao abrir a página */
+(function avisoInicialTurno(){
+  if($('avisoTurnoInicial'))return;
+  const fundo=document.createElement('div');
+  fundo.id='avisoTurnoInicial';fundo.setAttribute('role','dialog');fundo.setAttribute('aria-modal','true');fundo.setAttribute('aria-labelledby','avisoTurnoTit');
+  fundo.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(10,18,26,.75);display:flex;align-items:center;justify-content:center;padding:16px';
+  fundo.innerHTML='<div style="background:#fff;color:#17232e;max-width:560px;width:100%;border-radius:10px;border-top:8px solid #e0b33a;padding:26px;display:flex;flex-direction:column;gap:14px;font-family:inherit">'+
+    '<div id="avisoTurnoTit" style="font-size:1.4rem;font-weight:700;line-height:1.25">MARQUE CORRETAMENTE A DATA DE INÍCIO E O TURNO DESTE PLANTÃO</div>'+
+    '<p style="margin:0">O salvamento correto dos arquivos criados depende disso. O plantão noturno vai das 19h às 7h e conta sempre pela <b>data em que começou</b>, mesmo depois da meia-noite.</p>'+
+    '<p id="avisoTurnoUlt" style="margin:0;font-size:13px;color:#5b6b78">Carregando o último plantão encerrado…</p>'+
+    '<button type="button" id="avisoTurnoOk" class="btn primary" style="align-self:flex-start">Entendi</button></div>';
+  document.body.appendChild(fundo);
+  const ok=fundo.querySelector('#avisoTurnoOk');
+  ok.onclick=()=>{fundo.remove();try{mostrarAba('plantao');}catch(e){}try{$('pData').focus();}catch(e){}};
+  fundo.addEventListener('keydown',ev=>{if(ev.key==='Tab'||ev.key==='Escape'){ev.preventDefault();ok.focus();}});
+  setTimeout(()=>ok.focus(),0);
+})();
+
+function mostrarUltimoTurno(u){
+  ultimoTurnoBruto=u;ultimoTurno=turnoDoUltimo(u);
+  const box=$('pTurnoUltimo'),ini=$('avisoTurnoUlt');
+  const rot=ultimoTurno?(ultimoTurno.turno?rotuloTurnoCurto(ultimoTurno):'plantão de '+dataBR(ultimoTurno.data)):'';
+  if(ini)ini.innerHTML=ultimoTurno?'Último plantão encerrado: <b>'+esc(rot)+'</b>.':'Nenhum plantão encerrado encontrado.';
+  if(!box)return;
+  box.innerHTML='';
+  if(!ultimoTurno){box.textContent='Nenhum plantão encerrado encontrado. Confira a data e o turno deste relatório.';return;}
+  const txt=document.createElement('span');
+  txt.innerHTML='O último plantão foi <b>'+esc(rot)+'</b>. Confira a data e o turno deste relatório.';
+  box.appendChild(txt);
+  const s=sucessorTurno(ultimoTurno);
+  if(s&&!turnoServidor){
+    const b=document.createElement('button');b.type='button';b.className='btn small';
+    b.textContent='Usar '+rotuloTurnoCurto(s);b.title='Plantão seguinte ao último encerrado';
+    b.onclick=()=>alterarTurno(s);
+    box.appendChild(b);
+  }
+}
 function mostrarTurno(){
   if(!$('pTurno'))return;
-  $('pTurno').value=state.turno.turno;
-  if(state.turno.data)$('pData').value=state.turno.data;
+  $('pTurno').value=state.turno.turno||'';
+  $('pData').value=state.turno.data||'';
   const info=$('pTurnoInfo');
   if(info){
-    const pasta=String(state.turno.data).replace(/-/g,'')+'/'+state.turno.turno;
+    const pasta=turnoCompleto()?String(state.turno.data).replace(/-/g,'')+'/'+state.turno.turno:'— marque a data e o turno —';
     const quem=turnoServidor&&turnoServidor.por&&state.plantaoId?String(turnoServidor.por).split('@')[0]:'';
     info.textContent='Pasta no Drive: '+pasta+(quem?' · definido no 1º alerta ('+quem+')':'');
     info.title=quem?'Turno definido no primeiro alerta do plantão por '+turnoServidor.por+'.':'';
   }
+  ['pData','pTurno','pResp'].forEach(id=>{if($(id).value)$(id).style.boxShadow='';});
 }
 function preencherHorariosTurno(){
-  const h=TURNOS[state.turno.turno];if(!h)return;
-  $('pInicio').value=h.inicio;$('pFim').value=h.fim;
+  const h=TURNOS[state.turno.turno];
+  $('pInicio').value=h?h.inicio:'';$('pFim').value=h?h.fim:'';
 }
 /* o turno gravado no servidor vale para todos do plantão */
 function aplicarTurnoDoServidor(t){
   if(!t||!t.turno||!t.data)return;
+  const novo=!turnoServidor;
   turnoServidor=t;
   const mudou=t.turno!==state.turno.turno||t.data!==state.turno.data;
   state.turno={turno:t.turno,data:t.data};
   if(mudou){preencherHorariosTurno();salvarRascunho();agendarRelatorio();}
   mostrarTurno();
+  if(novo)mostrarUltimoTurno(ultimoTurnoBruto);   // tira o botão de sugestão: a pasta já está definida
 }
 function alterarTurno(novo){
   const antes={...state.turno};
   if(state.plantaoId&&turnoServidor&&temFuncao('definirTurnoPlantao')){
+    if(!turnoCompleto(novo)){mostrarTurno();return;}
     if(!confirm('O plantão '+state.plantaoId+' já está como '+rotuloTurno(antes)+'.\n\n'+
       'Mudar para '+rotuloTurno(novo)+' vale para toda a equipe neste plantão. Os próximos arquivos irão para a nova pasta '+
       '(os já salvos continuam onde estão).\n\nConfirmar a mudança?')){mostrarTurno();return;}
@@ -1852,12 +1956,59 @@ function alterarTurno(novo){
       .withFailureHandler(e=>{state.turno=antes;mostrarTurno();preencherHorariosTurno();status('Não foi possível alterar o turno: '+(e&&e.message||e),'erro');})
       .definirTurnoPlantao(state.plantaoId,novo.data,novo.turno);
   }
-  state.turno=novo;preencherHorariosTurno();mostrarTurno();salvarRascunho();agendarRelatorio();
+  state.turno={turno:novo.turno||'',data:novo.data||''};preencherHorariosTurno();mostrarTurno();salvarRascunho();agendarRelatorio();
 }
 if($('pTurno')){
   $('pTurno').addEventListener('change',()=>alterarTurno({turno:$('pTurno').value,data:$('pData').value||state.turno.data}));
-  $('pData').addEventListener('change',()=>{if($('pData').value&&$('pData').value!==state.turno.data)alterarTurno({turno:state.turno.turno,data:$('pData').value});});
+  $('pData').addEventListener('change',()=>{if($('pData').value!==state.turno.data)alterarTurno({turno:state.turno.turno,data:$('pData').value});});
 }
+
+/* ---- conferência no 1º alerta (v4.2) ----
+   Roda ANTES da emissão de sempre: se estiver tudo certo, chama o mesmo $('emit').onclick de antes, sem mudança. */
+(function conferirAntesDeEmitir(){
+  const emitirOriginal=$('emit').onclick;
+  if(typeof emitirOriginal!=='function')return;
+  function marcar(id){$(id).style.boxShadow='0 0 0 2px #b42318';}
+  function avisoEmit(html,botoes){
+    const st=$('emitStatus');st.className='st erro';st.innerHTML=html;
+    if(botoes&&botoes.length){
+      const linha=document.createElement('div');linha.style.cssText='display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-top:8px';
+      botoes.forEach(b=>linha.appendChild(b));st.appendChild(linha);
+    }
+  }
+  $('emit').onclick=function(ev){
+    if(!state.selected.size)return emitirOriginal.call(this,ev);
+    if(!turnoCompleto()){
+      if(!state.turno.data)marcar('pData');if(!state.turno.turno)marcar('pTurno');
+      avisoEmit('Marque a <b>data de início</b> e o <b>turno</b> do plantão na aba Plantão antes de emitir. Os municípios marcados continuam aqui.');
+      return;
+    }
+    if(!($('owner').value.trim()||$('pResp').value.trim())){
+      marcar('pResp');
+      avisoEmit('Preencha o <b>responsável</b> (aba Plantão ou campo do alerta). Os municípios marcados continuam aqui.');try{$('owner').focus();}catch(e){}
+      return;
+    }
+    const pastaDefinida=!!(turnoServidor&&state.plantaoId);
+    if(!pastaDefinida&&!ignorarConferenciaHora){
+      const certo=turnoPeloRelogio(),o=partesMG(new Date());
+      if(certo.data!==state.turno.data||certo.turno!==state.turno.turno){
+        const marcado={...state.turno};
+        const corrigir=document.createElement('button');corrigir.type='button';corrigir.className='btn primary small';
+        corrigir.textContent='Corrigir para '+rotuloTurnoCurto(certo)+' e emitir';
+        corrigir.onclick=()=>{alterarTurno(certo);$('emit').onclick();};
+        const manter=document.createElement('button');manter.type='button';
+        manter.style.cssText='background:none;border:none;padding:2px 0;font-size:11px;color:#6d7e89;text-decoration:underline;cursor:pointer';
+        manter.textContent='Manter '+rotuloTurnoCurto(marcado)+' e emitir mesmo assim';
+        manter.onclick=()=>{ignorarConferenciaHora=true;try{$('emit').onclick();}finally{ignorarConferenciaHora=false;}};
+        avisoEmit('<b>Data ou turno não batem com o horário.</b> Às '+o.hour+':'+o.minute+' de '+o.day+'/'+o.month+'/'+o.year+
+          ' o plantão é <b>'+esc(rotuloTurnoCurto(certo))+'</b>, mas está marcado <b>'+esc(rotuloTurnoCurto(marcado))+
+          '</b>. O alerta ainda não foi emitido e os municípios marcados continuam aqui.',[corrigir,manter]);
+        return;
+      }
+    }
+    return emitirOriginal.call(this,ev);
+  };
+})();
 
 /* ---- "Alertas gerados": lista automática com os alertas de toda a equipe ---- */
 function linhaAlerta(a){
@@ -1878,7 +2029,7 @@ function alertasVigentesEm(cities){
   state.active.concat(herdadosVigentes(t)).forEach(a=>{
     if(a.expiresAt&&a.expiresAt<=t)return;            // vencido: pode emitir de novo
     if(state.renovando&&(a===state.renovando||(a.id&&a.id===state.renovando.id)))return;   // v4.1: é o próprio alerta sendo renovado
-    if(state.editando&&(a===state.editando||(a.id&&a.id===state.editando.id)))return;      // v4.2: é o próprio alerta sendo editado
+    if(state.editando&&(a===state.editando||(a.id&&a.id===state.editando.id)))return;      // v4.3: é o próprio alerta sendo editado
     const em=(a.cities||[]).filter(n=>alvo.has(n));
     if(em.length)out.push({a,em});
   });
@@ -1974,7 +2125,7 @@ function fimRenovacao(){
 }
 state.renovando=null;
 
-/* ---- v4.2 (03/11/2026): Editar alerta vigente ----
+/* ---- v4.3 (03/11/2026): Editar alerta vigente ----
    Só para alertas do próprio plantonista e ainda vigentes. Abre a janela de emissão preenchida com o alerta
    (municípios, tipo, fenômenos, horário e duração); "Ajustar municípios no mapa" deixa incluir/retirar municípios.
    Ao salvar, a versão editada é registrada como um alerta NOVO (nova linha na planilha e KML novo, mensagem com
