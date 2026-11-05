@@ -50,7 +50,7 @@
   var PASSOS = {
     'previsao': [
       { s: '#date', t: 'Data da previsão', d: 'Dia da previsão.' },
-      { s: '#valTime', t: 'Validade', d: 'Já vem com 09h do dia seguinte. No mapa: VÁLIDO: 09h DD/MM às 09h DD/MM, hora local.' },
+      { s: '#valTime', t: 'Validade', d: 'Já vem com 09h do dia seguinte. No mapa: VÁLIDO: 09h DD/MM às 09h DD/MM BRT.' },
       { s: '#rows .trow .cond', t: 'Condição do tempo', d: 'Escolha o ícone de cada cidade.' },
       { s: '#rows .trow .wmx', t: 'Máxima e mínima', d: 'Ex.: 30 ou 18,5. A tecla Tab avança para o próximo campo.' },
       { s: '#bulkCond', t: 'Várias cidades de uma vez', d: 'Marque as linhas e aplique a mesma condição a todas.' },
@@ -67,7 +67,7 @@
     ],
     'tempo-severo': [
       { s: '#forecastDate', t: 'Data da previsão', d: 'Dia da previsão.' },
-      { s: '#validUntil', t: 'Válido até', d: '09h do dia seguinte. No mapa: VÁLIDO: 09h DD/MM às 09h DD/MM, hora local.' },
+      { s: '#validUntil', t: 'Válido até', d: '09h do dia seguinte. No mapa: VÁLIDO: 09h DD/MM às 09h DD/MM BRT.' },
       { s: '#levels', t: 'Categoria', d: 'Comece pela menos severa. A mais severa fica por cima.' },
       { s: '#drawBtn', t: 'Desenhar área', d: 'Clique ponto a ponto no mapa e dê duplo clique para fechar.' },
       { s: '#map', t: 'Mapa', d: 'Clique numa área pronta para editar: arraste os pontos, Enter conclui, Esc cancela.' },
@@ -82,7 +82,7 @@
       { s: '#tabTend', t: 'Tendência 48h', d: 'Mapa da tendência para os próximos 2 dias.' },
       { s: '#forecastDate', t: 'Data da previsão', d: 'Dia da previsão.' },
       { s: '#trendDate1', t: '1º e 2º dia', d: 'A validade se ajusta sozinha.' },
-      { s: '#validUntil', t: 'Válido até', d: '09h do dia seguinte. No mapa: VÁLIDO: 09h DD/MM às 09h DD/MM, hora local.' },
+      { s: '#validUntil', t: 'Válido até', d: '09h do dia seguinte. No mapa: VÁLIDO: 09h DD/MM às 09h DD/MM BRT.' },
       { s: '#levels', t: 'Faixa', d: 'Escolha a faixa de chuva. O maior acumulado fica por cima.' },
       { s: '#drawBtn', t: 'Desenhar área', d: 'Clique ponto a ponto no mapa e dê duplo clique para fechar.' },
       { s: '#map', t: 'Mapa', d: 'Clique numa área pronta para editar: arraste os pontos, Enter conclui, Esc cancela.' },

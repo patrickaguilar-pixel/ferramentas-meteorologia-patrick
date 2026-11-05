@@ -103,7 +103,7 @@
     return d + '°' + String(m).padStart(2, '0') + "'" + String(s).padStart(2, '0') + '"' + h;
   }
   function fmtDateBR(iso) { return iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : ''; }
-  // 05/11/2026: "VÁLIDO: 09h 05/11 às 09h 06/11, hora local" — início = v.inicio (data da previsão ou 1º dia da tendência),
+  // 05/11/2026: "VÁLIDO: 09h 05/11 às 09h 06/11 BRT" (no PDF do boletim: ", hora local") — início = v.inicio (data da previsão ou 1º dia da tendência),
   // ou o dia anterior ao fim; a hora do início é a mesma do fim.
   function ddmmBR(iso) { var p = String(iso).slice(0, 10).split('-'); return p[2] + '/' + p[1]; }
   function diaAntes(iso) { var d = new Date(String(iso).slice(0, 10) + 'T12:00:00'); d.setDate(d.getDate() - 1);
@@ -112,7 +112,7 @@
     if (!v || !v.date || !v.time) return '';
     var p = v.time.split(':'), h = String(+p[0]).padStart(2, '0') + 'h' + (p[1] && p[1] !== '00' ? p[1] : '');
     var ini = v.inicio && String(v.inicio).slice(0, 10) < String(v.date).slice(0, 10) ? v.inicio : diaAntes(v.date);
-    return 'VÁLIDO: ' + h + ' ' + ddmmBR(ini) + ' às ' + h + ' ' + ddmmBR(v.date) + ', hora local';
+    return 'VÁLIDO: ' + h + ' ' + ddmmBR(ini) + ' às ' + h + ' ' + ddmmBR(v.date) + ' BRT';
   }
   function logoLayout() {
     var GAP = 6.5, avail = LOGO_X1 - LOGO_X0, H = 12.5;
