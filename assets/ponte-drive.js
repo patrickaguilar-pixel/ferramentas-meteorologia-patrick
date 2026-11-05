@@ -424,7 +424,7 @@
   }
 
   /* ---------------- conferência do padrão (antes de salvar) ---------------- */
-  // Padrões do Guia Rápido: mapa base OSM padrão; validade às 10h do dia seguinte; nenhuma cidade "Sem informação";
+  // Padrões do Guia Rápido: mapa base OSM padrão; validade às 09h do dia seguinte; nenhuma cidade "Sem informação";
   // imagens do CPC com menos de 36 h. Fora do padrão, o painel avisa e pede confirmação antes de salvar.
   var NOME_FUNDO = { '': 'Nenhum', osm: 'OSM padrão', osmfr: 'OSM França', osmde: 'OSM Alemanha', ofm: 'OpenFreeMap (sem nomes)' };
   function valor(id) { var e = document.getElementById(id); return e ? e.value : null; }
@@ -448,8 +448,8 @@
     }
     if (fer === 'previsao' && ehMapa(m)) {
       var d = valor('date'), vt = valor('valTime'), vd = valor('valDate');
-      if (d && vt != null && vd != null && (vt !== '10:00' || vd !== maisUmDia(d)))
-        f.push('Validade: <b>' + esc(vt || '—') + ' do dia ' + esc(br(vd)) + '</b> (padrão: 10h do dia ' + esc(br(maisUmDia(d))) + ').');
+      if (d && vt != null && vd != null && (vt !== '09:00' || vd !== maisUmDia(d)))
+        f.push('Validade: <b>' + esc(vt || '—') + ' do dia ' + esc(br(vd)) + '</b> (padrão: 09h do dia ' + esc(br(maisUmDia(d))) + ').');
       if (/Mapa do dia/.test(m.nome)) {
         var sem = [].slice.call(document.querySelectorAll('#rows .trow')).filter(function (r) { return /Sem informa/i.test(r.textContent); }).length;
         if (sem) f.push('<b>' + sem + ' cidade' + (sem > 1 ? 's' : '') + '</b> em “Sem informação”.');
@@ -458,8 +458,8 @@
     if ((fer === 'tempo-severo' || fer === 'chuva') && m.tipo === 'PNG') {
       var tend = fer === 'chuva' && (document.querySelector('#tabTend[aria-selected=true], #tabTend.active, #tabTend.on') || /tend/i.test(String(window.product || '')));
       var base = tend ? valor('trendDate2') : valor('forecastDate'), vu = valor('validUntil');
-      if (base && vu && vu.slice(0, 16) !== maisUmDia(base) + 'T10:00')
-        f.push('Válido até: <b>' + esc(br(vu.slice(0, 10)) + ' ' + vu.slice(11, 16)) + '</b> (padrão: 10h do dia ' + esc(br(maisUmDia(base))) + (tend ? ', dia seguinte ao 2º dia' : '') + ').');
+      if (base && vu && vu.slice(0, 16) !== maisUmDia(base) + 'T09:00')
+        f.push('Válido até: <b>' + esc(br(vu.slice(0, 10)) + ' ' + vu.slice(11, 16)) + '</b> (padrão: 09h do dia ' + esc(br(maisUmDia(base))) + (tend ? ', dia seguinte ao 2º dia' : '') + ').');
     }
     if (fer === 'reservatorios' && document.querySelector('#cpcVersao .warn')) f.push('Imagens do CPC com <b>mais de 36 h</b>. Confira o ciclo e busque de novo.');
     return f;

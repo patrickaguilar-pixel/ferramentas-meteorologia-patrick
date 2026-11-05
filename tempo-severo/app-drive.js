@@ -511,7 +511,7 @@ function ringCoords(coords){return coords.map(c=>`${c[0]},${c[1]},0`).join(' ')}
 function polygonKml(coords){const rings=[];rings.push(`<outerBoundaryIs><LinearRing><coordinates>${ringCoords(coords[0])}</coordinates></LinearRing></outerBoundaryIs>`);for(let i=1;i<coords.length;i++)rings.push(`<innerBoundaryIs><LinearRing><coordinates>${ringCoords(coords[i])}</coordinates></LinearRing></innerBoundaryIs>`);return `<Polygon>${rings.join('')}</Polygon>`;}
 
 function isoToday(){const d=new Date(); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`;}
-(function initDates(){const fd=document.getElementById('forecastDate');const vu=document.getElementById('validUntil');fd.value=isoToday();const d=new Date();d.setDate(d.getDate()+1);d.setHours(10,0,0,0);const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'),h=String(d.getHours()).padStart(2,'0');vu.value=`${y}-${m}-${day}T${h}:00`;})();
+(function initDates(){const fd=document.getElementById('forecastDate');const vu=document.getElementById('validUntil');fd.value=isoToday();const d=new Date();d.setDate(d.getDate()+1);d.setHours(9,0,0,0);const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'),h=String(d.getHours()).padStart(2,'0');vu.value=`${y}-${m}-${day}T${h}:00`;})();
 function brDate(v){if(!v)return '';const [y,m,d]=v.split('-');return `${d}/${m}/${y}`;}
 function brDateTime(v){if(!v)return '';const dt=new Date(v);return dt.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',','');}
 /* ===== mapa final no layout da Previsão diária (assets/layout-mapa.js) ===== */
@@ -522,7 +522,7 @@ function opcoesMapa(){
   const [vd,vt]=(document.getElementById('validUntil').value||'').split('T');
   return {
     titulo:'Tempo Severo - '+(fd?brDate(fd):'data pendente'),
-    validade:vd?{date:vd,time:(vt||'10:00').slice(0,5)}:null,
+    validade:vd?{date:vd,time:(vt||'09:00').slice(0,5),inicio:fd}:null,
     credito:'Tempo Severo - SIMGE/IGAM, '+ano,
     areas:fs.map(f=>{const lv=levelById(f.properties.level);return {geometry:f.geometry,fill:lv.fill,stroke:lv.stroke,opacity:lv.opacity}}),
     legenda:usados.map(l=>({fill:l.fill,label:l.label,opacity:l.opacity})).concat([{fill:'#ffffff',label:'Sem Tempestades'}]),

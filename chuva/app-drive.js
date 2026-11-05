@@ -369,16 +369,16 @@ document.getElementById('tabChuva').onclick=()=>switchProduct('chuva');document.
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};// "Hoje" no horário de Brasília (America/Sao_Paulo), qualquer que seja o fuso do computador.
 function hojeMG(){const o={};new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).forEach(p=>o[p.type]=p.value);return o.year+'-'+o.month+'-'+o.day}
 function somaDias(v,n){const d=new Date(v+'T12:00:00');d.setDate(d.getDate()+n);return iso(d)}
-function initDates(){const h=hojeMG();forecastDate.value=h;trendDate1.value=somaDias(h,1);trendDate2.value=somaDias(h,2);validUntil.value=`${somaDias(h,1)}T10:00`}initDates();loadProduct();
+function initDates(){const h=hojeMG();forecastDate.value=h;trendDate1.value=somaDias(h,1);trendDate2.value=somaDias(h,2);validUntil.value=`${somaDias(h,1)}T09:00`}initDates();loadProduct();
 function brDate(v){if(!v)return '';const [y,m,d]=v.split('-');return `${d}/${m}/${y}`}
 function union(fs){if(!fs.length)return null;if(fs.length===1)return fs[0];try{return turf.union(turf.featureCollection(fs))}catch(e){return fs[0]}}
 function visibleFeatures(){if(window.recorteAreas&&recorteAreas.decisao()==='nao')return recorteAreas.finais().sort((a,b)=>levelById(a.properties.level).rank-levelById(b.properties.level).rank);const src=features().map(f=>{const c=clipFeature(f);if(c)c.properties=f.properties;return c}).filter(Boolean),out=[];let high=null;for(const lv of LEVELS.slice().sort((a,b)=>b.rank-a.rank)){const same=src.filter(f=>f.properties.level===lv.id);for(const f of same){let v=f;if(high){try{v=turf.difference(turf.featureCollection([f,high]))}catch(e){}}if(v){v.properties={level:lv.id};out.push(v)}}const m=union(same);if(m)high=high?union([high,m]):m}return out.sort((a,b)=>levelById(a.properties.level).rank-levelById(b.properties.level).rank)}
 /* ===== mapa final no layout da Previsão diária (assets/layout-mapa.js) ===== */
 function addDaysIso(v,n){if(!v)return '';const d=new Date(v+'T12:00:00');d.setDate(d.getDate()+n);return iso(d)}
-function horaValidade(){return ((validUntil.value||'').split('T')[1]||'').slice(0,5)||'10:00'}
+function horaValidade(){return ((validUntil.value||'').split('T')[1]||'').slice(0,5)||'09:00'}
 // Previsão de Chuva: válido até o dia seguinte à previsão.
 // Tendência: válido até o dia seguinte ao 2º dia da tendência (ex.: 05 -> 06 e 07 -> válido até 08).
-// A hora escolhida é mantida (10h se estiver vazia).
+// A hora escolhida é mantida (09h se estiver vazia).
 function ajustarValidade(){
   let dia='';
   if(product==='tendencia')dia=addDaysIso(trendDate2.value||addDaysIso(trendDate1.value,1)||addDaysIso(forecastDate.value,2),1);
@@ -404,7 +404,7 @@ function opcoesMapa(){
   const [vd,vt]=(validUntil.value||'').split('T');
   return {
     titulo:nome+' - '+(product==='tendencia'?datasTendencia(trendDate1.value,trendDate2.value):(fd?brDate(fd):'data pendente')),
-    validade:vd?{date:vd,time:(vt||'10:00').slice(0,5)}:null,
+    validade:vd?{date:vd,time:(vt||'09:00').slice(0,5),inicio:product==='tendencia'?trendDate1.value:fd}:null,
     credito:nome+' - SIMGE/IGAM, '+ano,
     areas:fs.map(f=>{const lv=levelById(f.properties.level);return {geometry:f.geometry,fill:lv.fill,stroke:lv.stroke,opacity:lv.opacity}}),
     legenda:usados.map(l=>({fill:l.fill,label:l.label,opacity:l.opacity})).concat([{fill:'#ffffff',label:'Sem Previsão de Chuvas'}]),

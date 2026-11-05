@@ -143,16 +143,18 @@ function makeRow(name){
 }
 function todayISO(){ const d = new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
 function defaultState(){
-  return {date: todayISO(), val:{time:"10:00", date:addDays(todayISO(),1), auto:true}, rows: START_MUN.map(makeRow), texts: {...DEFAULT_TEXTS},
+  return {date: todayISO(), val:{time:"09:00", date:addDays(todayISO(),1), auto:true}, rows: START_MUN.map(makeRow), texts: {...DEFAULT_TEXTS},
     opts:{mun:true, meso:true, mesoNames:false, states:true, names:true, ptSede:true, autoSpread:true, temps:"both", iconScale:0.5, nameSize:3.5, mgFill:true, baseFill:true, baseHidro:true, baseRod:true, baseUrb:true, bgClipMG:true}, bgActive:null, baseVersion:BASE_VERSION, namesDefaultV:2, noticeDismissed:true, savedSig:null};
 }
 function addDays(iso, n){ if (!iso) return ""; const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate()+n);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
-// "Válido até às 10h do dia 02/10/2026" — texto fixo; só hora e data mudam
+// 05/11/2026: "VÁLIDO: 09h 05/11 às 09h 06/11 BRT" — início = data da previsão (ou o dia anterior ao fim), mesma hora do fim
 function validityText(v = S.val){
   if (!v || !v.date || !v.time) return "";
-  const [h, m] = v.time.split(":");
-  return `Válido até às ${+h}h${m && m !== "00" ? m : ""} do dia ${fmtDateBR(v.date)}`;
+  const [h, m] = v.time.split(":"), hh = String(+h).padStart(2, "0") + "h" + (m && m !== "00" ? m : "");
+  const dm = iso => { const [, mm, dd] = String(iso).slice(0, 10).split("-"); return `${dd}/${mm}`; };
+  const ini = S.date && S.date < v.date ? S.date : addDays(v.date, -1);
+  return `VÁLIDO: ${hh} ${dm(ini)} às ${hh} ${dm(v.date)} BRT`;
 }
 function parseValidity(t){
   const m = /(\d{1,2})\s*(?:h|:)\s*(\d{2})?[^\d]*(\d{2})\/(\d{2})\/(\d{4})/.exec(t || "");
@@ -171,7 +173,8 @@ if (!Array.isArray(S.bul.blocks) || S.bul.v !== 2){ const velho = S.bul, novo = 
   S.bul = novo; }
 S.bul.blocks.forEach(b => { if (b.tipo !== "texto" && !Array.isArray(b.paras)) b.paras = []; if (b.mapa && typeof b.mapa !== "object") b.mapa = {auto:false}; });
 S.opts = {...defaultState().opts, ...(S.opts||{})};
-if (!S.val) S.val = parseValidity(S.validity) || {time:"10:00", date:addDays(S.date,1), auto:true};
+if (!S.val) S.val = parseValidity(S.validity) || {time:"09:00", date:addDays(S.date,1), auto:true};
+if (S.val && S.val.auto && S.val.time === "10:00") S.val.time = "09:00";   // 05/11/2026: padrão passou de 10h para 09h
 delete S.validity;
 // troca a lista antiga pelos municípios base, mantendo o que já estava preenchido nos que continuam
 if (S.namesDefaultV !== 2){ S.opts.names = true; S.namesDefaultV = 2;
@@ -1137,7 +1140,7 @@ $("#btnApply").addEventListener("click", () => {
 });
 $("#btnClear").addEventListener("click", () => {
   const snap = JSON.stringify({rows:S.rows, val:S.val});
-  S.rows.forEach(r => { r.tempo = NONE; r.tmax = ""; r.tmin = ""; }); S.val = {time:"10:00", date:addDays(S.date,1), auto:true}; fillVal();
+  S.rows.forEach(r => { r.tempo = NONE; r.tmax = ""; r.tmin = ""; }); S.val = {time:"09:00", date:addDays(S.date,1), auto:true}; fillVal();
   persist(); renderRows(); drawPreview();
   showMsg("info", `Preenchimento limpo. <button class="btn small ghost" id="undoClr" type="button">Desfazer</button>`);
   $("#undoClr")?.addEventListener("click", () => { const o = JSON.parse(snap); S.rows = o.rows; S.val = o.val; fillVal(); persist(); renderRows(); drawPreview(); hideMsg(); });
@@ -1528,7 +1531,7 @@ $("#btnSave").addEventListener("click", () => {
 });
 function applyData(o){
   if (o.date) S.date = o.date;
-  S.val = o.val || parseValidity(o.validity) || {time:"10:00", date:addDays(S.date,1), auto:true};
+  S.val = o.val || parseValidity(o.validity) || {time:"09:00", date:addDays(S.date,1), auto:true}; if (S.val.auto && S.val.time === "10:00") S.val.time = "09:00";
   if (Array.isArray(o.rows)){
     S.rows = o.rows.filter(r => r && MUN.has(r.name)).map(r => ({...makeRow(r.name), ...r, id:"r"+(++uid), tempo: CAT[r.tempo] ? r.tempo : NONE, tmax: r.tmax==null ? "" : String(r.tmax), tmin: r.tmin==null ? "" : String(r.tmin)}));
   }
@@ -1674,7 +1677,7 @@ function novoMapa(modelo){
   const b = {id:bid(), tipo:"mapa", titulo:"", sub:"", novaPagina:true, mapa:{auto:false}, paras:[""], obs:OBS_CIDADES};
   if (modelo === "tendencia"){
     b.titulo = `TENDÊNCIA – ${ddmm(d1)} e ${ddmm(d2)}`;
-    b.sub = `Válida até às 10:00hrs LT do dia ${fmtDateBR(d3)}.`;
+    b.sub = `Válida até às 09:00hrs LT do dia ${fmtDateBR(d3)}.`;
     b.paras = ["A tendência é de aumento da instabilidade atmosférica sobre Minas Gerais. Favor acompanhar as próximas atualizações da previsão do tempo."];
     b.mapa = {auto:true, prefixo:PREFIXO.tendencia};
   } else if (modelo === "sabado" || modelo === "domingo"){
