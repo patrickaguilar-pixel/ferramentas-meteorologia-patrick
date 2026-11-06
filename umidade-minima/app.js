@@ -1,5 +1,6 @@
 /*
- * Umidade Mínima v0.1.1 (06/11/2026): seletor da quantidade de isolinhas (Nenhuma, Poucas, Padrão do notebook, a cada 10 %, a cada 5 %).
+ * Umidade Mínima v0.1.1 (06/11/2026): seletor da quantidade de isolinhas (Nenhuma, Poucas, Padrão, a cada 10 %, a cada 5 %).
+ * v0.1.2 (06/11/2026): opção de isolinhas renomeada para "Padrão (20, 25, 30, 40 … 90 %)".
  * Umidade Mínima v0.1 (06/11/2026) — UR mínima prevista (WRF 7 km, CPTEC/INPE), SIMGE/IGAM
  *
  * Ferramenta nova e separada. Reproduz o notebook da equipe (UR_media_18Z_WRF_MG_Colab):
@@ -25,7 +26,7 @@
   const ISO_OPCOES = {
     nenhuma: { nome: 'Nenhuma', niveis: [] },
     poucas: { nome: 'Poucas (20, 40, 60, 80 %)', niveis: [20, 40, 60, 80] },
-    padrao: { nome: 'Padrão do notebook (20, 25, 30, 40 … 90 %)', niveis: [20, 25, 30, 40, 50, 60, 70, 80, 90] },
+    padrao: { nome: 'Padrão (20, 25, 30, 40 … 90 %)', niveis: [20, 25, 30, 40, 50, 60, 70, 80, 90] },
     d10: { nome: 'A cada 10 % (10 … 90 %)', niveis: [10, 20, 30, 40, 50, 60, 70, 80, 90] },
     d5: { nome: 'A cada 5 % (10 … 95 %)', niveis: [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95] }
   };
