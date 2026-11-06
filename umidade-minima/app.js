@@ -1,5 +1,6 @@
 /*
  * Umidade Mínima v0.1.1 (06/11/2026): seletor da quantidade de isolinhas (Nenhuma, Poucas, Padrão, a cada 10 %, a cada 5 %).
+ * v0.1.4 (06/11/2026): rótulos das isolinhas maiores (2,6 → 3,6 mm) e fora das divisas das mesorregiões.
  * v0.1.3 (06/11/2026): rótulos das isolinhas na direção da linha, com a linha interrompida embaixo do texto.
  * v0.1.2 (06/11/2026): opção de isolinhas renomeada para "Padrão (20, 25, 30, 40 … 90 %)".
  * Umidade Mínima v0.1 (06/11/2026) — UR mínima prevista (WRF 7 km, CPTEC/INPE), SIMGE/IGAM
@@ -162,7 +163,7 @@
   }
 
   /* ---------------- isolinhas (marching squares na grade suavizada) ---------------- */
-  const ROT_ISO = { tam: 2.6, folga: 0.7, cor: '#3a3a3a' };   // rótulo das isolinhas: letra (mm), folga de cada lado do texto (mm), cor
+  const ROT_ISO = { tam: 3.6, folga: 0.7, cor: '#3a3a3a' };   // rótulo das isolinhas: letra (mm), folga de cada lado do texto (mm), cor
   const MM_GRAU = 18.61;                                      // escala do mapa A4 (mm por grau), a mesma do layout-mapa.js
   // anda dist (graus) pela linha a partir do ponto k, para trás (-1) ou para frente (+1);
   // devolve o ponto do corte e o índice do ponto de baixo do trecho onde ele cai (null se a linha acaba antes)
@@ -228,18 +229,20 @@
         const cortes = [];
         if (ln.length >= 60) {
           const meio = Math.floor(ln.length / 2), cand = [meio];
-          for (let k = 220; meio - k >= 20 || meio + k < ln.length - 20; k += 220) { if (meio - k >= 20) cand.push(meio - k); if (meio + k < ln.length - 20) cand.push(meio + k); }
+          for (let k = 40; meio - k >= 20 || meio + k < ln.length - 20; k += 40) { if (meio - k >= 20) cand.push(meio - k); if (meio + k < ln.length - 20) cand.push(meio + k); }
+          const aceitos = [];
           for (const k of cand) {
+            if (aceitos.some(j => Math.abs(j - k) < 200)) continue;            // no máximo um rótulo a cada ~200 pontos da mesma linha
             const [lo, la] = ln[k];
             if (![[0, 0], [0.18, 0], [-0.18, 0], [0, 0.12], [0, -0.12]].every(([a, b]) => dentroMG(lo + a, la + b)) || usados.some(([a, b]) => Math.hypot(a - lo, b - la) < 0.8)
-                || cidades().some(c => Math.abs(c.lon - lo) < 0.5 && la > c.lat - 0.3 && la < c.lat + 0.1)) continue;   // não cobre o nome das cidades
+                || pertoDivisa(lo, la, 0.15) || cidades().some(c => Math.abs(c.lon - lo) < 0.55 && la > c.lat - 0.32 && la < c.lat + 0.2)) continue;   // não cobre o nome das cidades
             const meiaVao = (String(nv).length * 0.556 * ROT_ISO.tam / 2 + ROT_ISO.folga) / MM_GRAU;   // meia largura do texto + folga, em graus
             const ini = andar(ln, k, -1, meiaVao), fim = andar(ln, k, 1, meiaVao);
             if (!ini || !fim) continue;                                       // perto da ponta da linha: não cabe
             const p = ln[Math.max(0, k - 4)], q = ln[Math.min(ln.length - 1, k + 4)];
             let ang = Math.atan2(-(q[1] - p[1]), q[0] - p[0]) * 180 / Math.PI;   // no SVG o y cresce para baixo
             if (ang > 90) ang -= 180; else if (ang < -90) ang += 180;          // texto nunca de cabeça para baixo
-            usados.push([lo, la]); cortes.push({ ini, fim });
+            usados.push([lo, la]); aceitos.push(k); cortes.push({ ini, fim });
             rotulos.push({ lon: lo, lat: la, texto: String(nv), angulo: +ang.toFixed(1), tamanho: ROT_ISO.tam, cor: ROT_ISO.cor, halo: false });
           }
         }
@@ -270,6 +273,17 @@
     return ins;
   }
   const MESOS = () => (window.MESO_UR ? window.MESO_UR.features : []);
+  // true se o ponto está a menos de d graus de alguma divisa de mesorregião (o rótulo ficaria escondido pela linha preta)
+  function pertoDivisa(lon, lat, d) {
+    for (const f of MESOS()) for (const poly of (f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates)) for (const ring of poly) {
+      for (let i = 1; i < ring.length; i++) {
+        const [x1, y1] = ring[i - 1], [x2, y2] = ring[i], dx = x2 - x1, dy = y2 - y1, L = dx * dx + dy * dy;
+        const t = L ? Math.max(0, Math.min(1, ((lon - x1) * dx + (lat - y1) * dy) / L)) : 0;
+        if (Math.hypot(lon - x1 - t * dx, lat - y1 - t * dy) < d) return true;
+      }
+    }
+    return false;
+  }
   function dentroMG(lon, lat) { return MESOS().some(f => dentro(lon, lat, f.geometry)); }
   let MASCARAS = null;
   function mascaras() {
