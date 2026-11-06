@@ -1,5 +1,7 @@
 /*
- * Reservatórios e Tendência v0.15 — código da ferramenta (SIMGE/IGAM)
+ * Reservatórios e Tendência v0.16 — código da ferramenta (SIMGE/IGAM)
+ * v0.16 (06/11/2026): fonte "Dado bruto GFS (NOAA)" — lê reservatorios/gfs/<ciclo>/gfs.json (chuva em mm, grade 0,25°,
+ *   gerado pelo GitHub Actions com scripts/baixar_gfs.py). A fonte "Imagens do CPC" continua igual.
  * Usado por reservatorios/index.html (GitHub Pages) e pela casca Reservatorios.html do Apps Script (?f=reservatorios).
  * Os arquivos (PNG e CSV) usam link + .click(); a ponte-drive.js intercepta e abre a janela padrão
  * "Salvar material" (Salvar no Drive / Salvar no PC). v0.15: em relação à v0.14, só mudam este comentário e o aviso "Mapa gerado" (aponta para OPÇÕES DE SALVAMENTO).
@@ -31,6 +33,7 @@ function qgisClassFromIndex(idx){
 }
 const EXT={xmin:-52.52044426363767,xmax:-39.240511850852286,ymin:-23.317320677034964,ymax:-14.087572929732508};
 const WLD={A:0.11169889931820458,D:0,B:0,E:-0.11213255019229916,C:-113.55274379903207,F:16.09821410354972};
+const WLD_CPC=WLD;
 const BASE_W=1440, BASE_H=1010;
 const LOGO_CACHE={};
 function fmtDate(v){ if(!v) return ''; const [y,m,d]=v.split('-'); return `${d}/${m}/${y}`; }
@@ -58,8 +61,26 @@ function resolveCpcImageUrl(rawUrl){
  }catch(e){ return rawUrl; }
 }
 async function sourceFromUrl(url, previewId){ const resolved=resolveCpcImageUrl(url); const r=await fetch(resolved); if(!r.ok) throw Object.assign(new Error(`HTTP ${r.status}`),{resolvedUrl:resolved}); const blob=await r.blob(); const type=blob.type||''; if(type.includes('text/html')) throw Object.assign(new Error('A URL retornou uma página HTML, não uma imagem.'),{resolvedUrl:resolved}); const ext=type.includes('gif')?'.gif':(type.includes('png')?'.png':''); const file=new File([blob],`cpc${ext}`,{type:type||'application/octet-stream'}); const src=await sourceFromFile(file, previewId); src.resolvedUrl=resolved; src.originalUrl=url; return src; }
-function buildClassGrid(source){ const sourceImage=source.image; let classGrid,gridW,gridH,correctedCount=0,unknown=0; if(source.indices && source.indicesW===sourceImage.naturalWidth && source.indicesH===sourceImage.naturalHeight){ gridW=source.indicesW; gridH=source.indicesH; classGrid=new Uint8Array(gridW*gridH); const blacks=[]; for(let p=0;p<source.indices.length;p++){ const idx=source.indices[p]; const q=qgisClassFromIndex(idx); classGrid[p]=q; if(q===255) blacks.push(p); } for(const p of blacks){ const x=p%gridW,y=(p/gridW)|0; let found=-1; for(let rad=1;rad<=4&&found<0;rad++){ for(let yy=Math.max(0,y-rad);yy<=Math.min(gridH-1,y+rad)&&found<0;yy++) for(let xx=Math.max(0,x-rad);xx<=Math.min(gridW-1,x+rad);xx++){ const q=classGrid[yy*gridW+xx]; if(q!==255){ found=q; break; } } } classGrid[p]=found>=0?found:0; correctedCount++; } } else { gridW=sourceImage.naturalWidth; gridH=sourceImage.naturalHeight; classGrid=new Uint8Array(gridW*gridH); const cv=document.createElement('canvas'); cv.width=gridW; cv.height=gridH; const cc=cv.getContext('2d',{willReadFrequently:true}); cc.drawImage(sourceImage,0,0); const pix=cc.getImageData(0,0,gridW,gridH).data; for(let p=0,pi=0;p<classGrid.length;p++,pi+=4){ const r=pix[pi],g=pix[pi+1],b=pix[pi+2]; let idx=paletteIndexExact(r,g,b); if(idx<0){ idx=nearestKnownPaletteIndex(r,g,b); unknown++; } let q=qgisClassFromIndex(idx); classGrid[p]=q; if(q===255) correctedCount++; } for(let p=0;p<classGrid.length;p++) if(classGrid[p]===255){ const x=p%gridW,y=(p/gridW)|0; let found=-1; for(let rad=1;rad<=4&&found<0;rad++){ for(let yy=Math.max(0,y-rad);yy<=Math.min(gridH-1,y+rad)&&found<0;yy++) for(let xx=Math.max(0,x-rad);xx<=Math.min(gridW-1,x+rad);xx++){ const q=classGrid[yy*gridW+xx]; if(q!==255){ found=q; break; } } } classGrid[p]=found>=0?found:0; } } return {classGrid,gridW,gridH,correctedCount,unknown,sourceMode:source.mode,sourceImage}; }
-function sampleClass(proc,lon,lat){ const col=(lon-WLD.C)/WLD.A; const row=(lat-WLD.F)/WLD.E; const x=Math.round(col), y=Math.round(row); if(x<0||x>=proc.gridW||y<0||y>=proc.gridH) return 0; const v=proc.classGrid[y*proc.gridW+x]; return v<15?v:0; }
+/* ---- v0.16: dado bruto do GFS (mm) ---- */
+const GFS_LIMITES=[10,15,20,25,30,40,60,80,100,125,150,200,250,300];   // mesmas 15 faixas SIMGE da legenda
+function classeMm(v){ let c=0; while(c<GFS_LIMITES.length && v>=GFS_LIMITES[c]) c++; return c; }
+// interpolação bilinear na grade 0,25° (lat do norte para o sul, lon do oeste para o leste)
+function gfsValor(g,lon,lat){
+  const la=g.lat, lo=g.lon, d=0.25;
+  let fx=(lon-lo[0])/d, fy=(la[0]-lat)/d;
+  fx=Math.max(0,Math.min(lo.length-1.000001,fx)); fy=Math.max(0,Math.min(la.length-1.000001,fy));
+  const x=Math.floor(fx), y=Math.floor(fy), tx=fx-x, ty=fy-y, m=g.mm;
+  return (m[y][x]*(1-tx)+m[y][x+1]*tx)*(1-ty)+(m[y+1][x]*(1-tx)+m[y+1][x+1]*tx)*ty;
+}
+// grade de exibição de 0,05° (contornos mais suaves que o pixel do CPC, ~0,11°), com o valor interpolado em cada célula
+function procFromGfs(src){
+  const W={A:0.05,E:-0.05,C:-52.0,F:-13.5}, gridW=Math.round((-38.9-W.C)/W.A)+1, gridH=Math.round((W.F-(-24.0))/-W.E)+1;
+  const classGrid=new Uint8Array(gridW*gridH);
+  for(let y=0;y<gridH;y++) for(let x=0;x<gridW;x++) classGrid[y*gridW+x]=classeMm(gfsValor(src.gfs,W.C+W.A*x,W.F+W.E*y));
+  return {classGrid,gridW,gridH,correctedCount:0,wld:W,gfs:src.gfs,fonte:'gfs'};
+}
+function buildClassGrid(source){ if(source&&source.gfs) return procFromGfs(source); const sourceImage=source.image; let classGrid,gridW,gridH,correctedCount=0,unknown=0; if(source.indices && source.indicesW===sourceImage.naturalWidth && source.indicesH===sourceImage.naturalHeight){ gridW=source.indicesW; gridH=source.indicesH; classGrid=new Uint8Array(gridW*gridH); const blacks=[]; for(let p=0;p<source.indices.length;p++){ const idx=source.indices[p]; const q=qgisClassFromIndex(idx); classGrid[p]=q; if(q===255) blacks.push(p); } for(const p of blacks){ const x=p%gridW,y=(p/gridW)|0; let found=-1; for(let rad=1;rad<=4&&found<0;rad++){ for(let yy=Math.max(0,y-rad);yy<=Math.min(gridH-1,y+rad)&&found<0;yy++) for(let xx=Math.max(0,x-rad);xx<=Math.min(gridW-1,x+rad);xx++){ const q=classGrid[yy*gridW+xx]; if(q!==255){ found=q; break; } } } classGrid[p]=found>=0?found:0; correctedCount++; } } else { gridW=sourceImage.naturalWidth; gridH=sourceImage.naturalHeight; classGrid=new Uint8Array(gridW*gridH); const cv=document.createElement('canvas'); cv.width=gridW; cv.height=gridH; const cc=cv.getContext('2d',{willReadFrequently:true}); cc.drawImage(sourceImage,0,0); const pix=cc.getImageData(0,0,gridW,gridH).data; for(let p=0,pi=0;p<classGrid.length;p++,pi+=4){ const r=pix[pi],g=pix[pi+1],b=pix[pi+2]; let idx=paletteIndexExact(r,g,b); if(idx<0){ idx=nearestKnownPaletteIndex(r,g,b); unknown++; } let q=qgisClassFromIndex(idx); classGrid[p]=q; if(q===255) correctedCount++; } for(let p=0;p<classGrid.length;p++) if(classGrid[p]===255){ const x=p%gridW,y=(p/gridW)|0; let found=-1; for(let rad=1;rad<=4&&found<0;rad++){ for(let yy=Math.max(0,y-rad);yy<=Math.min(gridH-1,y+rad)&&found<0;yy++) for(let xx=Math.max(0,x-rad);xx<=Math.min(gridW-1,x+rad);xx++){ const q=classGrid[yy*gridW+xx]; if(q!==255){ found=q; break; } } } classGrid[p]=found>=0?found:0; } } return {classGrid,gridW,gridH,correctedCount,unknown,sourceMode:source.mode,sourceImage}; }
+function sampleClass(proc,lon,lat){ if(proc.gfs) return classeMm(gfsValor(proc.gfs,lon,lat)); const col=(lon-WLD.C)/WLD.A; const row=(lat-WLD.F)/WLD.E; const x=Math.round(col), y=Math.round(row); if(x<0||x>=proc.gridW||y<0||y>=proc.gridH) return 0; const v=proc.classGrid[y*proc.gridW+x]; return v<15?v:0; }
 function geoToPx(lon,lat){ const L=34,T=32,R=1406,B=978; return [L+(lon-EXT.xmin)/(EXT.xmax-EXT.xmin)*(R-L),T+(EXT.ymax-lat)/(EXT.ymax-EXT.ymin)*(B-T)]; }
 function pathGeometry(c,g){ function ring(coords){ coords.forEach((p,i)=>{ const [x,y]=geoToPx(p[0],p[1]); if(i===0)c.moveTo(x,y); else c.lineTo(x,y); }); c.closePath(); } if(g.type==='Polygon') g.coordinates.forEach(ring); else if(g.type==='MultiPolygon') g.coordinates.forEach(poly=>poly.forEach(ring)); }
 function drawTextStroke(c,text,x,y,font,align='left'){ c.font=font; c.textAlign=align; c.textBaseline='alphabetic'; c.lineWidth=4; c.strokeStyle='white'; c.strokeText(text,x,y); c.fillStyle='black'; c.fillText(text,x,y); }
@@ -81,6 +102,7 @@ function pixelClass(proc,x,y){ if(x<0||x>=proc.gridW||y<0||y>=proc.gridH) return
 // Cada pixel do CPC vira um retângulo em lon/lat (trechos seguidos da mesma faixa numa linha viram um só),
 // agrupados por faixa: é exatamente a leitura por pixel já usada nas tabelas.
 function classAreas(proc){
+  const WLD=proc.wld||WLD_CPC;   // v0.16: o GFS usa a própria grade (0,05°)
   const x0=Math.floor((-51.4-WLD.C)/WLD.A), x1=Math.ceil((-39.5-WLD.C)/WLD.A);
   const y0=Math.floor((-13.9-WLD.F)/WLD.E), y1=Math.ceil((-23.2-WLD.F)/WLD.E);
   const polys=CLASS_LABELS.map(()=>[]);
@@ -112,10 +134,11 @@ const POS_CIDADE_RES={'Belo Horizonte':'direita','Ipatinga':'direita','Carneirin
 const LADO_RES={SFV:'acima',SSA:'esquerda',CA:'esquerda'};
 function mapaOp(proc,cfg){
   const ano=(cfg.ano||String(new Date().getFullYear()));
+  const fonte=proc&&proc.fonte==='gfs'?'GFS/NCEP/NOAA':'CPC/NCEP/NOAA';
   return {
     titulo:cfg.titulo||'Total Previsto de Precipitação',
     textoValidade:cfg.subtitulo||'',
-    credito:'Fonte de dados: CPC/NCEP/NOAA - SIMGE/IGAM, '+ano,
+    credito:'Fonte de dados: '+fonte+' - SIMGE/IGAM, '+ano,
     fundo:'',
     areas:classAreas(proc),
     legenda:CLASS_LABELS.map((l,i)=>({fill:hexRgb(CLASS_COLORS[i]),label:l+' mm'})),
@@ -124,7 +147,7 @@ function mapaOp(proc,cfg){
   };
 }
 async function renderProcessedMap(el, proc, cfg){
-  const rows=RESERVOIRS.map(([name,sig,lon,lat])=>[name,sig,CLASS_LABELS[sampleClass(proc,lon,lat)]]);
+  const rows=RESERVOIRS.map(([name,sig,lon,lat])=>proc.gfs?[name,sig,CLASS_LABELS[sampleClass(proc,lon,lat)],gfsValor(proc.gfs,lon,lat).toFixed(1).replace('.',',')]:[name,sig,CLASS_LABELS[sampleClass(proc,lon,lat)]]);
   if(!window.LayoutMapa){ el.innerHTML='<div class="small" style="padding:12px;line-height:1.4">Não foi possível carregar o layout do mapa (previsao/data/geo.js e assets/layout-mapa.js). Recarregue a página.</div>'; MAP_OPS[el.id]=null; return (cfg.showReservoirs||cfg.collectReservoirRows)?rows:[]; }
   const op=mapaOp(proc,cfg); MAP_OPS[el.id]=op;
   const texto=LayoutMapa.svg(op);
@@ -148,9 +171,9 @@ function tabInit(){ document.querySelectorAll('.tab').forEach(btn=>btn.addEventL
 function nomeArq(prefixo, cicloId, iniId, fimId, ext){ const v=id=>(document.getElementById(id)?.value||'sem_data'); return `${prefixo}_${cycleTag(cicloId).toUpperCase()}_${v(iniId)}_${v(fimId)}.${ext}`; }
 function cycleTag(selId){ return (document.getElementById(selId)?.value || '00Z').toLowerCase(); }
 
-const APP={reserv:{source:null,proc:null,rows:[]}, weekly:{w1:null,w2:null,p1:null,p2:null,proc1:null,proc2:null}, accum:{a24:null,a72:null,a120:null,p24:null,p72:null,p120:null}};
+const APP={cmp:null, reserv:{source:null,proc:null,rows:[]}, weekly:{w1:null,w2:null,p1:null,p2:null,proc1:null,proc2:null}, accum:{a24:null,a72:null,a120:null,p24:null,p72:null,p120:null}};
 async function handleFileInput(inputId, sectionKey, field, previewId, statusId){ const file=document.getElementById(inputId).files[0]; if(!file) return; try{ const src=await sourceFromFile(file, previewId); APP[sectionKey][field]=src; setStatus(statusId,`Arquivo <strong>${src.fileName}</strong> carregado por <strong>${src.mode}</strong>.`); }catch(err){ setStatus(statusId,`Erro ao carregar arquivo: ${err.message}`); } }
-async function generateReserv(){ if(!APP.reserv.source){ setStatus('resStatus','Selecione a imagem do CPC.'); return; } APP.reserv.proc=buildClassGrid(APP.reserv.source); document.getElementById('resGridKpi').textContent=`${APP.reserv.proc.correctedCount.toLocaleString('pt-BR')} px corrigidos`; document.getElementById('resInputKpi').textContent=`GFS Week 1 · ${document.getElementById('resCycle').value}`; const ds=fmtDate(document.getElementById('resStart').value), de=fmtDate(document.getElementById('resEnd').value); document.getElementById('resPeriodKpi').textContent=`${ds} a ${de}`; APP.reserv.rows=await renderProcessedMap(document.getElementById('resCanvas'), APP.reserv.proc, {titulo:'Total Previsto de Precipitação - '+periodoMapa('resStart','resEnd'), subtitulo:`Modelo GFS · ciclo ${document.getElementById('resCycle').value}`, ano:anoDe('resStart'), showCities:document.getElementById('resShowCities').checked, showReservoirs:document.getElementById('resShowReserv').checked, collectReservoirRows:true}); document.getElementById('resTableBody').innerHTML=APP.reserv.rows.map(r=>`<tr><td>${r[0]}</td><td><strong>${r[1]}</strong></td><td>${r[2]}</td></tr>`).join(''); document.getElementById('resPng').disabled=false; document.getElementById('resCsv').disabled=false; setStatus('resStatus','<strong>Mapa gerado.</strong> Confira a prévia e use o botão OPÇÕES DE SALVAMENTO (canto superior direito).'); }
+async function generateReserv(){ if(!APP.reserv.source){ setStatus('resStatus','Selecione a imagem do CPC.'); return; } APP.reserv.proc=buildClassGrid(APP.reserv.source); document.getElementById('resGridKpi').textContent=`${APP.reserv.proc.correctedCount.toLocaleString('pt-BR')} px corrigidos`; document.getElementById('resInputKpi').textContent=`GFS Week 1 · ${document.getElementById('resCycle').value}`; const ds=fmtDate(document.getElementById('resStart').value), de=fmtDate(document.getElementById('resEnd').value); document.getElementById('resPeriodKpi').textContent=`${ds} a ${de}`; APP.reserv.rows=await renderProcessedMap(document.getElementById('resCanvas'), APP.reserv.proc, {titulo:'Total Previsto de Precipitação - '+periodoMapa('resStart','resEnd'), subtitulo:`Modelo GFS · ciclo ${document.getElementById('resCycle').value}`, ano:anoDe('resStart'), showCities:document.getElementById('resShowCities').checked, showReservoirs:document.getElementById('resShowReserv').checked, collectReservoirRows:true}); cabecalhoTabelaRes(APP.reserv.proc); const cmp=APP.cmp&&APP.cmp.proc; document.getElementById('resTableBody').innerHTML=APP.reserv.rows.map((r,i)=>`<tr><td>${r[0]}</td><td><strong>${r[1]}</strong></td><td>${r[2]}</td>${r.length>3?`<td>${r[3]}</td>`:''}${APP.reserv.proc.gfs&&cmp?`<td class="cmpCpc">${CLASS_LABELS[sampleClass(cmp,RESERVOIRS[i][2],RESERVOIRS[i][3])]}</td>`:''}</tr>`).join(''); document.getElementById('resPng').disabled=false; document.getElementById('resCsv').disabled=false; setStatus('resStatus','<strong>Mapa gerado.</strong> Confira a prévia e use o botão OPÇÕES DE SALVAMENTO (canto superior direito).'); }
 
 function pointInRing(lon,lat,ring){ let inside=false; for(let i=0,j=ring.length-1;i<ring.length;j=i++){ const xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1]; const hit=((yi>lat)!=(yj>lat)) && (lon < (xj-xi)*(lat-yi)/((yj-yi)||1e-12)+xi); if(hit) inside=!inside; } return inside; }
 function pointInGeom(lon,lat,g){
@@ -183,8 +206,14 @@ async function generateWeekly(){ if(!APP.weekly.w1 || !APP.weekly.w2){ setStatus
 async function generateAccum(){ const cfgs=[['a24','24 h'],['a72','3 dias'],['a120','5 dias']]; let any=false; for(const [field,label] of cfgs){ const src=APP.accum[field]; if(!src) continue; any=true; const proc=buildClassGrid(src); APP.accum['p'+field.slice(1)] = proc; const ds=fmtDate(document.getElementById(field+'Start').value), de=fmtDate(document.getElementById(field+'End').value); await renderProcessedMap(document.getElementById(field+'Canvas'), proc, {titulo:`Total Previsto de Precipitação em ${label}`+((ds&&de)?' - '+periodoMapa(field+'Start',field+'End'):''), subtitulo:`Modelo GFS · ciclo ${document.getElementById('accCycle').value}`, ano:anoDe(field+'Start'), showCities:true, showReservoirs:false, collectReservoirRows:false}); document.getElementById(field+'Png').disabled=false; } if(!any){ setStatus('accStatus','Carregue pelo menos uma imagem do CPC (24h, 3 dias ou 5 dias).'); return; } setStatus('accStatus','<strong>Mapas gerados.</strong> Esta base já fica pronta para o geoprocessamento ajustar depois os detalhes finais dos produtos diários.'); }
 ['resFile'].forEach(id=>document.getElementById(id).addEventListener('change',()=>handleFileInput(id,'reserv','source','resPreview','resStatus')));
 document.getElementById('resGenerate').addEventListener('click',generateReserv);
-document.getElementById('resPng').addEventListener('click',()=>downloadCanvas('resCanvas',nomeArq('Reservatorios_CPC','resCycle','resStart','resEnd','png')));
-document.getElementById('resCsv').addEventListener('click',()=>downloadCsvRows([['Reservatórios','Abreviação','Precipitação (mm)'],...APP.reserv.rows],nomeArq('Tabela_Reservatorios_CPC','resCycle','resStart','resEnd','csv')));
+// v0.16: cabeçalho da tabela conforme a fonte (o HTML da página não muda)
+function cabecalhoTabelaRes(proc){
+  const tr=document.getElementById('resTableBody')?.closest('table')?.querySelector('thead tr'); if(!tr) return;
+  const cols=['Reservatório','Sigla','Precipitação (mm)'].concat(proc&&proc.gfs?['GFS (mm)']:[]).concat(proc&&proc.gfs&&APP.cmp&&APP.cmp.proc?['Imagem CPC (comparação)']:[]);
+  tr.innerHTML=cols.map(c=>`<th>${c}</th>`).join('');
+}
+document.getElementById('resPng').addEventListener('click',()=>downloadCanvas('resCanvas',nomeArq(APP.reserv.proc&&APP.reserv.proc.gfs?'Reservatorios_GFS':'Reservatorios_CPC','resCycle','resStart','resEnd','png')));
+document.getElementById('resCsv').addEventListener('click',()=>downloadCsvRows([['Reservatórios','Abreviação','Precipitação (mm)'].concat(APP.reserv.rows[0]&&APP.reserv.rows[0].length>3?['Valor GFS (mm)']:[]),...APP.reserv.rows],nomeArq(APP.reserv.proc&&APP.reserv.proc.gfs?'Tabela_Reservatorios_GFS':'Tabela_Reservatorios_CPC','resCycle','resStart','resEnd','csv')));
 document.getElementById('resStart').addEventListener('change',()=>document.getElementById('resPeriodKpi').textContent=`${fmtDate(document.getElementById('resStart').value)} a ${fmtDate(document.getElementById('resEnd').value)}`);
 document.getElementById('resEnd').addEventListener('change',()=>document.getElementById('resPeriodKpi').textContent=`${fmtDate(document.getElementById('resStart').value)} a ${fmtDate(document.getElementById('resEnd').value)}`);
 document.getElementById('resCycle').addEventListener('change',()=>{ document.getElementById('resInputKpi').textContent=`GFS Week 1 · ${document.getElementById('resCycle').value}`; });
@@ -194,9 +223,9 @@ document.getElementById('wk1Png').addEventListener('click',()=>downloadCanvas('w
 document.getElementById('wk2Png').addEventListener('click',()=>downloadCanvas('wk2Canvas',nomeArq('Tendencia_Week2','wkCycle','wk2Start','wk2End','png')));
 ['a24File','a72File','a120File'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{ const map={a24File:['accum','a24','a24Preview'],a72File:['accum','a72','a72Preview'],a120File:['accum','a120','a120Preview']}[id]; handleFileInput(id,map[0],map[1],map[2],'accStatus'); }));
 document.getElementById('accGenerate').addEventListener('click',generateAccum);
-document.getElementById('a24Png').addEventListener('click',()=>downloadCanvas('a24Canvas',nomeArq('CPC_24h','accCycle','a24Start','a24End','png')));
-document.getElementById('a72Png').addEventListener('click',()=>downloadCanvas('a72Canvas',nomeArq('CPC_3dias','accCycle','a72Start','a72End','png')));
-document.getElementById('a120Png').addEventListener('click',()=>downloadCanvas('a120Canvas',nomeArq('CPC_5dias','accCycle','a120Start','a120End','png')));
+document.getElementById('a24Png').addEventListener('click',()=>downloadCanvas('a24Canvas',nomeArq(APP.accum.p24&&APP.accum.p24.gfs?'GFS_24h':'CPC_24h','accCycle','a24Start','a24End','png')));
+document.getElementById('a72Png').addEventListener('click',()=>downloadCanvas('a72Canvas',nomeArq(APP.accum.p72&&APP.accum.p72.gfs?'GFS_3dias':'CPC_3dias','accCycle','a72Start','a72End','png')));
+document.getElementById('a120Png').addEventListener('click',()=>downloadCanvas('a120Canvas',nomeArq(APP.accum.p120&&APP.accum.p120.gfs?'GFS_5dias':'CPC_5dias','accCycle','a120Start','a120End','png')));
 
 const CPC_DIR=(window.BASE_DADOS||'../')+'reservatorios/cpc/';  // funciona no GitHub Pages (BASE '../') e no Apps Script (BASE absoluta)
 const CPC_ITENS=[['week1','reserv','source','resPreview'],['week1','weekly','w1','wk1Preview'],['week2','weekly','w2','wk2Preview'],['prob100_week1','weekly','p1','prob1Preview'],['prob100_week2','weekly','p2','prob2Preview'],['24h','accum','a24','a24Preview'],['day3','accum','a72','a72Preview'],['day5','accum','a120','a120Preview']];
@@ -211,8 +240,60 @@ function preencherDatas(dataCiclo){
   document.getElementById('resPeriodKpi').textContent=`${fmtDate(document.getElementById('resStart').value)} a ${fmtDate(document.getElementById('resEnd').value)}`;
 }
 function fmtDataHora(iso){ if(!iso) return '—'; const d=new Date(iso); if(isNaN(d)) return '—'; return d.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+/* ---- v0.16: fonte dos dados (GFS bruto x imagens do CPC) ---- */
+const GFS_DIR=(window.BASE_DADOS||'../')+'reservatorios/gfs/';
+const GFS_ITENS=[['week1','reserv','source','resPreview'],['week1','weekly','w1','wk1Preview'],['week2','weekly','w2','wk2Preview'],['24h','accum','a24','a24Preview'],['day3','accum','a72','a72Preview'],['day5','accum','a120','a120Preview']];
+function fonteDados(){ const el=document.getElementById('fonteDados'); return el?el.value:'cpc'; }
+function montarSeletorFonte(){
+  const ctl=document.querySelector('.cpcCtl'); if(!ctl||document.getElementById('fonteDados')) return;
+  const lab=document.createElement('label'); lab.htmlFor='fonteDados'; lab.style.margin='0'; lab.textContent='Fonte';
+  const sel=document.createElement('select'); sel.id='fonteDados';
+  sel.innerHTML='<option value="gfs">Dado bruto GFS (NOAA)</option><option value="cpc">Imagens do CPC</option>';
+  let salvo='cpc'; try{ salvo=localStorage.getItem('reservFonte')||'cpc'; }catch(e){}
+  sel.value=salvo==='gfs'?'gfs':'cpc';
+  sel.addEventListener('change',()=>{ try{ localStorage.setItem('reservFonte',sel.value); }catch(e){} textoFonte(); });
+  ctl.insertBefore(sel,ctl.firstChild); ctl.insertBefore(lab,sel);
+  textoFonte();
+}
+function textoFonte(){
+  const g=fonteDados()==='gfs', b=document.getElementById('cpcLoad'), h=document.querySelector('.cpcRow h2');
+  if(b) b.textContent=g?'Buscar dados do GFS':'Buscar imagens do CPC';
+  if(h) h.textContent=g?'Dados do GFS (NOAA)':'Imagens do CPC';
+  const t=document.getElementById('resPreview')?.previousElementSibling; if(t&&t.classList.contains('prevTitle')) t.textContent=g?'Dado bruto GFS (0,25°)':'Imagem CPC original';
+}
+// confere o JSON antes de usar: estrutura, tamanhos, números finitos e limites físicos
+function validarGfs(j){
+  const ok=v=>typeof v==='number'&&isFinite(v);
+  if(!j||j.versao!==1||!j.grade||!Array.isArray(j.grade.lat)||!Array.isArray(j.grade.lon)) throw new Error('arquivo do GFS em formato inesperado');
+  const la=j.grade.lat, lo=j.grade.lon;
+  if(la.length<20||lo.length<20||la.length>200||lo.length>200||!la.every(ok)||!lo.every(ok)) throw new Error('grade do GFS inválida');
+  if(lo[0]>-51.6||lo[lo.length-1]<-39.4||la[0]<-14.0||la[la.length-1]>-23.4) throw new Error('a grade do GFS não cobre Minas Gerais');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(j.data_ciclo||'')||!/^(00|06)$/.test(j.ciclo||'')||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/.test(j.rodada_utc||'')) throw new Error('data ou ciclo do GFS inválidos');
+  if(!Array.isArray(j.arquivos)) throw new Error('lista de arquivos do GFS ausente');
+  for(const k of ['24h','day3','day5','week1','week2']){
+    const m=j.produtos&&j.produtos[k]&&j.produtos[k].mm;
+    if(!Array.isArray(m)||m.length!==la.length||!m.every(l=>Array.isArray(l)&&l.length===lo.length&&l.every(v=>ok(v)&&v>=0&&v<=3000))) throw new Error(`produto ${k} do GFS inválido`);
+  }
+  return j;
+}
+// prévia do dado bruto: cada célula de 0,25° pintada com a cor da faixa SIMGE + contorno das mesorregiões
+function previaGfs(g){
+  const k=6, W=g.lon.length*k, H=g.lat.length*k, cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const c=cv.getContext('2d');
+  for(let y=0;y<g.lat.length;y++) for(let x=0;x<g.lon.length;x++){ c.fillStyle=hexRgb(CLASS_COLORS[classeMm(g.mm[y][x])]); c.fillRect(x*k,y*k,k,k); }
+  const px=(lon,lat)=>[(lon-g.lon[0]+0.125)/0.25*k,(g.lat[0]-lat+0.125)/0.25*k];
+  c.strokeStyle='#333'; c.lineWidth=1;
+  for(const f of MESO.features){ c.beginPath(); const rings=f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates; rings.forEach(poly=>poly.forEach(ring=>ring.forEach((p,i)=>{ const [a,b]=px(p[0],p[1]); if(i===0)c.moveTo(a,b); else c.lineTo(a,b); }))); c.stroke(); }
+  return cv.toDataURL('image/png');
+}
+async function carregarGfs(c){
+  const r=await fetch(`${GFS_DIR}${c}/gfs.json?t=${Date.now()}`,{cache:'no-store'});
+  if(!r.ok) throw new Error(`ainda não há dados do GFS para o ciclo ${c}Z`);
+  return validarGfs(await r.json());
+}
 async function loadCpc(){
   const c=document.getElementById('cpcCycle').value, btn=document.getElementById('cpcLoad');
+  if(fonteDados()==='gfs') return loadGfs(c, btn);
   btn.disabled=true; setStatus('cpcStatus',`Buscando as imagens do ciclo <strong>${c}Z</strong>…`);
   try{
     const r=await fetch(`${CPC_DIR}${c}/manifest.json`,{cache:'no-store'});
@@ -271,6 +352,56 @@ async function versaoCpc(){
   }).join('')+'<div style="color:var(--muted)">A busca automática roda a cada 2 h (minuto 17 das horas ímpares, horário de Brasília).</div>';
 }
 versaoCpc();
+// v0.16: GFS — carrega o JSON do ciclo, usa nos mapas e tabelas; as imagens do CPC entram só como apoio
+// (probabilidade >100 mm do GEFS e coluna de comparação na tabela dos reservatórios)
+async function loadGfs(c, btn){
+  btn.disabled=true; setStatus('cpcStatus',`Buscando os dados do GFS do ciclo <strong>${c}Z</strong>…`);
+  try{
+    const j=await carregarGfs(c);
+    const g={lat:j.grade.lat, lon:j.grade.lon};
+    const previas={};
+    for(const [key,sec,field,prev] of GFS_ITENS){
+      const gk={...g, mm:j.produtos[key].mm};
+      APP[sec][field]={gfs:gk, fileName:`GFS ${c}Z ${j.data_ciclo} ${key}`, mode:'dado bruto do GFS'};
+      if(!previas[key]) previas[key]=previaGfs(gk);
+      const im=document.getElementById(prev); if(im) im.src=previas[key];
+    }
+    // apoio: imagens do CPC (GEFS > 100 mm e comparação da Week 1); se faltar, segue só com o GFS
+    APP.cmp=null; let apoio='';
+    try{
+      const rm=await fetch(`${CPC_DIR}${c}/manifest.json`,{cache:'no-store'}); if(!rm.ok) throw 0;
+      const man=await rm.json();
+      for(const [key,field,prev] of [['prob100_week1','p1','prob1Preview'],['prob100_week2','p2','prob2Preview']]){
+        const it=(man.produtos||{})[key]; if(!it||!it.arquivo) continue;
+        const rr=await fetch(`${CPC_DIR}${c}/${it.arquivo}?v=${(it.sha256||'').slice(0,12)}`); if(!rr.ok) continue;
+        APP.weekly[field]=await sourceFromFile(new File([await rr.blob()],`CPC_${c}Z_${it.arquivo}`,{type:'image/gif'}),prev);
+      }
+      const w=(man.produtos||{}).week1, dataCpc=w&&(w.atualizado_no_cpc||'').slice(0,10);
+      // só compara com a imagem do CPC da MESMA rodada (o CPC publica algumas horas depois do NOMADS)
+      if(w&&w.arquivo&&dataCpc===j.data_ciclo){
+        const rr=await fetch(`${CPC_DIR}${c}/${w.arquivo}?v=${(w.sha256||'').slice(0,12)}`);
+        if(rr.ok){ const src=await sourceFromFile(new File([await rr.blob()],`CPC_${c}Z_${w.arquivo}`,{type:'image/gif'}),null); APP.cmp={proc:buildClassGrid(src), data:(w.atualizado_no_cpc||'').slice(0,10)}; }
+      }
+      const p1=(man.produtos||{}).prob100_week1, dp=p1&&(p1.atualizado_no_cpc||'').slice(0,10);
+      apoio=`<li>Probabilidade &gt;100 mm (GEFS): imagens do CPC${dp?` de ${fmtDate(dp)}`:''}${dp&&dp!==j.data_ciclo?' <span class="warn">(rodada anterior; o CPC ainda não publicou a deste ciclo)</span>':''}.</li>`+
+        (APP.cmp?`<li>Coluna de comparação na tabela: imagem Week 1 do CPC da mesma rodada.</li>`:`<li>Comparação com a imagem do CPC omitida: a imagem disponível${dataCpc?` é de ${fmtDate(dataCpc)}`:' não tem data'}, outra rodada.</li>`);
+    }catch(e){ apoio='<li><span class="warn">Imagens do CPC indisponíveis:</span> sem a probabilidade &gt;100 mm e sem a comparação.</li>'; }
+    preencherDatas(j.data_ciclo);
+    ['resCycle','wkCycle','accCycle'].forEach(id=>document.getElementById(id).value=`${c}Z`);
+    await generateReserv(); await generateWeekly(); await generateAccum();
+    document.getElementById('resInputKpi').textContent=`GFS bruto Week 1 · ${c}Z`;
+    document.getElementById('resGridKpi').textContent='grade 0,25° (sem correção)';
+    const idadeH=(Date.now()-new Date(j.rodada_utc.replace('Z',':00Z')).getTime())/3600000;
+    const mx=k=>Math.max(...j.produtos[k].mm.map(l=>Math.max(...l))).toFixed(1).replace('.',',');
+    setStatus('cpcStatus',`<strong>Dados do GFS do ciclo ${c}Z de ${fmtDate(j.data_ciclo)} carregados e mapas gerados.</strong> As datas dos períodos foram preenchidas a partir da data do ciclo; confira em cada aba antes de exportar.<ul class="cpcList">`+
+      `<li><strong>Origem:</strong> NOAA/NCEP, modelo GFS 0,25° (NOMADS), chuva acumulada em mm · ${j.arquivos.length} arquivos conferidos (sha256)</li>`+
+      `<li><strong>Rodada:</strong> ${fmtDate(j.data_ciclo)} ${c}Z (= ${fmtDataHora(j.rodada_utc.replace('Z',':00Z'))} em Brasília) · baixada e processada em ${fmtDataHora(j.baixado_em)}${idadeH>36?' <span class="warn">· atenção: rodada com mais de 36 h</span>':''}</li>`+
+      `<li><strong>Máximos no recorte (MG e arredores):</strong> 24 h ${mx('24h')} mm · 3 dias ${mx('day3')} mm · 5 dias ${mx('day5')} mm · Week 1 ${mx('week1')} mm · Week 2 ${mx('week2')} mm</li>`+apoio+`</ul>`);
+  }catch(err){
+    setStatus('cpcStatus',`<span class="warn">Não foi possível carregar os dados do GFS:</span> ${String(err.message||err).replace(/[<>&]/g,'')}. Troque a fonte para "Imagens do CPC" ou use o upload manual em cada aba.`);
+  }finally{ btn.disabled=false; }
+}
+montarSeletorFonte();
 
 tabInit();
 document.getElementById('resPeriodKpi').textContent=`${fmtDate(document.getElementById('resStart').value)} a ${fmtDate(document.getElementById('resEnd').value)}`;

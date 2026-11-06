@@ -28,6 +28,7 @@ Cuidados
     está (a página mostra a idade do dado). Só reescreve quando há ciclo novo.
 
 Uso: python3 -I scripts/baixar_gfs.py reservatorios/gfs
+     (REPROCESSAR=1 refaz a rodada mais recente mesmo que já exista)
 """
 import hashlib
 import json
@@ -260,6 +261,7 @@ def processar(data, ciclo, destino):
         "grade": {"resolucao_graus": 0.25, "lat": la, "lon": lo},
         "produtos": produtos,
         "arquivos": sorted(arquivos, key=lambda x: x["h"]),
+        "intervalos_h": sorted([list(k) for k in intervalos]),   # acumulados encontrados nos arquivos (transparência)
     }
     pasta = os.path.join(destino, ciclo)
     os.makedirs(pasta, exist_ok=True)
@@ -268,6 +270,7 @@ def processar(data, ciclo, destino):
     with open(tmpf, "w", encoding="utf-8") as f:
         json.dump(saida, f, ensure_ascii=False, separators=(",", ":"))
     os.replace(tmpf, final)   # troca de uma vez: a página nunca vê um arquivo pela metade
+    log(f"  intervalos de chuva nos arquivos: {len(intervalos)} (ex.: {sorted(intervalos)[:4]} … {sorted(intervalos)[-2:]})")
     log(f"  gravado {final} ({os.path.getsize(final)/1024:.0f} KB); máximos: " +
         ", ".join(f"{k} {v['max_mm']} mm" for k, v in produtos.items()))
 
@@ -288,7 +291,7 @@ def main():
     agora = datetime.now(timezone.utc)
     erros = 0
     for ciclo in CICLOS:
-        atual = data_atual(destino, ciclo)
+        atual = None if os.environ.get("REPROCESSAR") == "1" else data_atual(destino, ciclo)
         for d in (agora.date(), agora.date() - timedelta(days=1)):
             if atual and atual >= f"{d:%Y-%m-%d}":
                 log(f"{ciclo}Z: já temos a rodada de {atual}.")

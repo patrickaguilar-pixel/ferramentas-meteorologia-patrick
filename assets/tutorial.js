@@ -120,7 +120,8 @@
     ],
     'reservatorios': [
       { s: '#cpcCycle', t: 'Ciclo', d: '00Z (≈3h) ou 06Z (≈9h).' },
-      { s: '#cpcLoad', t: 'Buscar imagens do CPC', d: 'Gera todos os mapas e preenche as datas.' },
+      { s: '#fonteDados', t: 'Fonte dos dados', d: 'Dado bruto GFS (chuva em mm, NOAA) ou Imagens do CPC. A escolha fica guardada neste navegador.' },
+      { s: '#cpcLoad', t: 'Buscar dados', d: 'Busca o ciclo escolhido, gera todos os mapas e preenche as datas.' },
       { s: '.tabs', t: 'Abas', d: 'Reservatórios, Tendência (Week 1 e 2) e Acumulados.' },
       { s: '#resStart', t: 'Período', d: 'Mude só se precisar e clique em Gerar mapa.' },
       { s: '#resGenerate', t: 'Gerar mapa', d: 'Só depois de mudar a data.' },
