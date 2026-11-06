@@ -125,14 +125,16 @@ def executar(args):
 
 def ler_grib(caminho):
     """Lista de mensagens: (inicio_h, fim_h, lats, lons, valores) via ecCodes."""
-    chaves = "count,shortName,stepType,stepUnits,startStep,endStep,Ni,Nj"
+    chaves = "count,discipline,parameterCategory,parameterNumber,typeOfStatisticalProcessing,stepUnits,startStep,endStep,Ni,Nj"
     info = json.loads(executar(["grib_ls", "-j", "-p", chaves, caminho]))
     msgs = info.get("messages", []) if isinstance(info, dict) else info
     saida = []
     for m in msgs:
         if isinstance(m, list):   # formatos antigos do grib_ls -j
             m = {d["key"]: d["value"] for d in m}
-        if m.get("shortName") != "tp" or m.get("stepType") != "accum":   # tp = APCP (chuva total acumulada)
+        # APCP na tabela oficial da OMM (GRIB2): disciplina 0, categoria 1, parâmetro 8; processamento 1 = acumulado
+        if (str(m.get("discipline")), str(m.get("parameterCategory")), str(m.get("parameterNumber")),
+                str(m.get("typeOfStatisticalProcessing"))) != ("0", "1", "8", "1"):
             continue
         ini, fim = int(m["startStep"]), int(m["endStep"])
         if str(m.get("stepUnits", "h")) not in ("h", "1"):
