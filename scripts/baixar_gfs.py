@@ -127,12 +127,12 @@ def ler_grib(caminho):
     """Lista de mensagens: (inicio_h, fim_h, lats, lons, valores) via ecCodes."""
     chaves = "count,shortName,stepType,stepUnits,startStep,endStep,Ni,Nj"
     info = json.loads(executar(["grib_ls", "-j", "-p", chaves, caminho]))
-    msgs = info.get("messages", info if isinstance(info, list) else [])
+    msgs = info.get("messages", []) if isinstance(info, dict) else info
     saida = []
     for m in msgs:
         if isinstance(m, list):   # formatos antigos do grib_ls -j
             m = {d["key"]: d["value"] for d in m}
-        if m.get("shortName") not in ("tp", "apcp", "unknown") or m.get("stepType") != "accum":
+        if m.get("shortName") != "tp" or m.get("stepType") != "accum":   # tp = APCP (chuva total acumulada)
             continue
         ini, fim = int(m["startStep"]), int(m["endStep"])
         if str(m.get("stepUnits", "h")) not in ("h", "1"):
