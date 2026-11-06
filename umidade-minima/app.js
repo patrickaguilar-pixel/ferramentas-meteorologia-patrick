@@ -1,5 +1,6 @@
 /*
  * Umidade Mínima v0.1.1 (06/11/2026): seletor da quantidade de isolinhas (Nenhuma, Poucas, Padrão, a cada 10 %, a cada 5 %).
+ * v0.1.5 (06/11/2026): rótulos das isolinhas um pouco mais suaves (opacidade 0,7).
  * v0.1.4 (06/11/2026): rótulos das isolinhas maiores (2,6 → 3,6 mm) e fora das divisas das mesorregiões.
  * v0.1.3 (06/11/2026): rótulos das isolinhas na direção da linha, com a linha interrompida embaixo do texto.
  * v0.1.2 (06/11/2026): opção de isolinhas renomeada para "Padrão (20, 25, 30, 40 … 90 %)".
@@ -163,7 +164,7 @@
   }
 
   /* ---------------- isolinhas (marching squares na grade suavizada) ---------------- */
-  const ROT_ISO = { tam: 3.6, folga: 0.7, cor: '#3a3a3a' };   // rótulo das isolinhas: letra (mm), folga de cada lado do texto (mm), cor
+  const ROT_ISO = { tam: 3.6, folga: 0.7, cor: '#3a3a3a', opacidade: 0.7 };   // rótulo das isolinhas: letra (mm), folga de cada lado do texto (mm), cor, opacidade
   const MM_GRAU = 18.61;                                      // escala do mapa A4 (mm por grau), a mesma do layout-mapa.js
   // anda dist (graus) pela linha a partir do ponto k, para trás (-1) ou para frente (+1);
   // devolve o ponto do corte e o índice do ponto de baixo do trecho onde ele cai (null se a linha acaba antes)
@@ -243,7 +244,7 @@
             let ang = Math.atan2(-(q[1] - p[1]), q[0] - p[0]) * 180 / Math.PI;   // no SVG o y cresce para baixo
             if (ang > 90) ang -= 180; else if (ang < -90) ang += 180;          // texto nunca de cabeça para baixo
             usados.push([lo, la]); aceitos.push(k); cortes.push({ ini, fim });
-            rotulos.push({ lon: lo, lat: la, texto: String(nv), angulo: +ang.toFixed(1), tamanho: ROT_ISO.tam, cor: ROT_ISO.cor, halo: false });
+            rotulos.push({ lon: lo, lat: la, texto: String(nv), angulo: +ang.toFixed(1), tamanho: ROT_ISO.tam, cor: ROT_ISO.cor, opacidade: ROT_ISO.opacidade, halo: false });
           }
         }
         // corta a linha nos vãos dos rótulos

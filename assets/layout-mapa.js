@@ -19,7 +19,7 @@
  *          (cada cidade pode ter posicao:'acima'|'direita'; sem ela, o nome fica abaixo, como na Previsão)
  *          pontos:[{lon, lat, rotulo, cor, lado:'esquerda'|'acima'}] (opcional: ponto com rótulo ao lado, ex.: reservatórios),
  *          textoValidade:'texto livre no lugar da validade' (opcional),
- *          isolinhas:[{linhas:[[[lon,lat],…]], stroke, width, opacity}], rotulosIso:[{lon, lat, texto, tamanho, cor, angulo (graus, opcional), halo (false = sem contorno branco)}] (opcional; Umidade Mínima) }
+ *          isolinhas:[{linhas:[[[lon,lat],…]], stroke, width, opacity}], rotulosIso:[{lon, lat, texto, tamanho, cor, angulo (graus, opcional), halo (false = sem contorno branco), opacidade}] (opcional; Umidade Mínima) }
  *   Sem op.fundo, vale a escolha do seletor "Mapa de fundo" que este arquivo coloca ao lado do botão
  *   "Prévia do mapa" (lembrada neste navegador).
  */
@@ -361,7 +361,7 @@
     });
     (op.rotulosIso || []).forEach(function (r) {
       var p = proj(r.lon, r.lat), rs = r.tamanho || 2.6, rx = f2(p[0] - MAP.x), ry = p[1] - MAP.y;
-      o.push('<text x="' + rx + '" y="' + f2(ry + (ASC - DESC) / 2 * rs) + '"' + (r.angulo ? ' transform="rotate(' + r.angulo + ' ' + rx + ' ' + f2(ry) + ')"' : '') + ' font-family="' + FONT + '" font-size="' + rs + '" fill="' + (r.cor || '#4d4d4d') + '" text-anchor="middle"' + (r.halo === false ? '' : ' stroke="#fff" stroke-width="' + f2(rs * 0.3) + '" stroke-linejoin="round" paint-order="stroke"') + '>' + esc(r.texto) + '</text>');
+      o.push('<text x="' + rx + '" y="' + f2(ry + (ASC - DESC) / 2 * rs) + '"' + (r.angulo ? ' transform="rotate(' + r.angulo + ' ' + rx + ' ' + f2(ry) + ')"' : '') + ' font-family="' + FONT + '" font-size="' + rs + '" fill="' + (r.cor || '#4d4d4d') + '"' + (r.opacidade != null ? ' fill-opacity="' + r.opacidade + '"' : '') + ' text-anchor="middle"' + (r.halo === false ? '' : ' stroke="#fff" stroke-width="' + f2(rs * 0.3) + '" stroke-linejoin="round" paint-order="stroke"') + '>' + esc(r.texto) + '</text>');
     });
     o.push('</g>');
     // contorno de lagos (opcional; Reservatórios): op.lagos = [{geometry}] — só o contorno, para a cor da chuva continuar visível
