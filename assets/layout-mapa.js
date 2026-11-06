@@ -351,6 +351,12 @@
       o.push('<path d="' + d + '" fill="' + a.fill + '"' + (a.opacity != null ? ' fill-opacity="' + a.opacity + '"' : '') + ' fill-rule="evenodd" stroke="' + (a.stroke || a.fill) + '" stroke-width="' + (a.strokeWidth || 0.2) + '" stroke-linejoin="round"/>');
     });
     o.push('</g>');
+    // contorno de lagos (opcional; Reservatórios): op.lagos = [{geometry}] — só o contorno, para a cor da chuva continuar visível
+    (op.lagos || []).forEach(function (l) {
+      var d = caminho(l.geometry); if (!d) return;
+      o.push('<path d="' + d + '" fill="none" fill-rule="evenodd" stroke="#ffffff" stroke-width="0.5" stroke-linejoin="round"/>');
+      o.push('<path d="' + d + '" fill="none" fill-rule="evenodd" stroke="' + (l.stroke || '#c0392b') + '" stroke-width="0.22" stroke-linejoin="round"/>');
+    });
     if (op.municipios) o.push('<path d="' + GEO.munLines + '" fill="none" stroke="#c9d6dc" stroke-width="0.09" stroke-linejoin="round"/>');
     o.push('<path d="' + GEO.mesoLines + '" fill="none" stroke="#000" stroke-width="0.5" stroke-linejoin="round"/>');
     o.push('<path d="' + GEO.mg + '" fill="none" stroke="#000" stroke-width="0.6" stroke-linejoin="round"/>');
