@@ -1,0 +1,57 @@
+name: Dados brutos do GFS (Reservatórios e Tendência)
+
+# Baixa a chuva prevista do GFS (NOAA/NCEP, NOMADS) só para a região de MG,
+# calcula os acumulados (24 h, 3 dias, 5 dias, Week 1, Week 2) e grava um JSON
+# pequeno por ciclo em reservatorios/gfs/<00|06>/gfs.json.
+# Só faz commit quando chega uma rodada nova. Nada de senha ou chave.
+
+on:
+  schedule:
+    - cron: "47 */2 * * *"   # a cada 2 horas (UTC), fora do minuto das imagens do CPC
+  workflow_dispatch:          # botão "Run workflow" na aba Actions
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/dados-gfs.yml"
+      - "scripts/baixar_gfs.py"
+
+permissions:
+  contents: write             # só para gravar o JSON no repositório
+
+concurrency:
+  group: dados-gfs
+  cancel-in-progress: false
+
+jobs:
+  baixar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      # ação oficial do GitHub, fixada pelo commit (v4.2.2) para não mudar sem aviso
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Instalar o ecCodes (leitor de GRIB do ECMWF, pelo apt do Ubuntu)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends libeccodes-tools
+          grib_ls -V | head -2
+
+      - name: Baixar e processar o GFS
+        run: python3 -I scripts/baixar_gfs.py reservatorios/gfs
+
+      - name: Gravar se mudou
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reservatorios/gfs
+          if git diff --cached --quiet; then
+            echo "Nenhuma rodada nova."
+            exit 0
+          fi
+          git commit -m "Dados do GFS atualizados ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            sleep 10
+          done
+          exit 1
