@@ -23,6 +23,7 @@ button{border:0;border-radius:9px;padding:10px 13px;font-weight:700;cursor:point
 button:disabled{opacity:.45;cursor:not-allowed}
 .barra{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
 .check{display:flex;align-items:center;gap:6px;font-size:13px}
+select{font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff}
 .status{margin-top:12px;padding:10px;border-radius:10px;background:#f7f9fc;border:1px solid var(--line);font-size:12.5px;line-height:1.5}
 .urList{margin:6px 0 0;padding-left:18px}
 .warn{color:#9a5b00;font-weight:700}
@@ -44,14 +45,14 @@ th{background:#f7f9fc}
 <body>
 <header><div class="wrap"><div class="top">
 <div><h1>SIMGE/IGAM | Umidade Mínima</h1><div class="muted">Umidade relativa do ar mínima prevista para os <strong>próximos 3 dias</strong> com o <strong>WRF 7 km</strong> (CPTEC/INPE). Produto das segundas e quintas no período seco (PREVINCÊNDIO).</div></div>
-<span class="badge">v0.1 · teste</span>
+<span class="badge">v0.1.1 · teste</span>
 </div></div></header>
 <main>
 <div class="notice"><strong>Como funciona:</strong> a umidade relativa a 2 m do WRF 7 km é baixada automaticamente a cada 2 horas (rodada 00Z). A ferramenta usa o campo das <strong>15h (18 UTC), hora local</strong>, do dia da rodada e dos dois dias seguintes e mostra a <strong>média desses três dias</strong>, como no notebook da equipe. O mapa tem uma suavização leve (só no desenho); a tabela usa os valores do modelo sem suavização.</div>
 
 <div class="card">
 <div class="barra">
-<label class="check"><input id="urIso" type="checkbox" checked> Isolinhas (20, 25, 30, 40 … 90 %)</label>
+<label class="check">Isolinhas <select id="urIso"></select></label>
 <label class="check"><input id="urCidades" type="checkbox" checked> Cidades de referência</label>
 <button id="urLoad" class="primary">Carregar dados</button>
 </div>
@@ -69,10 +70,10 @@ th{background:#f7f9fc}
 </div>
 </main>
 <script>window.BASE_DADOS='../';window.FERRAMENTA='umidade-minima';</script>
-<script src="../previsao/data/geo.js?v=teste-20261106l"></script>
-<script src="../chuva/data/cidades.js?v=teste-20261106l"></script>
-<script src="../assets/layout-mapa.js?v=teste-20261106l"></script>
-<script src="../umidade-minima/meso.js?v=teste-20261106l"></script>
-<script src="../umidade-minima/app.js?v=teste-20261106l"></script>
+<script src="../previsao/data/geo.js?v=teste-20261106m"></script>
+<script src="../chuva/data/cidades.js?v=teste-20261106m"></script>
+<script src="../assets/layout-mapa.js?v=teste-20261106m"></script>
+<script src="../umidade-minima/meso.js?v=teste-20261106m"></script>
+<script src="../umidade-minima/app.js?v=teste-20261106m"></script>
 </body>
 </html>

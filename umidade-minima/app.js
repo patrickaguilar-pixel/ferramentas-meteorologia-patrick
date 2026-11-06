@@ -1,4 +1,5 @@
 /*
+ * Umidade Mínima v0.1.1 (06/11/2026): seletor da quantidade de isolinhas (Nenhuma, Poucas, Padrão do notebook, a cada 10 %, a cada 5 %).
  * Umidade Mínima v0.1 (06/11/2026) — UR mínima prevista (WRF 7 km, CPTEC/INPE), SIMGE/IGAM
  *
  * Ferramenta nova e separada. Reproduz o notebook da equipe (UR_media_18Z_WRF_MG_Colab):
@@ -20,7 +21,16 @@
   };
   ESCALA.labels = ESCALA.cores.map((c, i) => `${i ? ESCALA.lim[i - 1] : 0} - ${i < ESCALA.lim.length ? ESCALA.lim[i] : 100}`);
   if (ESCALA.lim.length !== ESCALA.cores.length - 1) throw new Error('escala inconsistente');
-  const ISO_NIVEIS = [20, 25, 30, 40, 50, 60, 70, 80, 90];   // as mesmas isolinhas do notebook
+  // quantidade de isolinhas (seletor "Isolinhas" na página; a escolha fica lembrada neste navegador)
+  const ISO_OPCOES = {
+    nenhuma: { nome: 'Nenhuma', niveis: [] },
+    poucas: { nome: 'Poucas (20, 40, 60, 80 %)', niveis: [20, 40, 60, 80] },
+    padrao: { nome: 'Padrão do notebook (20, 25, 30, 40 … 90 %)', niveis: [20, 25, 30, 40, 50, 60, 70, 80, 90] },
+    d10: { nome: 'A cada 10 % (10 … 90 %)', niveis: [10, 20, 30, 40, 50, 60, 70, 80, 90] },
+    d5: { nome: 'A cada 5 % (10 … 95 %)', niveis: [10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95] }
+  };
+  const ISO_ORDEM = ['nenhuma', 'poucas', 'padrao', 'd10', 'd5'];
+  const isoNiveis = () => (ISO_OPCOES[S.isoOp] || ISO_OPCOES.padrao).niveis;
   const SIGMA = 1.0;                                           // suavização do notebook (gaussian_filter, sigma=1)
   // estados do Manual de Atividades (critério "Baixa Umidade", referência OMS), pelo valor arredondado
   const ESTADOS = [
@@ -31,7 +41,8 @@
   ];
   const DIR = (window.BASE_DADOS || '../') + 'umidade-minima/dados/';
   const GRADE_EXIB = { A: 0.025, E: -0.025, C: -52.0, F: -13.5 };   // grade de desenho mais fina que a do Curto Prazo: bordas das faixas mais lisas, como no contourf do notebook
-  const S = { j: null, status: null, exib: null, iso: null };
+  const S = { j: null, status: null, exib: null, iso: {}, isoOp: lerIsoOp() };
+  function lerIsoOp() { try { const v = localStorage.getItem('urIsolinhas'); return v && v in ISO_OPCOES ? v : 'padrao'; } catch (e) { return 'padrao'; } }
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const num = (v, c = 0) => (v == null || !isFinite(v)) ? '—' : v.toFixed(c).replace('.', ',');
@@ -64,7 +75,7 @@
   }
   async function carregar() {
     const b = $('urLoad'); b.disabled = true; setStatus('Carregando a UR do WRF…');
-    S.j = null; S.exib = null; S.iso = null;
+    S.j = null; S.exib = null; S.iso = {};
     try { S.status = await baixarJson('status.json'); } catch (e) { S.status = null; }
     try {
       const j = await baixarJson('wrf.json');
@@ -150,13 +161,14 @@
 
   /* ---------------- isolinhas (marching squares na grade suavizada) ---------------- */
   function isolinhas() {
-    if (S.iso) return S.iso;
+    const niveis = isoNiveis(), chave = niveis.join(',');
+    if (S.iso[chave]) return S.iso[chave];
     const E = exibicao(), v = (x, y) => E.suave[y * GW + x];
     const x0 = Math.floor((-51.4 - W.C) / W.A), x1 = Math.ceil((-39.5 - W.C) / W.A);
     const y0 = Math.floor((-13.9 - W.F) / W.E), y1 = Math.ceil((-23.2 - W.F) / W.E);
     const ll = (x, y) => [W.C + W.A * x, W.F + W.E * y];
     const linhas = [], rotulos = [], usados = [];
-    for (const nv of ISO_NIVEIS) {
+    for (const nv of niveis) {
       const segs = [];
       for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
         const a = v(x, y), b = v(x + 1, y), c = v(x + 1, y + 1), d = v(x, y + 1);
@@ -206,7 +218,7 @@
         }
       }
     }
-    return (S.iso = { linhas, rotulos });
+    return (S.iso[chave] = { linhas, rotulos });
   }
 
   /* ---------------- mesorregiões ---------------- */
@@ -269,7 +281,7 @@
       legenda: ESCALA.labels.map((l, i) => ({ fill: ESCALA.cores[i], label: l + ' %' })),
       cidades: $('urCidades').checked ? cidades() : []
     };
-    if ($('urIso').checked) {
+    if (isoNiveis().length) {
       const I = isolinhas();
       op.isolinhas = [{ linhas: I.linhas, stroke: '#ffffff', width: 0.22, opacity: 0.8 }];
       op.rotulosIso = I.rotulos;
@@ -325,7 +337,8 @@
   function iniciar() {
     $('urLoad').addEventListener('click', carregar);
     $('urCidades').addEventListener('change', desenhar);
-    $('urIso').addEventListener('change', desenhar);
+    $('urIso').innerHTML = ISO_ORDEM.map(k => `<option value="${k}"${k === S.isoOp ? ' selected' : ''}>${ISO_OPCOES[k].nome}</option>`).join('');
+    $('urIso').addEventListener('change', e => { S.isoOp = e.target.value; try { localStorage.setItem('urIsolinhas', S.isoOp); } catch (er) { } desenhar(); });
     $('urPng').addEventListener('click', png);
     $('urCsv').addEventListener('click', csv);
     $('urEstados').innerHTML = ESTADOS.slice().reverse().map(e => `${selo(e)} ${e.faixa}`).join(' &nbsp; ');
