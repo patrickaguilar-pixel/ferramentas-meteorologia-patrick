@@ -1,5 +1,6 @@
 /*
  * Reservatórios e Tendência v0.17 — código da ferramenta (SIMGE/IGAM)
+ * v0.17.1 (06/11/2026): 13 faixas = 0-10, 10-20 ... 150-180, 180-200, >200 (definido pela equipe).
  * v0.17 (06/11/2026): seletor "Faixas" (15, 13, 10 ou 8) para os mapas gerados com o dado bruto do GFS. Com as imagens do CPC
  *   a escala continua sempre a de 15 faixas (a classe vem da cor da imagem). Só muda a classificação visual, não o dado.
  * v0.16 (06/11/2026): fonte "Dado bruto GFS (NOAA)" — lê reservatorios/gfs/<ciclo>/gfs.json (chuva em mm, grade 0,25°,
@@ -69,8 +70,8 @@ let GFS_LIMITES=[10,15,20,25,30,40,60,80,100,125,150,200,250,300];   // mesmas 1
 const hx=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
 const ESCALAS={
   15:{nome:'15 faixas (atual)', labels:CLASS_LABELS, colors:CLASS_COLORS, lim:GFS_LIMITES},
-  13:{nome:'13 faixas (proposta)', labels:["0 - 5","5 - 10","10 - 20","20 - 30","30 - 40","40 - 50","50 - 60","60 - 80","80 - 100","100 - 125","125 - 150","150 - 200","> 200"],
-      colors:['#f7fbff','#e3f0f8','#c9e2f2','#a8d1e8','#82bddc','#5ba6ce','#398dc0','#1f72ad','#10598f','#084675','#06375e','#042943','#021b2e'].map(hx), lim:[5,10,20,30,40,50,60,80,100,125,150,200]},
+  13:{nome:'13 faixas (proposta)', labels:["0 - 10","10 - 20","20 - 30","30 - 40","40 - 50","50 - 60","60 - 80","80 - 100","100 - 125","125 - 150","150 - 180","180 - 200","> 200"],
+      colors:['#f7fbff','#e3f0f8','#c9e2f2','#a8d1e8','#82bddc','#5ba6ce','#398dc0','#1f72ad','#10598f','#084675','#06375e','#042943','#021b2e'].map(hx), lim:[10,20,30,40,50,60,80,100,125,150,180,200]},
   10:{nome:'10 faixas', labels:["0 - 10","10 - 20","20 - 30","30 - 40","40 - 50","50 - 60","60 - 80","80 - 100","100 - 150","> 150"],
       colors:['#f7fbff','#daebf6','#b3d7eb','#82bddc','#509ec9','#287bb3','#10598f','#07416d','#052e4c','#021b2e'].map(hx), lim:[10,20,30,40,50,60,80,100,150]},
   8:{nome:'8 faixas', labels:["0 - 10","10 - 25","25 - 50","50 - 75","75 - 100","100 - 150","150 - 200","> 200"],
