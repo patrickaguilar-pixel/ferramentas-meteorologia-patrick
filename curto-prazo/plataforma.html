@@ -52,14 +52,15 @@ th{background:#f7f9fc}
 <body>
 <header><div class="wrap"><div class="top">
 <div><h1>SIMGE/IGAM | Curto Prazo</h1><div class="muted">Chuva prevista para <strong>24 h, 48 h e 72 h</strong> com dois modelos, <strong>GFS</strong> (NOAA) e <strong>WRF 7 km</strong> (CPTEC/INPE), na mesma escala e no mesmo layout.</div></div>
-<span class="badge">v0.1 · teste</span>
+<span class="badge">v0.2 · teste</span>
 </div></div></header>
 <main>
-<div class="notice"><strong>Como funciona:</strong> os dados brutos dos dois modelos são baixados automaticamente a cada 2 horas (rodada 00Z). Os períodos começam às <strong>09h (hora local)</strong> do dia da rodada: 24 h = 09h a 09h do dia seguinte; 48 h e 72 h acumulam a partir do mesmo horário. Os dois modelos passam pela mesma rotina: mesma grade de exibição (0,05°), mesma escala e mesmo cálculo das tabelas.</div>
+<div class="notice"><strong>Como funciona:</strong> os dados brutos dos dois modelos são baixados automaticamente a cada 2 horas (rodada 00Z). Os períodos começam às <strong>09h (hora local)</strong> do dia da rodada: 24 h = 09h a 09h do dia seguinte; 48 h e 72 h acumulam a partir do mesmo horário. Em <strong>Por dia</strong>, cada dia aparece separado (Dia 2 = 48 h − 24 h; Dia 3 = 72 h − 48 h). Os dois modelos passam pela mesma rotina: mesma grade de exibição (0,05°), mesma escala e mesmo cálculo das tabelas.</div>
 
 <div class="card">
 <div class="barra">
-<div><span class="rot">Período</span><span class="grupo"><button data-prod="24h">24 h</button><button data-prod="48h">48 h</button><button data-prod="72h">72 h</button></span></div>
+<div><span class="rot">Visão</span><span class="grupo"><button data-modo="dia">Por dia</button><button data-modo="acum">Acumulado</button></span></div>
+<div><span class="rot" id="cpPeriodoRot">Período</span><span class="grupo" id="cpPeriodo"></span></div>
 <div><span class="rot">Modelo</span><span class="grupo"><button data-vista="gfs">GFS</button><button data-vista="wrf">WRF</button><button data-vista="cmp">Comparar</button></span></div>
 <label class="check"><input id="cpCidades" type="checkbox" checked> Cidades de referência</label>
 <button id="cpLoad" class="primary">Carregar dados</button>
@@ -75,20 +76,20 @@ th{background:#f7f9fc}
 </div>
 
 <div class="card">
-<div class="cabTab"><div><h2 style="margin:0">Mesorregiões</h2><div class="small">Faixa predominante (área maior) na grade comum de 0,05°; abaixo, a maior faixa local e o máximo em mm na mesorregião.</div></div><button id="cpCsvMeso" class="secondary" disabled>Baixar CSV</button></div>
+<div class="cabTab"><div><h2 style="margin:0">Mesorregiões</h2><div class="small">Valores <strong id="cpTabModo"></strong>. Faixa predominante (área maior) na grade comum de 0,05°; abaixo, a maior faixa local e o máximo em mm na mesorregião.</div></div><button id="cpCsvMeso" class="secondary" disabled>Baixar CSV</button></div>
 <div class="scroll"><table><thead id="cpMesoHead"></thead><tbody id="cpMesoBody"></tbody></table></div>
 </div>
 
 <div class="card">
-<div class="cabTab"><div><h2 style="margin:0">Cidades de referência</h2><div class="small">Valor interpolado (bilinear) na grade original de cada modelo, nas coordenadas das 25 cidades usadas na Previsão.</div></div><button id="cpCsvCid" class="secondary" disabled>Baixar CSV</button></div>
+<div class="cabTab"><div><h2 style="margin:0">Cidades de referência</h2><div class="small">Valores <strong id="cpTabModo2"></strong>. Interpolação bilinear na grade original de cada modelo, nas coordenadas das 25 cidades usadas na Previsão.</div></div><button id="cpCsvCid" class="secondary" disabled>Baixar CSV</button></div>
 <div class="scroll"><table><thead id="cpCidHead"></thead><tbody id="cpCidBody"></tbody></table></div>
 </div>
 </main>
 <script>window.BASE_DADOS='../';window.FERRAMENTA='curto-prazo';</script>
-<script src="../previsao/data/geo.js?v=teste-20261106j"></script>
-<script src="../chuva/data/cidades.js?v=teste-20261106j"></script>
-<script src="../assets/layout-mapa.js?v=teste-20261106j"></script>
-<script src="../curto-prazo/meso.js?v=teste-20261106j"></script>
-<script src="../curto-prazo/app.js?v=teste-20261106j"></script>
+<script src="../previsao/data/geo.js?v=teste-20261106k"></script>
+<script src="../chuva/data/cidades.js?v=teste-20261106k"></script>
+<script src="../assets/layout-mapa.js?v=teste-20261106k"></script>
+<script src="../curto-prazo/meso.js?v=teste-20261106k"></script>
+<script src="../curto-prazo/app.js?v=teste-20261106k"></script>
 </body>
 </html>

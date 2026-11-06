@@ -1,4 +1,5 @@
 /*
+ * Curto Prazo v0.2 (06/11/2026): vista "Por dia" (Dia 1, Dia 2, Dia 3 separados) além do "Acumulado" (24/48/72 h).
  * Curto Prazo v0.1 (06/11/2026) — chuva prevista 24 h / 48 h / 72 h, GFS e WRF (CPTEC), SIMGE/IGAM
  *
  * Ferramenta nova e separada: lê curto-prazo/dados/<gfs|wrf>.json (gerados pelo GitHub Actions,
@@ -21,10 +22,12 @@
   };
   if (ESCALA.labels.length !== ESCALA.cores.length || ESCALA.lim.length !== ESCALA.labels.length - 1) throw new Error('escala inconsistente');
   const MODELOS = { gfs: { nome: 'GFS', fonte: 'GFS/NCEP/NOAA', res: '0,25° (~27 km)' }, wrf: { nome: 'WRF', fonte: 'WRF 7 km/CPTEC/INPE', res: '7 km' } };
-  const PRODS = ['24h', '48h', '72h'];
+  const PRODS = ['24h', '48h', '72h'];          // acumulados (vêm prontos no JSON)
+  const DIAS = ['d1', 'd2', 'd3'];               // v0.2: cada dia separado (09h às 09h), calculado aqui: d2 = 48h − 24h, d3 = 72h − 48h
+  const prods = () => S.modo === 'dia' ? DIAS : PRODS;
   const DIR = (window.BASE_DADOS || '../') + 'curto-prazo/dados/';
   const GRADE_EXIB = { A: 0.05, E: -0.05, C: -52.0, F: -13.5 };   // mesma grade de 0,05° usada no GFS de Reservatórios
-  const S = { dados: {}, status: null, prod: '24h', vista: 'gfs', exib: {}, ops: {} };
+  const S = { dados: {}, status: null, modo: 'dia', prod: 'd1', vista: 'gfs', exib: {}, ops: {} };
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const num = (v, c = 1) => (v == null || !isFinite(v)) ? '—' : v.toFixed(c).replace('.', ',');
@@ -46,7 +49,23 @@
         for (const v of l) if (typeof v !== 'number' || !isFinite(v) || v < 0 || v > 1500) erro(p + ': valor fora do limite');
       }
     }
+    return derivarDias(j);
+  }
+  // os acumulados têm a mesma base (09h do dia da rodada), então cada dia é a diferença entre dois acumulados
+  function derivarDias(j) {
+    const P = j.produtos, sub = (a, b) => a.map((l, i) => l.map((v, k) => Math.max(0, Math.round((v - b[i][k]) * 10) / 10)));
+    const dia = (mm, de, ate) => ({ inicio_local: de.inicio_local, fim_local: ate.fim_local, mm, max_mm: Math.max(...mm.map(l => Math.max(...l))) });
+    P.d1 = dia(P['24h'].mm, P['24h'], P['24h']);
+    P.d2 = dia(sub(P['48h'].mm, P['24h'].mm), P['24h'], P['48h']);
+    P.d2.inicio_local = P['24h'].fim_local;
+    P.d3 = dia(sub(P['72h'].mm, P['48h'].mm), P['48h'], P['72h']);
+    P.d3.inicio_local = P['48h'].fim_local;
     return j;
+  }
+  function rotulo(p, curto) {   // "Dia 2 · 07/11" ou "48 h"
+    if (!DIAS.includes(p)) return p.replace('h', ' h');
+    const j = S.dados.gfs || S.dados.wrf, n = p.slice(1);
+    return j ? `Dia ${n}${curto ? '' : ' · '}${curto ? '' : ddmm(j.produtos[p].inicio_local)}` : `Dia ${n}`;
   }
   async function baixarJson(nome) {
     const r = await fetch(DIR + nome, { cache: 'no-cache' });
@@ -178,7 +197,8 @@
     const j = S.dados[m], pr = j.produtos[prod], ano = String(j.data_ciclo).slice(0, 4);
     const horas = prod.replace('h', '');
     return {
-      titulo: `Previsão de Chuva ${horas} h - ${MODELOS[m].nome} - ${dataBR(String(pr.inicio_local).slice(0, 10))}`,
+      titulo: DIAS.includes(prod) ? `Previsão de Chuva - ${MODELOS[m].nome} - ${dataBR(String(pr.inicio_local).slice(0, 10))}`
+        : `Previsão de Chuva ${horas} h - ${MODELOS[m].nome} - ${dataBR(String(pr.inicio_local).slice(0, 10))}`,
       textoValidade: validade(pr),
       credito: `Fonte de dados: ${MODELOS[m].fonte} (rodada ${ddmm(j.rodada_utc)} 00Z) - SIMGE/IGAM, ${ano}`,
       fundo: '',
@@ -196,7 +216,11 @@
     el.innerHTML = ''; el.appendChild(img);
   }
   function desenhar() {
-    document.querySelectorAll('[data-prod]').forEach(b => b.classList.toggle('on', b.dataset.prod === S.prod));
+    document.querySelectorAll('[data-modo]').forEach(b => b.classList.toggle('on', b.dataset.modo === S.modo));
+    $('cpPeriodo').innerHTML = prods().map(p => `<button data-prod="${p}" class="${p === S.prod ? 'on' : ''}">${esc(rotulo(p))}</button>`).join('');
+    $('cpPeriodoRot').textContent = S.modo === 'dia' ? 'Dia (09h às 09h)' : 'Acumulado desde 09h';
+    $('cpTabModo').textContent = S.modo === 'dia' ? 'cada dia separado (09h às 09h, hora local)' : 'acumulado desde as 09h do primeiro dia';
+    $('cpTabModo2').textContent = $('cpTabModo').textContent;
     document.querySelectorAll('[data-vista]').forEach(b => b.classList.toggle('on', b.dataset.vista === S.vista));
     const dois = S.vista === 'cmp';
     $('cpMapas').className = dois ? 'dual' : 'um';
@@ -213,22 +237,23 @@
   /* ---------------- tabelas ---------------- */
   function tabelas() {
     const ms = Object.keys(MODELOS), tem = m => !!S.dados[m];
-    const cab = '<tr><th rowspan="2">Mesorregião</th>' + PRODS.map(p => `<th colspan="2" class="c">${p}</th>`).join('') + '</tr><tr>' +
-      PRODS.map(() => ms.map(m => `<th class="c">${MODELOS[m].nome}</th>`).join('')).join('') + '</tr>';
+    const PS = prods();
+    const cab = '<tr><th rowspan="2">Mesorregião</th>' + PS.map(p => `<th colspan="2" class="c">${esc(rotulo(p))}</th>`).join('') + '</tr><tr>' +
+      PS.map(() => ms.map(m => `<th class="c">${MODELOS[m].nome}</th>`).join('')).join('') + '</tr>';
     $('cpMesoHead').innerHTML = cab;
-    const est = {}; for (const m of ms) if (tem(m)) { est[m] = {}; for (const p of PRODS) est[m][p] = estatMeso(m, p); }
+    const est = {}; for (const m of ms) if (tem(m)) { est[m] = {}; for (const p of PS) est[m][p] = estatMeso(m, p); }
     const nomes = mascaras().map(x => x.nome);
     $('cpMesoBody').innerHTML = !Object.keys(est).length ? '<tr><td colspan="7" class="small">Sem dados.</td></tr>' :
-      nomes.map((n, i) => '<tr><td>' + esc(n) + '</td>' + PRODS.map(p => ms.map(m => {
+      nomes.map((n, i) => '<tr><td>' + esc(n) + '</td>' + PS.map(p => ms.map(m => {
         if (!est[m]) return '<td class="c small">—</td>';
         const e = est[m][p][i];
         return `<td class="c"><span class="sw" style="background:${ESCALA.cores[e.moda]}"></span>${ESCALA.labels[e.moda]}<div class="small">até ${ESCALA.labels[e.cmax]} · máx ${num(e.mx, 0)} mm</div></td>`;
       }).join('')).join('') + '</tr>').join('');
-    $('cpCidHead').innerHTML = '<tr><th rowspan="2">Cidade</th>' + PRODS.map(p => `<th colspan="2" class="c">${p} (mm)</th>`).join('') + '</tr><tr>' +
-      PRODS.map(() => ms.map(m => `<th class="c">${MODELOS[m].nome}</th>`).join('')).join('') + '</tr>';
+    $('cpCidHead').innerHTML = '<tr><th rowspan="2">Cidade</th>' + PS.map(p => `<th colspan="2" class="c">${esc(rotulo(p))} (mm)</th>`).join('') + '</tr><tr>' +
+      PS.map(() => ms.map(m => `<th class="c">${MODELOS[m].nome}</th>`).join('')).join('') + '</tr>';
     const cs = cidades();
     $('cpCidBody').innerHTML = !Object.keys(est).length ? '<tr><td colspan="7" class="small">Sem dados.</td></tr>' :
-      cs.map(c => '<tr><td>' + esc(c.nome) + '</td>' + PRODS.map(p => ms.map(m => {
+      cs.map(c => '<tr><td>' + esc(c.nome) + '</td>' + PS.map(p => ms.map(m => {
         if (!tem(m)) return '<td class="c small">—</td>';
         const v = valor(S.dados[m], p, c.lon, c.lat);
         return `<td class="c"><span class="sw" style="background:${ESCALA.cores[classe(v)]}"></span>${num(v)}</td>`;
@@ -245,7 +270,7 @@
   function rodadaTag() { const d = (S.dados.gfs || S.dados.wrf || {}).data_ciclo || ''; return d.replace(/-/g, ''); }
   async function png(m) {
     const b = m === 'wrf' ? $('cpPngB') : $('cpPngA'); const txt = b.textContent; b.disabled = true; b.textContent = 'Gerando PNG…';
-    try { baixar(`CurtoPrazo_${MODELOS[m].nome}_${S.prod}_${rodadaTag()}_00Z.png`, await LayoutMapa.png(opMapa(m, S.prod))); }
+    try { baixar(`CurtoPrazo_${MODELOS[m].nome}_${DIAS.includes(S.prod) ? 'dia' + S.prod.slice(1) + '_' + ddmm(S.dados[m].produtos[S.prod].inicio_local).replace('/', '-') : S.prod}_${rodadaTag()}_00Z.png`, await LayoutMapa.png(opMapa(m, S.prod))); }
     catch (e) { alertaStatus('Não foi possível gerar o PNG: ' + e.message); }
     finally { b.disabled = false; b.textContent = txt; }
   }
@@ -253,21 +278,27 @@
   function csv(linhas) { return new Blob(['﻿' + linhas.map(l => l.map(v => /[;"\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : v).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' }); }
   function csvMeso() {
     const ms = Object.keys(MODELOS).filter(m => S.dados[m]);
-    const cab = ['Mesorregião']; PRODS.forEach(p => ms.forEach(m => cab.push(`${MODELOS[m].nome} ${p} predominante`, `${MODELOS[m].nome} ${p} maior local`, `${MODELOS[m].nome} ${p} máximo mm`)));
-    const est = {}; ms.forEach(m => { est[m] = {}; PRODS.forEach(p => est[m][p] = estatMeso(m, p)); });
-    const ls = [cab].concat(mascaras().map((x, i) => { const l = [x.nome]; PRODS.forEach(p => ms.forEach(m => { const e = est[m][p][i]; l.push(ESCALA.labels[e.moda], ESCALA.labels[e.cmax], num(e.mx)); })); return l; }));
-    baixar(`CurtoPrazo_mesorregioes_${rodadaTag()}_00Z.csv`, csv(ls));
+    const PS = prods();
+    const cab = ['Mesorregião']; PS.forEach(p => ms.forEach(m => cab.push(`${MODELOS[m].nome} ${rotulo(p)} predominante`, `${MODELOS[m].nome} ${rotulo(p)} maior local`, `${MODELOS[m].nome} ${rotulo(p)} máximo mm`)));
+    const est = {}; ms.forEach(m => { est[m] = {}; PS.forEach(p => est[m][p] = estatMeso(m, p)); });
+    const ls = [cab].concat(mascaras().map((x, i) => { const l = [x.nome]; PS.forEach(p => ms.forEach(m => { const e = est[m][p][i]; l.push(ESCALA.labels[e.moda], ESCALA.labels[e.cmax], num(e.mx)); })); return l; }));
+    baixar(`CurtoPrazo_mesorregioes_${S.modo === 'dia' ? 'por_dia' : 'acumulado'}_${rodadaTag()}_00Z.csv`, csv(ls));
   }
   function csvCid() {
     const ms = Object.keys(MODELOS).filter(m => S.dados[m]);
-    const cab = ['Cidade', 'Longitude', 'Latitude']; PRODS.forEach(p => ms.forEach(m => cab.push(`${MODELOS[m].nome} ${p} (mm)`)));
-    const ls = [cab].concat(cidades().map(c => { const l = [c.nome, num(c.lon, 5), num(c.lat, 5)]; PRODS.forEach(p => ms.forEach(m => l.push(num(valor(S.dados[m], p, c.lon, c.lat))))); return l; }));
-    baixar(`CurtoPrazo_cidades_${rodadaTag()}_00Z.csv`, csv(ls));
+    const PS = prods();
+    const cab = ['Cidade', 'Longitude', 'Latitude']; PS.forEach(p => ms.forEach(m => cab.push(`${MODELOS[m].nome} ${rotulo(p)} (mm)`)));
+    const ls = [cab].concat(cidades().map(c => { const l = [c.nome, num(c.lon, 5), num(c.lat, 5)]; PS.forEach(p => ms.forEach(m => l.push(num(valor(S.dados[m], p, c.lon, c.lat))))); return l; }));
+    baixar(`CurtoPrazo_cidades_${S.modo === 'dia' ? 'por_dia' : 'acumulado'}_${rodadaTag()}_00Z.csv`, csv(ls));
   }
 
   /* ---------------- início ---------------- */
   function iniciar() {
-    document.querySelectorAll('[data-prod]').forEach(b => b.addEventListener('click', () => { S.prod = b.dataset.prod; desenhar(); }));
+    $('cpPeriodo').addEventListener('click', e => { const b = e.target.closest('[data-prod]'); if (b) { S.prod = b.dataset.prod; desenhar(); } });
+    document.querySelectorAll('[data-modo]').forEach(b => b.addEventListener('click', () => {
+      if (S.modo === b.dataset.modo) return;
+      const i = prods().indexOf(S.prod); S.modo = b.dataset.modo; S.prod = prods()[Math.max(0, i)]; desenhar();
+    }));
     document.querySelectorAll('[data-vista]').forEach(b => b.addEventListener('click', () => { S.vista = b.dataset.vista; desenhar(); }));
     $('cpLoad').addEventListener('click', carregar);
     $('cpCidades').addEventListener('change', desenhar);
