@@ -1,5 +1,6 @@
 /*
  * Reservatórios e Tendência v0.17 — código da ferramenta (SIMGE/IGAM)
+ * v0.17.3 (06/11/2026): opções 15 (atual), 12 e 13 faixas definidas pela equipe; 10 removida.
  * v0.17.2 (06/11/2026): 10 faixas = 0-20, 20-30 ... 100-150, 150-200, >200; opção de 8 faixas removida (definido pela equipe).
  * v0.17.1 (06/11/2026): 13 faixas = 0-10, 10-20 ... 150-180, 180-200, >200 (definido pela equipe).
  * v0.17 (06/11/2026): seletor "Faixas" (15, 13, 10 ou 8) para os mapas gerados com o dado bruto do GFS. Com as imagens do CPC
@@ -71,10 +72,10 @@ let GFS_LIMITES=[10,15,20,25,30,40,60,80,100,125,150,200,250,300];   // mesmas 1
 const hx=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
 const ESCALAS={
   15:{nome:'15 faixas (atual)', labels:CLASS_LABELS, colors:CLASS_COLORS, lim:GFS_LIMITES},
-  13:{nome:'13 faixas (proposta)', labels:["0 - 10","10 - 20","20 - 30","30 - 40","40 - 50","50 - 60","60 - 80","80 - 100","100 - 125","125 - 150","150 - 180","180 - 200","> 200"],
-      colors:['#f7fbff','#e3f0f8','#c9e2f2','#a8d1e8','#82bddc','#5ba6ce','#398dc0','#1f72ad','#10598f','#084675','#06375e','#042943','#021b2e'].map(hx), lim:[10,20,30,40,50,60,80,100,125,150,180,200]},
-  10:{nome:'10 faixas', labels:["0 - 20","20 - 30","30 - 40","40 - 50","50 - 60","60 - 80","80 - 100","100 - 150","150 - 200","> 200"],
-      colors:['#f7fbff','#daebf6','#b3d7eb','#82bddc','#509ec9','#287bb3','#10598f','#07416d','#052e4c','#021b2e'].map(hx), lim:[20,30,40,50,60,80,100,150,200]}
+  12:{nome:'12 faixas', labels:["0 - 10","10 - 20","20 - 30","30 - 40","40 - 50","50 - 60","60 - 70","70 - 80","80 - 100","100 - 150","150 - 200","> 200"],
+      colors:['#f7fbff','#e1eff7','#c3dff0','#9ecce5','#74b5d7','#4c9bc8','#2b7eb6','#16629a','#0a4b7c','#063a62','#042a45','#021b2e'].map(hx), lim:[10,20,30,40,50,60,70,80,100,150,200]},
+  13:{nome:'13 faixas', labels:["0 - 10","10 - 20","20 - 30","30 - 40","40 - 50","50 - 60","60 - 70","70 - 80","80 - 100","100 - 150","150 - 200","200 - 300","> 300"],
+      colors:['#f7fbff','#e3f0f8','#c9e2f2','#a8d1e8','#82bddc','#5ba6ce','#398dc0','#1f72ad','#10598f','#084675','#06375e','#042943','#021b2e'].map(hx), lim:[10,20,30,40,50,60,70,80,100,150,200,300]}
 };
 for(const k in ESCALAS){ const e=ESCALAS[k]; if(e.labels.length!==e.colors.length||e.lim.length!==e.labels.length-1) throw new Error('escala '+k+' inconsistente'); }
 function faixasEscolhidas(){ const el=document.getElementById('faixasMapa'); const n=el?el.value:'15'; return ESCALAS[n]?n:'15'; }
@@ -273,7 +274,7 @@ function montarSeletorFonte(){
   // v0.17: número de faixas da escala (GFS)
   const labF=document.createElement('label'); labF.htmlFor='faixasMapa'; labF.style.margin='0'; labF.textContent='Faixas';
   const selF=document.createElement('select'); selF.id='faixasMapa';
-  selF.innerHTML=['15','13','10'].map(n=>`<option value="${n}">${ESCALAS[n].nome}</option>`).join('');
+  selF.innerHTML=['15','12','13'].map(n=>`<option value="${n}">${ESCALAS[n].nome}</option>`).join('');
   let fx='15'; try{ fx=localStorage.getItem('reservFaixas')||'15'; }catch(e){}
   selF.value=ESCALAS[fx]?fx:'15';
   selF.addEventListener('change',()=>{ try{ localStorage.setItem('reservFaixas',selF.value); }catch(e){} trocarEscala(); });
