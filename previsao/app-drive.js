@@ -153,13 +153,13 @@ function defaultState(){
 }
 function addDays(iso, n){ if (!iso) return ""; const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate()+n);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
-// 05/11/2026: "VÁLIDO: 09h 05/11 às 09h 06/11 BRT" no mapa; no cabeçalho do boletim (PDF) termina em ", hora local" — início = data da previsão (ou o dia anterior ao fim), mesma hora do fim
+// 06/11/2026: "VÁLIDO: 09h 05/11 às 09h 06/11, hora local" no mapa e no PDF — início = data da previsão (ou o dia anterior ao fim), mesma hora do fim
 function validityText(v = S.val, horaLocal = false){
   if (!v || !v.date || !v.time) return "";
   const [h, m] = v.time.split(":"), hh = String(+h).padStart(2, "0") + "h" + (m && m !== "00" ? m : "");
   const dm = iso => { const [, mm, dd] = String(iso).slice(0, 10).split("-"); return `${dd}/${mm}`; };
   const ini = S.date && S.date < v.date ? S.date : addDays(v.date, -1);
-  return `VÁLIDO: ${hh} ${dm(ini)} às ${hh} ${dm(v.date)}` + (horaLocal ? ", hora local" : " BRT");
+  return `VÁLIDO: ${hh} ${dm(ini)} às ${hh} ${dm(v.date)}` + ", hora local";   // 06/11/2026: sempre ", hora local" (mapa, PDF e tela)
 }
 function parseValidity(t){
   const m = /(\d{1,2})\s*(?:h|:)\s*(\d{2})?[^\d]*(\d{2})\/(\d{2})\/(\d{4})/.exec(t || "");
@@ -1672,7 +1672,7 @@ function bulDate(){ return S.bul.dateAuto ? longDate(S.date).toUpperCase() : S.b
 function bulVal(){
   if (!S.bul.valAuto) return S.bul.valText;
   const v = S.val; if (!v || !v.time || !v.date) return "";
-  return validityText(v, true);   // 05/11/2026: "VÁLIDO: 09h 05/11 às 09h 06/11, hora local" (no mapa: "... BRT")
+  return validityText(v, true);   // 06/11/2026: "VÁLIDO: 09h 05/11 às 09h 06/11, hora local" (mapa e PDF)
 }
 function joinPt(list){ return list.length < 2 ? (list[0] || "") : list.slice(0,-1).join(", ") + " e " + list[list.length-1]; }
 const cidadesTxt = () => joinPt(S.rows.map(r => r.name).sort((a,b) => a.localeCompare(b, "pt-BR", {sensitivity:"base"})));
