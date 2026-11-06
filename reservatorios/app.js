@@ -1,5 +1,6 @@
 /*
  * Reservatórios e Tendência v0.17 — código da ferramenta (SIMGE/IGAM)
+ * v0.18.1 (06/11/2026): contorno dos lagos desligado (USAR_LAGOS=false) até a equipe decidir; correções de MM/MB/PE mantidas.
  * v0.18 (06/11/2026): contorno dos lagos dos reservatórios no mapa (reservatorios/lagos.json, ANA); pontos de MM e MB destrocados; ponto de PE movido para o lago (estava 68 km fora, perto de Ipatinga).
  * v0.17.3 (06/11/2026): opções 15 (atual), 12 e 13 faixas definidas pela equipe; 10 removida.
  * v0.17.2 (06/11/2026): 10 faixas = 0-20, 20-30 ... 100-150, 150-200, >200; opção de 8 faixas removida (definido pela equipe).
@@ -163,10 +164,11 @@ function mapaOp(proc,cfg){
     legenda:CLASS_LABELS.map((l,i)=>({fill:hexRgb(CLASS_COLORS[i]),label:l+' mm'})),
     cidades:cfg.showCities?cidadesPadrao().map(([nome,lon,lat])=>({nome,lon,lat,posicao:cfg.showReservoirs?POS_CIDADE_RES[nome]:undefined})):[],
     pontos:cfg.showReservoirs?RESERVOIRS.map(([n,sig,lon,lat])=>({rotulo:sig,lon,lat,lado:LADO_RES[sig]})):[],
-    lagos:cfg.showReservoirs&&LAGOS?Object.values(LAGOS).map(l=>({geometry:l.geometry})):[]   // v0.18: contorno dos lagos (ANA)
+    lagos:USAR_LAGOS&&cfg.showReservoirs&&LAGOS?Object.values(LAGOS).map(l=>({geometry:l.geometry})):[]   // v0.18: contorno dos lagos (ANA)
   };
 }
 // v0.18: contorno dos lagos dos reservatórios (ANA/SNIRH, camada "Massa d'água", simplificado ~0,003°)
+const USAR_LAGOS=false;   // 06/11/2026: desligado até a equipe decidir (lagos.json e o desenho ficam prontos; basta trocar para true)
 let LAGOS=null, lagosPromessa=null;
 function carregarLagos(){
   if(LAGOS||lagosPromessa) return lagosPromessa||Promise.resolve(LAGOS);
@@ -175,7 +177,7 @@ function carregarLagos(){
   return lagosPromessa;
 }
 async function renderProcessedMap(el, proc, cfg){
-  if(cfg.showReservoirs) await carregarLagos();
+  if(USAR_LAGOS&&cfg.showReservoirs) await carregarLagos();
   const rows=RESERVOIRS.map(([name,sig,lon,lat])=>proc.gfs?[name,sig,CLASS_LABELS[sampleClass(proc,lon,lat)],gfsValor(proc.gfs,lon,lat).toFixed(1).replace('.',',')]:[name,sig,CLASS_LABELS[sampleClass(proc,lon,lat)]]);
   if(!window.LayoutMapa){ el.innerHTML='<div class="small" style="padding:12px;line-height:1.4">Não foi possível carregar o layout do mapa (previsao/data/geo.js e assets/layout-mapa.js). Recarregue a página.</div>'; MAP_OPS[el.id]=null; return (cfg.showReservoirs||cfg.collectReservoirRows)?rows:[]; }
   const op=mapaOp(proc,cfg); MAP_OPS[el.id]=op;
