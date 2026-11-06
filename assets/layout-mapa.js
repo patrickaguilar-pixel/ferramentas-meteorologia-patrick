@@ -18,7 +18,8 @@
  *          cidades:[{nome, lon, lat}], municipios:false, fundo:'osm'|'osmfr'|'osmde'|'ofm'|'',
  *          (cada cidade pode ter posicao:'acima'|'direita'; sem ela, o nome fica abaixo, como na Previsão)
  *          pontos:[{lon, lat, rotulo, cor, lado:'esquerda'|'acima'}] (opcional: ponto com rótulo ao lado, ex.: reservatórios),
- *          textoValidade:'texto livre no lugar da validade' (opcional) }
+ *          textoValidade:'texto livre no lugar da validade' (opcional),
+ *          isolinhas:[{linhas:[[[lon,lat],…]], stroke, width, opacity}], rotulosIso:[{lon, lat, texto}] (opcional; Umidade Mínima) }
  *   Sem op.fundo, vale a escolha do seletor "Mapa de fundo" que este arquivo coloca ao lado do botão
  *   "Prévia do mapa" (lembrada neste navegador).
  */
@@ -349,6 +350,18 @@
     (op.areas || []).forEach(function (a) {
       var d = caminho(a.geometry); if (!d) return;
       o.push('<path d="' + d + '" fill="' + a.fill + '"' + (a.opacity != null ? ' fill-opacity="' + a.opacity + '"' : '') + ' fill-rule="evenodd" stroke="' + (a.stroke || a.fill) + '" stroke-width="' + (a.strokeWidth || 0.2) + '" stroke-linejoin="round"/>');
+    });
+    // isolinhas (opcional; Umidade Mínima): op.isolinhas = [{linhas:[[[lon,lat],…],…], stroke, width, opacity}]
+    // e op.rotulosIso = [{lon, lat, texto}]. Também recortadas em MG. Sem essas opções, nada muda no desenho.
+    (op.isolinhas || []).forEach(function (iso) {
+      var d = (iso.linhas || []).map(function (ln) {
+        return ln.map(function (c, i) { return (i ? 'L' : 'M') + f2((c[0] - MAP.xmin) * K) + ' ' + f2((MAP.ymax - c[1]) * K); }).join('');
+      }).join('');
+      if (d) o.push('<path d="' + d + '" fill="none" stroke="' + (iso.stroke || '#fff') + '" stroke-width="' + (iso.width || 0.2) + '"' + (iso.opacity != null ? ' stroke-opacity="' + iso.opacity + '"' : '') + ' stroke-linejoin="round" stroke-linecap="round"/>');
+    });
+    (op.rotulosIso || []).forEach(function (r) {
+      var p = proj(r.lon, r.lat), rs = r.tamanho || 2.6;
+      o.push('<text x="' + f2(p[0] - MAP.x) + '" y="' + f2(p[1] - MAP.y + (ASC - DESC) / 2 * rs) + '" font-family="' + FONT + '" font-size="' + rs + '" fill="' + (r.cor || '#4d4d4d') + '" text-anchor="middle" stroke="#fff" stroke-width="' + f2(rs * 0.3) + '" stroke-linejoin="round" paint-order="stroke">' + esc(r.texto) + '</text>');
     });
     o.push('</g>');
     // contorno de lagos (opcional; Reservatórios): op.lagos = [{geometry}] — só o contorno, para a cor da chuva continuar visível

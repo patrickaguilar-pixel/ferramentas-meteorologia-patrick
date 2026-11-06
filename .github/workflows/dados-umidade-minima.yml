@@ -1,0 +1,64 @@
+name: Dados da Umidade Mínima (WRF 7 km, UR às 18 UTC)
+
+# Baixa a umidade relativa a 2 m do WRF 7 km (CPTEC/INPE) às 18 UTC (15h, hora local) de D, D+1 e D+2
+# da rodada 00Z, só para a região de MG, e grava umidade-minima/dados/wrf.json.
+# Ferramenta nova e separada: não mexe nos dados do Curto Prazo, de Reservatórios nem da Tendência.
+# Só faz commit quando muda alguma coisa. Nada de senha ou chave.
+
+on:
+  schedule:
+    - cron: "37 */2 * * *"   # a cada 2 horas (UTC), fora dos minutos do Curto Prazo (:23), do GFS (:47) e do CPC (:17)
+  workflow_dispatch:
+    inputs:
+      reprocessar:
+        description: "Refazer a rodada mais recente mesmo que já exista"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/dados-umidade-minima.yml"
+      - "scripts/baixar_umidade_minima.py"
+
+permissions:
+  contents: write             # só para gravar o JSON no repositório
+
+concurrency:
+  group: dados-umidade-minima
+  cancel-in-progress: false
+
+jobs:
+  baixar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      # ação oficial do GitHub, fixada pelo commit (v4.2.2) para não mudar sem aviso
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Instalar o ecCodes (leitor de GRIB do ECMWF, pelo apt do Ubuntu)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends libeccodes-tools
+          grib_ls -V | head -2
+
+      - name: Baixar e processar a UR do WRF
+        env:
+          REPROCESSAR: ${{ inputs.reprocessar && '1' || '0' }}
+        run: python3 -I scripts/baixar_umidade_minima.py umidade-minima/dados
+
+      - name: Gravar se mudou
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add umidade-minima/dados
+          if git diff --cached --quiet; then
+            echo "Nada novo."
+            exit 0
+          fi
+          git commit -m "Umidade Mínima: dados atualizados ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            sleep 10
+          done
+          exit 1
