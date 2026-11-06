@@ -260,6 +260,9 @@ function textoFonte(){
   if(b) b.textContent=g?'Buscar dados do GFS':'Buscar imagens do CPC';
   if(h) h.textContent=g?'Dados do GFS (NOAA)':'Imagens do CPC';
   const t=document.getElementById('resPreview')?.previousElementSibling; if(t&&t.classList.contains('prevTitle')) t.textContent=g?'Dado bruto GFS (0,25°)':'Imagem CPC original';
+  const sub=document.querySelector('.cpcRow .small'); if(sub){ if(!sub.dataset.cpc) sub.dataset.cpc=sub.textContent;
+    sub.textContent=g?'Carrega a chuva prevista do GFS (Week 1, Week 2, 24 h, 3 dias e 5 dias, em mm) do ciclo escolhido e gera todos os mapas. A probabilidade >100 mm continua vindo das imagens do CPC.':sub.dataset.cpc; }
+  ['resPreview','wk1Preview','wk2Preview','a24Preview','a72Preview','a120Preview'].forEach(id=>{ const im=document.getElementById(id); if(im) im.style.objectFit=g?'contain':''; });
 }
 // confere o JSON antes de usar: estrutura, tamanhos, números finitos e limites físicos
 function validarGfs(j){
