@@ -442,6 +442,6 @@
   if (!eu) { var ss = document.querySelectorAll('script[src*="assets/planner"]'); eu = ss.length ? ss[ss.length - 1].src : ''; }
   if (!eu) return;
   var s = document.createElement('script');
-  s.src = eu.replace(/planner(-teste)?\.js(\?|$)/, 'sugestoes.js$2');   // teste: aceita planner-teste.js
+  s.src = eu.replace(/planner(-teste)?\.js(\?|$)/, 'sugestoes-teste.js$2');   // teste: cópia de teste do sugestoes.js (botão visível, sem envio)
   document.head.appendChild(s);
 })();
