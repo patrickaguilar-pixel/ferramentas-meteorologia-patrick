@@ -7,10 +7,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs.t00z.totp.week1.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs_precip_week1_samerica.html",
       "texto_alternativo": "GFS Week1 Total Precp",
-      "atualizado_no_cpc": "2026-11-08T06:05:55+00:00",
-      "baixado_em": "2026-11-08T08:57:57+00:00",
-      "bytes": 68601,
-      "sha256": "1e85d1b53eb567b0fa096335ccc2618b13a925c17e7d54daaaf693b04ba3fde2"
+      "atualizado_no_cpc": "2026-11-09T06:03:07+00:00",
+      "baixado_em": "2026-11-09T07:36:07+00:00",
+      "bytes": 68691,
+      "sha256": "3411e84be6957b224508736002a27a786916f5dd5b6ebb5499d6932762ac8f5f"
     },
     "week2": {
       "descricao": "GFS Week 2",
@@ -29,10 +29,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs.t00z.24h_totp.d1.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs_precip_24h_samerica.html",
       "texto_alternativo": "GFS 24h Total Precipitation",
-      "atualizado_no_cpc": "2026-11-08T05:47:01+00:00",
-      "baixado_em": "2026-11-08T08:57:57+00:00",
-      "bytes": 49558,
-      "sha256": "82f3996f242e7045ceaa181145de125305b91cc9dec0d2b7222d455476ea2ea9"
+      "atualizado_no_cpc": "2026-11-09T05:50:54+00:00",
+      "baixado_em": "2026-11-09T07:36:07+00:00",
+      "bytes": 45832,
+      "sha256": "a76eadc266fb90e15984665036e26d672a11ebae752609106471ae899fafee01"
     },
     "day3": {
       "descricao": "GFS 3 dias",
@@ -51,10 +51,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs.t00z.totp.day5.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs_precip_day5_samerica.html",
       "texto_alternativo": "GFS 5-day Total Precp",
-      "atualizado_no_cpc": "2026-11-08T06:34:41+00:00",
-      "baixado_em": "2026-11-08T08:57:57+00:00",
-      "bytes": 67539,
-      "sha256": "bdb75d260638be955e7f1f95fadb36063919f4be828f59b2dbfeff03ec404c4e"
+      "atualizado_no_cpc": "2026-11-09T06:44:12+00:00",
+      "baixado_em": "2026-11-09T07:36:07+00:00",
+      "bytes": 67889,
+      "sha256": "8c3bbae7cb2e23ca7b5d9d67d236075c59e797b8886b90ee8996948b98f4a150"
     },
     "prob100_week1": {
       "descricao": "GEFS prob. >100 mm Week 1",
@@ -79,5 +79,5 @@
       "sha256": "c4eede307c8f2eafebafaf963916690d8f687f7dd826768b30f2f8dffa4926df"
     }
   },
-  "atualizado_em": "2026-11-08T08:57:57+00:00"
+  "atualizado_em": "2026-11-09T07:36:07+00:00"
 }
