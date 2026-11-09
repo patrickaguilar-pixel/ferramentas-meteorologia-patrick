@@ -1,5 +1,6 @@
 /*
  * Reservatórios e Tendência v0.17 — código da ferramenta (SIMGE/IGAM)
+ * v0.18.2 (09/11/2026): fonte padrão = Dado bruto GFS (NOAA); quem já escolheu "Imagens do CPC" neste navegador continua com CPC.
  * v0.18.1 (06/11/2026): contorno dos lagos desligado (USAR_LAGOS=false) até a equipe decidir; correções de MM/MB/PE mantidas.
  * v0.18 (06/11/2026): contorno dos lagos dos reservatórios no mapa (reservatorios/lagos.json, ANA); pontos de MM e MB destrocados; ponto de PE movido para o lago (estava 68 km fora, perto de Ipatinga).
  * v0.17.3 (06/11/2026): opções 15 (atual), 12 e 13 faixas definidas pela equipe; 10 removida.
@@ -274,14 +275,14 @@ function fmtDataHora(iso){ if(!iso) return '—'; const d=new Date(iso); if(isNa
 /* ---- v0.16: fonte dos dados (GFS bruto x imagens do CPC) ---- */
 const GFS_DIR=(window.BASE_DADOS||'../')+'reservatorios/gfs/';
 const GFS_ITENS=[['week1','reserv','source','resPreview'],['week1','weekly','w1','wk1Preview'],['week2','weekly','w2','wk2Preview'],['24h','accum','a24','a24Preview'],['day3','accum','a72','a72Preview'],['day5','accum','a120','a120Preview']];
-function fonteDados(){ const el=document.getElementById('fonteDados'); return el?el.value:'cpc'; }
+function fonteDados(){ const el=document.getElementById('fonteDados'); return el?el.value:'gfs'; }   // v0.18.2: GFS é o padrão
 function montarSeletorFonte(){
   const ctl=document.querySelector('.cpcCtl'); if(!ctl||document.getElementById('fonteDados')) return;
   const lab=document.createElement('label'); lab.htmlFor='fonteDados'; lab.style.margin='0'; lab.textContent='Fonte';
   const sel=document.createElement('select'); sel.id='fonteDados';
   sel.innerHTML='<option value="gfs">Dado bruto GFS (NOAA)</option><option value="cpc">Imagens do CPC</option>';
-  let salvo='cpc'; try{ salvo=localStorage.getItem('reservFonte')||'cpc'; }catch(e){}
-  sel.value=salvo==='gfs'?'gfs':'cpc';
+  let salvo='gfs'; try{ salvo=localStorage.getItem('reservFonte')||'gfs'; }catch(e){}   // v0.18.2: GFS por padrão; quem escolheu CPC continua com CPC
+  sel.value=salvo==='cpc'?'cpc':'gfs';
   sel.addEventListener('change',()=>{ try{ localStorage.setItem('reservFonte',sel.value); }catch(e){} textoFonte(); });
   ctl.insertBefore(sel,ctl.firstChild); ctl.insertBefore(lab,sel);
   // v0.17: número de faixas da escala (GFS)
