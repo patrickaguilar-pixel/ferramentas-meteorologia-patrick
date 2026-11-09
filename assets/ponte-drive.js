@@ -616,6 +616,13 @@
     t.src = (window.BASE_DADOS || '../') + 'assets/tutorial.js?v=' + VER;
     document.head.appendChild(t);
   }
+  // cabeçalho padrão (uma linha, Planner e Sugestões no fim) — assets/cabecalho.js (09/11/2026)
+  function carregarCabecalho() {
+    if (window.__cabecalhoPadrao || document.getElementById('cabScript')) return;
+    var t = document.createElement('script'); t.id = 'cabScript';
+    t.src = (window.BASE_DADOS || '../') + 'assets/cabecalho.js?v=' + VER;
+    document.head.appendChild(t);
+  }
   // faixa "versão de testes": só no painel de testes do Patrick (e no computador de quem desenvolve)
   function ehTeste() { return /^(patrickaguilar-pixel\.github\.io|localhost|127\.0\.0\.1)$/.test(location.hostname); }
   // alerta vermelho ao salvar no painel de testes: lembra que não é a plataforma oficial
@@ -643,6 +650,7 @@
   function iniciar() {
     faixaTeste();
     carregarTutorial();
+    carregarCabecalho();
     esconderBotoes();
     padronizarNavegador();
     [1500, 4000, 9000].forEach(function (t) { setTimeout(padronizarNavegador, t); });   // Alertas termina de iniciar depois
