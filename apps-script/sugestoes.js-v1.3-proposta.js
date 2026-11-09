@@ -195,7 +195,7 @@
     var texto = $('sugTexto').value.trim(), nova = ehNova();
     if (texto.length < 5) { status(nova ? 'Descreva a nova ferramenta antes de enviar.' : 'Escreva a sugestão antes de enviar.', 'erro'); $('sugTexto').focus(); return; }
     if (!temServidor) { status('O envio só funciona dentro do app (Apps Script).', 'erro'); return; }
-    var fer = nova ? 'Nova ferramenta' : $('sugFerSel').value;
+    var fer = nova ? 'Geral' : $('sugFerSel').value;   // nova ferramenta: Ferramenta "Geral" + Tipo "Nova ferramenta" (listas do Sugestoes.gs)
     var pagina = document.title + (window.VERSAO_APP ? ' · v' + window.VERSAO_APP : '') + (fer !== FERRAMENTA_PAGINA ? ' (enviada da página ' + FERRAMENTA_PAGINA + ')' : '');
     var tipo = nova ? 'Nova ferramenta' : $('sugTipo').value;
     ocupado = true; $('sugEnviar').disabled = true; $('sugFechar').disabled = true;
@@ -226,7 +226,7 @@
       $('sugTexto').value = ''; $('sugCont').textContent = '0 / 4000'; limparAnexos();
       var ax = n ? ' com ' + n + (n > 1 ? ' anexos' : ' anexo') : '';
       if (r && r.via === 'email') status('Sugestão' + ax + ' enviada por e-mail (a planilha não respondeu agora). Obrigado!', 'aviso');
-      else status('Sugestão' + ax + ' registrada no planner (' + fer + '). Obrigado!', 'ok');
+      else status('Sugestão' + ax + ' registrada no planner (' + (nova ? 'Nova ferramenta' : fer) + '). Obrigado!', 'ok');
     }).catch(function (e) {
       liberar();
       if (e && e.semEspaco) { status('Com os links dos anexos o texto passa de 4000 caracteres. Encurte o texto em ' + e.semEspaco + ' caracteres e envie de novo.', 'erro'); return; }

@@ -1,47 +1,56 @@
 /**
- * Sugestões — anexos (arquivo NOVO, 09/11/2026). Não altera o Sugestoes.gs nem outro .gs.
+ * SugestoesAnexos.gs — anexos da janela "Sugestões" (arquivo NOVO, 2026.11.09.1).
+ * Não altera o Sugestoes.gs nem outro .gs.
  *
- * Usado pelo assets/sugestoes.js v1.3: cada anexo (arquivo ou foto) sobe numa chamada própria
- * para sugestaoAnexo(); o arquivo fica numa pasta do Drive e o link volta para a página,
- * que o coloca no fim do texto da sugestão. A sugestão segue pelo enviarSugestao() de sempre.
+ * Usado pelo assets/sugestoes.js v1.3: cada anexo (arquivo ou foto) sobe numa chamada própria para
+ * sugestaoAnexo(); o arquivo fica numa subpasta do dia (AAAA-MM-DD) da pasta configurada abaixo e o link
+ * volta para a página, que o coloca no fim do texto da sugestão. A sugestão segue pelo enviarSugestao()
+ * de sempre (aba oculta "Sugestoes" -> planner do Portal).
  *
- * Pasta: "Sugestões das ferramentas (anexos)/AAAA-MM-DD", no Drive da conta que executa o app.
- * Para usar uma pasta que já existe (ex.: dentro da pasta da equipe), grave o ID dela na
- * propriedade do script SUG_ANEXOS_PASTA_ID (Configurações do projeto → Propriedades do script).
+ * IMPORTANTE: o app roda com a conta de quem acessa (USER_ACCESSING). Por isso a pasta TEM que ser
+ * compartilhada, com permissão de EDITOR, com todos que usam as ferramentas (como as pastas de CONFIG.PASTAS).
+ * Quem lê o planner precisa ao menos ver a pasta para abrir os links.
  */
-var SUG_ANEXOS_NOME_PASTA = 'Sugestões das ferramentas (anexos)';
-var SUG_ANEXOS_MAX_BYTES = 8 * 1024 * 1024;   // igual ao limite da página (8 MB por arquivo)
+
+// ======= CONFIGURAÇÃO: só mexa aqui =======
+const SUG_ANEXOS = {
+  PASTA_ID: '',                  // ID da pasta compartilhada "Sugestões das ferramentas (anexos)"
+  MAX_BYTES: 8 * 1024 * 1024     // igual ao limite da página (8 MB por arquivo)
+};
+// ==========================================
 
 function sugestaoAnexo(a) {
+  usuarioAtual_(true);   // mesma checagem de conta das outras funções
+  if (!SUG_ANEXOS.PASTA_ID) throw new Error('a pasta dos anexos ainda não foi configurada (SugestoesAnexos.gs, SUG_ANEXOS.PASTA_ID).');
   if (!a || !a.base64 || !a.nome) throw new Error('anexo vazio.');
-  var bytes = Utilities.base64Decode(String(a.base64));
+  const bytes = Utilities.base64Decode(String(a.base64));
   if (!bytes.length) throw new Error('anexo vazio.');
-  if (bytes.length > SUG_ANEXOS_MAX_BYTES) throw new Error('o anexo ' + a.nome + ' passa de 8 MB.');
-  var nome = String(a.nome).replace(/[\\\/:*?"<>|\r\n]+/g, '_').slice(0, 120) || 'anexo';
-  var tipo = /^[\w.+-]+\/[\w.+-]+$/.test(String(a.tipo || '')) ? String(a.tipo) : 'application/octet-stream';
-  var quem = '';
-  try { quem = Session.getActiveUser().getEmail(); } catch (e) {}
-  var pasta = sugAnexosPastaDoDia_();
-  var arq = pasta.createFile(Utilities.newBlob(bytes, tipo, nome));
-  arq.setDescription('Anexo de sugestão' + (a.ferramenta ? ' – ' + String(a.ferramenta).slice(0, 60) : '') + (quem ? ' · ' + quem : ''));
+  if (bytes.length > SUG_ANEXOS.MAX_BYTES) throw new Error('o anexo ' + a.nome + ' passa de 8 MB.');
+  const nome = String(a.nome).replace(/[\\\/:*?"<>|\r\n]+/g, '_').slice(0, 120) || 'anexo';
+  const tipo = /^[\w.+-]+\/[\w.+-]+$/.test(String(a.tipo || '')) ? String(a.tipo) : 'application/octet-stream';
+  const email = usuarioAtual_(true);
+  const arq = sugAnexosPastaDoDia_().createFile(Utilities.newBlob(bytes, tipo, nome));
+  arq.setDescription('Anexo de sugestão' + (a.ferramenta ? ' – ' + String(a.ferramenta).slice(0, 60) : '') + (email ? ' · ' + email : ''));
   return { nome: nome, url: arq.getUrl(), tamanho: bytes.length };
 }
 
+/** Subpasta do dia (cria na primeira vez; a trava evita duas pastas iguais). */
 function sugAnexosPastaDoDia_() {
-  var lock = LockService.getScriptLock();
-  lock.waitLock(20000);   // duas pessoas anexando ao mesmo tempo não criam pastas repetidas
+  const raiz = DriveApp.getFolderById(SUG_ANEXOS.PASTA_ID);
+  const dia = Utilities.formatDate(new Date(), CONFIG.FUSO, 'yyyy-MM-dd');
+  let it = raiz.getFoldersByName(dia);
+  if (it.hasNext()) return it.next();
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
   try {
-    var props = PropertiesService.getScriptProperties();
-    var id = props.getProperty('SUG_ANEXOS_PASTA_ID'), raiz = null;
-    if (id) { try { raiz = DriveApp.getFolderById(id); if (raiz.isTrashed()) raiz = null; } catch (e) { raiz = null; } }
-    if (!raiz) {
-      raiz = DriveApp.createFolder(SUG_ANEXOS_NOME_PASTA);
-      props.setProperty('SUG_ANEXOS_PASTA_ID', raiz.getId());
-    }
-    var dia = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyy-MM-dd');
-    var it = raiz.getFoldersByName(dia);
+    it = raiz.getFoldersByName(dia);
     return it.hasNext() ? it.next() : raiz.createFolder(dia);
   } finally {
     lock.releaseLock();
   }
+}
+
+/** Rode pelo editor para testar: cria um anexo de teste e mostra o link no registro. */
+function testarAnexoSugestoes() {
+  Logger.log(JSON.stringify(sugestaoAnexo({ nome: 'teste_anexo.txt', tipo: 'text/plain', base64: Utilities.base64Encode('teste (pode apagar)'), ferramenta: 'Geral' })));
 }

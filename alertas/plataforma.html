@@ -184,10 +184,10 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
 #mapSvg.panning{cursor:grabbing}
 .municipio{fill:#ffffff;fill-opacity:0;stroke:#aebcc5;stroke-width:.55;cursor:pointer;vector-effect:non-scaling-stroke;pointer-events:all}
 .municipio:hover{fill:#d9eef8;fill-opacity:.20;stroke:#6f8794;stroke-width:.75}
-.municipio.selected{fill:var(--select);fill-opacity:.42;stroke:#166b9d;stroke-width:1.15}
-.municipio.alerted{fill:var(--active);fill-opacity:.48;stroke:#9b6800;stroke-width:1.15}
-.municipio.expiring{fill:var(--expiring);fill-opacity:.52;stroke:#a85d11;stroke-width:1.15}
-.municipio.expired{fill:var(--expired);fill-opacity:.55;stroke:#8b1f1f;stroke-width:1.15}
+.municipio.selected{fill:var(--select);fill-opacity:.80;stroke:#0b4f7a;stroke-width:2}
+.municipio.alerted{fill:var(--active);fill-opacity:.80;stroke:#7a5200;stroke-width:1.8}
+.municipio.expiring{fill:var(--expiring);fill-opacity:.82;stroke:#8a4a0c;stroke-width:1.8}
+.municipio.expired{fill:var(--expired);fill-opacity:.82;stroke:#6e1717;stroke-width:1.8}
 .label{font-size:1.8px;font-weight:400;fill:#20313d;text-anchor:middle;pointer-events:none;
         paint-order:stroke;stroke:#fff;stroke-width:.9px;stroke-linejoin:round;display:none}
 .labels-visible .label{display:block}
@@ -404,7 +404,7 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
       <span><i style="background:#f29f54"></i>perto de vencer</span>
       <span><i style="background:#d9534f"></i>prazo vencido</span>
       <span><i class="ln"></i>limite de mesorregião</span>
-      <span class="ver">Versão teste-20261109j</span>
+      <span class="ver">Versão teste-20261109l</span>
     </div>
   </section>
 </main>
@@ -499,7 +499,7 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
     </header>
     <div class="msg" id="relMsg" hidden role="status" aria-live="polite"></div>
     <div class="pages" id="relPages"></div>
-    <div class="vbar">Versão teste-20261109j</div>
+    <div class="vbar">Versão teste-20261109l</div>
   </section>
 </main>
 
@@ -576,16 +576,16 @@ main.plt{grid-template-columns:minmax(440px,1fr) minmax(420px,.9fr)}
     info.innerHTML='<b>Minas Gerais</b> • carregando '+falta.map(function(k){return nomes[k];}).join(' e ')+'… ('+s+' s)'+
       (s>=20?'<br><span style="color:#b3261e">Está demorando. Confira a internet e recarregue com Ctrl+F5. Arquivo: '+BASE+'alertas/data/'+falta[0]+'.js</span>':'');
   },1000);
-  window.BASE_DADOS=BASE;window.VERSAO_APP='teste-20261109j';
+  window.BASE_DADOS=BASE;window.VERSAO_APP='teste-20261109l';
   window.alertasDados=Promise.all([
     carregar(BASE+'alertas/data/municipios.js').then(function(){pendentes.municipios=false;}),
     carregar(BASE+'alertas/data/mesorregioes.js').then(function(){pendentes.mesorregioes=false;},function(){pendentes.mesorregioes=false;}),  // opcional
-    carregar(BASE+'alertas/app-drive.js?v=teste-20261109j')     // código da página (GitHub Pages)
+    carregar(BASE+'alertas/app-drive.js?v=teste-20261109l')     // código da página (GitHub Pages)
   ]);
   // jsPDF só é usado no relatório: carrega depois, sem atrasar o mapa
-  window.alertasJsPdf=window.alertasDados.catch(function(){}).then(function(){return carregar(BASE+'previsao/lib/jspdf.umd.min.js?v=teste-20261109j');});
+  window.alertasJsPdf=window.alertasDados.catch(function(){}).then(function(){return carregar(BASE+'previsao/lib/jspdf.umd.min.js?v=teste-20261109l');});
 })();
 </script>
-<script src="../assets/planner-teste.js?v=teste-20261109j"></script>   <!-- Planner da semana (botão na barra) -->
+<script src="../assets/planner-teste.js?v=teste-20261109l"></script>   <!-- Planner da semana (botão na barra) -->
 </body>
 </html>
