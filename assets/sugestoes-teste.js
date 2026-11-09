@@ -9,7 +9,7 @@
  * ("Sugestão – <ferramenta>"); se isso falhar, vai por e-mail.
  */
 /* CÓPIA DE TESTE do assets/sugestoes.js oficial, com a proposta v1.3 (09/11/2026, Patrick/Claude):
-   - "Ferramenta" vira lista (começa na ferramenta da página) com a opção "Sugestão de nova ferramenta";
+   - "Ferramenta" vira lista com só duas opções: a ferramenta da página (padrão) e "Sugestão de nova ferramenta";
      nela o "Tipo" some e o campo de texto vira "Descrição da nova ferramenta";
    - "Nova ferramenta" sai da lista de Tipo;
    - anexos: "Anexar arquivo" e "Anexar foto" (e Ctrl+V de imagem na caixa de texto), até 5 arquivos, 8 MB cada e 15 MB no total;
@@ -23,7 +23,6 @@
   var temServidor = !!(window.google && google.script && google.script.run);
 
   var TIPOS = ['Melhoria', 'Problema / erro', 'Outro'];
-  var FERRAMENTAS = ['Tempo Severo', 'Chuva', 'Alertas', 'Previsão diária', 'Reservatórios', 'Curto Prazo', 'Umidade Mínima', 'Geral'];
   var NOVA = 'Sugestão de nova ferramenta';
   var MAX_ARQ = 5, MAX_MB = 8, MAX_TOTAL_MB = 15;
   function ferramentaAtual() {
@@ -87,7 +86,7 @@
     '<h2 id="sugTit"><span id="sugTitTxt">Sugestões de melhoria</span><span id="sugTitSep"> — </span><span id="sugTitFer"></span></h2>' +
     '<p class="d" id="sugDesc">Conte o que pode melhorar ou o que não está funcionando. A mensagem vai direto para a equipe que cuida das ferramentas.</p>' +
     '<div class="sug-g"><div><label for="sugFerSel">Ferramenta</label><select id="sugFerSel">' +
-    FERRAMENTAS.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join('') + '<option value="' + esc(NOVA) + '">' + esc(NOVA) + '</option></select></div>' +
+    '<option>' + esc(FERRAMENTA_PAGINA) + '</option><option value="' + esc(NOVA) + '">' + esc(NOVA) + '</option></select></div>' +
     '<div id="sugTipoBox"><label for="sugTipo">Tipo</label><select id="sugTipo">' +
     TIPOS.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join('') + '</select></div></div>' +
     '<label for="sugTexto" id="sugTextoRot">Sugestão *</label><textarea id="sugTexto" maxlength="4000"></textarea>' +

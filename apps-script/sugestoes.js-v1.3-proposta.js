@@ -2,16 +2,15 @@
  * Sugestões — botão "Sugestões" na barra de cada ferramenta (v1.3, 09/11/2026).
  * v1.2: sem o campo de nome; quem enviou fica registrado só pelo e-mail Google (o Apps Script grava).
  * Carregado pelo assets/planner.js (as páginas não precisam mudar).
- * A ferramenta começa na da página em que a janela foi aberta (v1.3: pode trocar ou escolher
- * "Sugestão de nova ferramenta"). Só existe DENTRO das ferramentas (Apps Script, com login);
+ * A ferramenta é a da página em que a janela foi aberta (v1.3: ou "Sugestão de nova ferramenta"). Só existe DENTRO das ferramentas (Apps Script, com login);
  * a página inicial pública (index.html do GitHub) não tem o botão.
  * Envia pelo Apps Script (Sugestoes.gs → enviarSugestao): vira um cartão no planner do Portal
  * ("Sugestão – <ferramenta>"); se isso falhar, vai por e-mail.
  */
 /* v1.3 (09/11/2026, Patrick/Claude, sobre a v1.2 da equipe):
-   - "Ferramenta" vira lista (começa na ferramenta da página) com a opção "Sugestão de nova ferramenta";
+   - "Ferramenta" vira lista com só duas opções: a ferramenta da página (padrão) e "Sugestão de nova ferramenta";
      nela o "Tipo" some e o campo de texto vira "Descrição da nova ferramenta";
-   - "Nova ferramenta" sai da lista de Tipo; Curto Prazo e Umidade Mínima entram na lista de ferramentas;
+   - "Nova ferramenta" sai da lista de Tipo; Curto Prazo e Umidade Mínima passam a ser reconhecidas pelo título da página;
    - anexos: "Anexar arquivo" e "Anexar foto" (e Ctrl+V de imagem na caixa de texto), até 5 arquivos, 8 MB cada e 15 MB no total;
      cada anexo sobe antes, um por chamada, pelo sugestaoAnexo() do arquivo NOVO SugestoesAnexos.gs (pasta no Drive);
      os links entram no fim do texto e a sugestão segue pelo enviarSugestao() de sempre (o Sugestoes.gs não muda);
@@ -22,7 +21,6 @@
   var temServidor = !!(window.google && google.script && google.script.run);
 
   var TIPOS = ['Melhoria', 'Problema / erro', 'Outro'];
-  var FERRAMENTAS = ['Tempo Severo', 'Chuva', 'Alertas', 'Previsão diária', 'Reservatórios', 'Curto Prazo', 'Umidade Mínima', 'Geral'];
   var NOVA = 'Sugestão de nova ferramenta';
   var MAX_ARQ = 5, MAX_MB = 8, MAX_TOTAL_MB = 15;
   function ferramentaAtual() {
@@ -86,7 +84,7 @@
     '<h2 id="sugTit"><span id="sugTitTxt">Sugestões de melhoria</span><span id="sugTitSep"> — </span><span id="sugTitFer"></span></h2>' +
     '<p class="d" id="sugDesc">Conte o que pode melhorar ou o que não está funcionando. A mensagem vai direto para a equipe que cuida das ferramentas.</p>' +
     '<div class="sug-g"><div><label for="sugFerSel">Ferramenta</label><select id="sugFerSel">' +
-    FERRAMENTAS.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join('') + '<option value="' + esc(NOVA) + '">' + esc(NOVA) + '</option></select></div>' +
+    '<option>' + esc(FERRAMENTA_PAGINA) + '</option><option value="' + esc(NOVA) + '">' + esc(NOVA) + '</option></select></div>' +
     '<div id="sugTipoBox"><label for="sugTipo">Tipo</label><select id="sugTipo">' +
     TIPOS.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join('') + '</select></div></div>' +
     '<label for="sugTexto" id="sugTextoRot">Sugestão *</label><textarea id="sugTexto" maxlength="4000"></textarea>' +

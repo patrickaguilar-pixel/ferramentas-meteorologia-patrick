@@ -40,14 +40,32 @@ th{background:#f7f9fc}
 .sw{display:inline-block;width:11px;height:11px;border:1px solid #8896a6;border-radius:2px;margin-right:5px;vertical-align:-1px}
 .selo{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700}
 .cabTab{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.abas{display:flex;gap:6px;margin-top:12px}
+.abas button{border:1px solid var(--line);background:#fff;color:#25354a;padding:9px 14px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer}
+.abas button.ativa{background:var(--accent);border-color:var(--accent);color:#fff}
+.rel{display:grid;grid-template-columns:minmax(320px,440px) 1fr;gap:14px;align-items:start}
+@media (max-width:980px){.rel{grid-template-columns:1fr}}
+.rel label{display:block;font-size:13px;font-weight:700;margin:10px 0 5px}
+.rel input[type=date],.rel input[type=text],.rel textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 9px;font:14px/1.45 Arial,Helvetica,sans-serif;background:#fff;color:var(--text)}
+.rel textarea{resize:vertical}
+.rel .lin3{display:grid;grid-template-columns:1fr 1fr 90px;gap:8px}
+.rel .dica{font-size:12px;color:var(--muted);line-height:1.4;margin-top:4px}
+.folha{background:#e9eef3;border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;justify-content:center}
+.folha canvas{width:100%;max-width:640px;height:auto;background:#fff;box-shadow:0 2px 14px rgba(20,40,70,.18)}
+.status.aviso{background:#fff8e1;border-color:#f0d78c;color:#7a5200}
+.status.erro{background:#fdecea;border-color:#f3b8b2;color:#8a1c12}
+.status.ok{background:#e9f7ef;border-color:#a9dcbf;color:#14532d}
 </style>
 </head>
 <body>
 <header><div class="wrap"><div class="top">
 <div><h1>SIMGE/IGAM | Umidade Mínima</h1><div class="muted">Umidade relativa do ar mínima prevista para os <strong>próximos 3 dias</strong> com o <strong>WRF 7 km</strong> (CPTEC/INPE). Produto das segundas e quintas no período seco (PREVINCÊNDIO).</div></div>
-<span class="badge">v0.1.5 · teste</span>
-</div></div></header>
+<span class="badge">v0.2 · teste</span>
+</div>
+<nav class="abas" role="tablist" aria-label="Partes da ferramenta"><button id="abaMapaBtn" class="ativa" role="tab" aria-selected="true" type="button">Mapa e tabela</button><button id="abaRelBtn" role="tab" aria-selected="false" type="button">Relatório (PDF)</button></nav>
+</div></header>
 <main>
+<section id="abaMapa">
 <div class="notice"><strong>Como funciona:</strong> a umidade relativa a 2 m do WRF 7 km é baixada automaticamente a cada 2 horas (rodada 00Z). A ferramenta usa o campo das <strong>15h (18 UTC), hora local</strong>, do dia da rodada e dos dois dias seguintes e mostra a <strong>média desses três dias</strong>, como no notebook da equipe. O mapa tem uma suavização leve (só no desenho); a tabela usa os valores do modelo sem suavização.</div>
 
 <div class="card">
@@ -68,14 +86,38 @@ th{background:#f7f9fc}
 <div class="cabTab"><div><h2 style="margin:0">Mesorregiões</h2><div class="small">Menor valor de UR em cada mesorregião (grade de 0,025°, sem suavização) em cada dia e na média dos 3 dias. O estado segue o critério de Baixa Umidade do Manual de Atividades, pelo menor valor da média, arredondado: <span id="urEstados"></span></div></div><button id="urCsv" class="secondary" disabled>Baixar CSV</button></div>
 <div class="scroll"><table><thead id="urMesoHead"></thead><tbody id="urMesoBody"></tbody></table></div>
 </div>
+</section>
+
+<section id="abaRel" hidden>
+<div class="rel">
+<div class="card">
+<h2>Relatório — Aviso Meteorológico</h2>
+<div class="small">Modelo "UMIDADE RELATIVA DO AR MÍNIMA" da equipe. O mapa é o da aba <b>Mapa e tabela</b> (mesmas isolinhas e cidades).</div>
+<label>Período de vigência</label>
+<div class="lin3"><input id="relIni" type="date" aria-label="Início da vigência"><input id="relFim" type="date" aria-label="Fim da vigência"><input id="relHora" type="text" value="15h" aria-label="Hora do fim da vigência"></div>
+<div class="dica">Sai como: "Período de Vigência: DD/MM/AAAA até às 15h do dia DD/MM/AAAA".</div>
+<label for="relTexto">Texto do aviso</label>
+<textarea id="relTexto" rows="11"></textarea>
+<div class="dica">Use <b>**duas estrelas**</b> para negrito (ex.: **Estado de Atenção**). Linha em branco começa outro parágrafo.</div>
+<div class="actions"><button id="relGerar" class="secondary" type="button">Gerar texto a partir da tabela</button></div>
+<label for="relObs">OBS</label>
+<textarea id="relObs" rows="4"></textarea>
+<div class="actions"><button id="relObsPadrao" class="secondary" type="button">Voltar a OBS padrão</button></div>
+<div class="actions" style="margin-top:14px"><button id="relPdf" class="primary" type="button" disabled>Baixar PDF</button></div>
+<div id="relStatus" class="status">Abrindo…</div>
+</div>
+<div class="card"><h2>Prévia (A4)</h2><div class="folha"><canvas id="relCanvas" width="1240" height="1754"></canvas></div></div>
+</div>
+</section>
 </main>
 <script>window.BASE_DADOS='../';window.FERRAMENTA='umidade-minima';</script>
-<script src="../previsao/data/geo.js?v=teste-20261109c"></script>
-<script src="../chuva/data/cidades.js?v=teste-20261109c"></script>
-<script src="../assets/layout-mapa.js?v=teste-20261109c"></script>
-<script src="../umidade-minima/meso.js?v=teste-20261109c"></script>
-<script src="../umidade-minima/app.js?v=teste-20261109c"></script>
-<script src="../assets/cabecalho.js?v=teste-20261109c"></script>   <!-- cabeçalho padrão -->
-<script src="../assets/planner-teste.js?v=teste-20261109c"></script>   <!-- Planner da semana + Sugestões (botões no cabeçalho) -->
+<script src="../previsao/data/geo.js?v=teste-20261109e"></script>
+<script src="../chuva/data/cidades.js?v=teste-20261109e"></script>
+<script src="../assets/layout-mapa.js?v=teste-20261109e"></script>
+<script src="../umidade-minima/meso.js?v=teste-20261109e"></script>
+<script src="../umidade-minima/app.js?v=teste-20261109e"></script>
+<script src="../umidade-minima/relatorio.js?v=teste-20261109e"></script>
+<script src="../assets/cabecalho.js?v=teste-20261109e"></script>   <!-- cabeçalho padrão -->
+<script src="../assets/planner-teste.js?v=teste-20261109e"></script>   <!-- Planner da semana + Sugestões (botões no cabeçalho) -->
 </body>
 </html>

@@ -1,5 +1,6 @@
 /*
  * Umidade Mínima v0.1.1 (06/11/2026): seletor da quantidade de isolinhas (Nenhuma, Poucas, Padrão, a cada 10 %, a cada 5 %).
+ * v0.2 (09/11/2026): aba "Relatório (PDF)" (umidade-minima/relatorio.js); estatMeso() com percentis; evento ur:mapa.
  * v0.1.5 (06/11/2026): rótulos das isolinhas um pouco mais suaves (opacidade 0,7).
  * v0.1.4 (06/11/2026): rótulos das isolinhas maiores (2,6 → 3,6 mm) e fora das divisas das mesorregiões.
  * v0.1.3 (06/11/2026): rótulos das isolinhas na direção da linha, com a linha interrompida embaixo do texto.
@@ -307,7 +308,9 @@
       const minDe = arr => { let m = Infinity; for (const i of cel) if (arr[i] < m) m = arr[i]; return m; };
       let soma = 0; for (const i of cel) soma += E.bruto[i];
       const minMedia = minDe(E.bruto);
-      return { nome, dias: E.dias.map(minDe), minMedia, media: soma / cel.length, estado: estado(minMedia) };
+      const ord = Array.from(cel, i => E.bruto[i]).sort((a, b) => a - b), pc = q => ord[Math.min(ord.length - 1, Math.floor(q * ord.length))];
+      return { nome, dias: E.dias.map(minDe), minMedia, media: soma / cel.length, estado: estado(minMedia),
+        p10: pc(0.10), p25: pc(0.25), p50: pc(0.50), p75: pc(0.75), p90: pc(0.90), max: ord[ord.length - 1] };   // percentis: usados no texto do relatório
     });
   }
   function extremoMG() {
@@ -348,6 +351,7 @@
     el.innerHTML = ''; el.appendChild(img);
     $('urPng').disabled = false;
     tabela();
+    try { document.dispatchEvent(new CustomEvent('ur:mapa')); } catch (e) { }   // aba Relatório refaz a prévia
   }
 
   /* ---------------- tabela ---------------- */
@@ -396,6 +400,6 @@
     desenhar();
     carregar();
   }
-  window.UmidadeMinima = { ESCALA, ESTADOS, suavizar, valor: (lon, lat) => S.j && valor(S.j.media.ur, lon, lat), estatMeso: () => estatMeso(), isolinhas: () => isolinhas(), _S: S };   // para conferência no console
+  window.UmidadeMinima = { ESCALA, ESTADOS, suavizar, opMapa: () => S.j ? opMapa() : null, dados: () => S.j, dataBR, ddmm, baixar, periodoTag: () => periodoTag(), valor: (lon, lat) => S.j && valor(S.j.media.ur, lon, lat), estatMeso: () => estatMeso(), isolinhas: () => isolinhas(), _S: S };   // para conferência no console
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
 })();
