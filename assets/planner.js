@@ -404,3 +404,15 @@
   function iniciar() { colocarBotao(); document.body.appendChild(back); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
 })();
+
+/* 06/11/2026: carrega o botão "Sugestões" (assets/sugestoes.js), com a mesma versão do planner.js.
+   Assim as páginas do Apps Script não precisam mudar. */
+(function () {
+  if (window.__sugestoesCarregado) return;
+  var eu = document.currentScript && document.currentScript.src;
+  if (!eu) { var ss = document.querySelectorAll('script[src*="assets/planner.js"]'); eu = ss.length ? ss[ss.length - 1].src : ''; }
+  if (!eu) return;
+  var s = document.createElement('script');
+  s.src = eu.replace(/planner\.js(\?|$)/, 'sugestoes.js$1');
+  document.head.appendChild(s);
+})();

@@ -1,4 +1,12 @@
-/* Alertas e passagem de plantão — código da página (v4.2, 04/11/2026).
+/* Alertas e passagem de plantão — código da página (v4.4, 09/11/2026).
+   v4.4 (Patrick/Claude, sobre a v4.3 da equipe): (1) botão "✎ Editar" nos alertas próprios e vigentes (abre a janela
+   preenchida; ao salvar, entra um alerta novo com "RETIFICAÇÃO" e o original é excluído pelo excluirAlerta);
+   (2) mapa do relatório com municípios em amarelo forte e opaco (#ffc107) e contorno escuro;
+   (3) gsRun(): sem Apps Script (painel de teste) as chamadas respondem na hora; no oficial é o google.script.run.
+   v4.3: (1) alertas vigentes de plantões anteriores voltam a colorir o mapa: a hora do registro vem do ID do
+   alerta quando a coluna "Registrado em" chega em outro formato (precisa do AlertasVigentes.gs v3.5.1);
+   (2) novo fenômeno "acumulados significativos"; (3) Belo Horizonte sai no texto do alerta, mas nunca no KML;
+   (4) "×" ao lado de cada município selecionado (no quadro do mapa e na janela do alerta) para desmarcar.
    v4.2: data de início e turno do plantão começam vazios e são obrigatórios; aviso ao abrir a página;
    aviso fixo e "o último plantão foi…" com sugestão do plantão seguinte; horários padrão travados
    (07:00–19:00 / 19:00–07:00); no 1º alerta a página confere data/turno com a hora e avisa antes de enviar
@@ -70,7 +78,7 @@ const svg=$('mapSvg'),layer=$('munLayer'),mesoLayer=$('mesoLayer'),labels=$('lab
 const PAD=28,W=1000,H=760;
 const CHAVE_RASCUNHO='simge-plantao-rascunho-v2';
 const temServidor=!!(window.google&&google.script&&google.script.run);
-/* v4.1.1 (03/11/2026): plataforma de TESTE (sem Apps Script). As chamadas ao servidor respondem aqui mesmo, na hora,
+/* v4.4 (antes v4.1.1, 03/11/2026): plataforma de TESTE (sem Apps Script). As chamadas ao servidor respondem aqui mesmo, na hora,
    para nada ficar esperando o Drive: o alerta entra só na tela, o KML e o relatório baixam no PC e o Drive aparece
    como "não ligado". Na plataforma oficial (temServidor) gsRun() é o próprio gsRun() — nada muda lá. */
 const SEM_DRIVE='esta plataforma de teste não está ligada ao Drive';
@@ -452,7 +460,7 @@ function atualizarCards(){
     a.cardEl.classList.toggle('expiring',c==='expiring');a.cardEl.classList.toggle('expired',c==='expired');
     const s=a.cardEl.querySelector('.alert-status');
     if(s)s.textContent=c==='expired'?'Prazo vencido':(c==='expiring'?'Perto de vencer':'Vigente');
-    const ed=a.cardEl.querySelector('.editar-alerta');if(ed)ed.hidden=c==='expired';   // v4.3: só edita alerta vigente
+    const ed=a.cardEl.querySelector('.editar-alerta');if(ed)ed.hidden=c==='expired';   // v4.4: só edita alerta vigente
   });
 }
 setInterval(()=>{pintarMapa();atualizarCards();},30000);
@@ -462,9 +470,52 @@ function updateSelection(){
   pintarMapa();
   const arr=[...state.selected].sort((a,b)=>a.localeCompare(b,'pt-BR'));
   $('selCount').textContent=arr.length;
-  $('selectedNames').textContent=arr.length?arr.join(', ')+'.':'Nenhum município selecionado.';
+  desenharSelecionados(arr);
   $('create').disabled=!arr.length;
 }
+/* v4.3: cada município selecionado com um "×" para desmarcar sem voltar ao mapa
+   (no quadro "municípios selecionados" e na janela do alerta). */
+(function estiloChipX(){
+  const st=document.createElement('style');
+  st.textContent='.selchip{display:inline-flex;align-items:center;gap:2px;margin:0 4px 3px 0;padding:1px 2px 1px 8px;border:1px solid var(--line,#d4dee5);border-radius:14px;background:#edf5f9;color:#20313d;white-space:nowrap}'+
+    '.chip.comx{display:inline-flex;align-items:center;gap:2px;padding-right:2px}'+
+    '.chipx{border:0;background:transparent;color:#7a8b96;font-size:15px;line-height:1;width:20px;height:20px;padding:0;border-radius:50%;cursor:pointer;font-weight:700}'+
+    '.chipx:hover,.chipx:focus-visible{background:#d9534f;color:#fff;outline:none}'+
+    '#selectedNames{max-height:96px}';
+  document.head.appendChild(st);
+})();
+function chipX(nome,cls){
+  return `<span class="${cls}" data-nome="${esc(nome)}">${esc(nome)}<button type="button" class="chipx" title="Desmarcar ${esc(nome)}" aria-label="Desmarcar ${esc(nome)}">×</button></span>`;
+}
+function desmarcarMunicipio(nome){
+  if(!state.selected.has(nome))return;
+  guardarSel();state.selected.delete(nome);updateSelection();
+  if($('modalback').style.display==='flex'){
+    desenharChipsModal();buildMessage();
+    $('kmlStatus').textContent='Sem preenchimento e com contorno vermelho fino, como o QGIS.'+avisoKmlBH([...state.selected]);
+    if(!state.selected.size){$('emit').disabled=true;emitStatus('Nenhum município selecionado. Cancele e selecione no mapa.','erro');}
+  }
+}
+function desenharSelecionados(arr){
+  const box=$('selectedNames');
+  if(!arr.length){box.textContent='Nenhum município selecionado.';return;}
+  box.innerHTML=arr.map(n=>chipX(n,'selchip')).join('');
+}
+function desenharChipsModal(){
+  $('chips').innerHTML=[...state.selected].sort((a,b)=>a.localeCompare(b,'pt-BR')).map(x=>chipX(x,'chip comx')).join('');
+}
+['selectedNames','chips'].forEach(id=>{const el=$(id);if(el)el.addEventListener('click',e=>{
+  const b=e.target.closest('.chipx');if(!b)return;e.stopPropagation();
+  desmarcarMunicipio(b.parentElement.getAttribute('data-nome'));
+});});
+/* v4.3: fenômeno "acumulados significativos" (fica desmarcado; marque quando quiser) */
+(function novoFenomeno(){
+  const box=document.querySelector('.modal .phens');
+  if(!box||box.querySelector('.phen[value="acumulados significativos"]'))return;
+  const l=document.createElement('label');
+  l.innerHTML='<input type="checkbox" class="phen" value="acumulados significativos"> acumulados significativos';
+  box.appendChild(l);
+})();
 $('clear').onclick=()=>{if(state.selected.size)guardarSel();state.selected.clear();drawLine.style.display='none';updateSelection();};
 $('novo').onclick=()=>{if(state.selected.size)guardarSel();state.selected.clear();drawLine.style.display='none';setMode('click');updateSelection();mostrarAba('mapa');};
 /* Desfazer: volta a seleção de municípios anterior (clique, desenho, busca, limpar) — botão no cabeçalho do mapa e Ctrl+Z */
@@ -515,9 +566,9 @@ function openModal(){
   if(!state.selected.size)return;
   $('time').value=now();
   $('owner').value=$('pResp').value.trim();
-  $('chips').innerHTML=[...state.selected].sort((a,b)=>a.localeCompare(b,'pt-BR')).map(x=>`<span class="chip">${esc(x)}</span>`).join('');
+  desenharChipsModal();$('emit').disabled=false;
   emitStatus('Plantão '+rotuloTurno(state.turno)+' (altere na aba Plantão). Ao emitir, o KML é salvo no Drive e o alerta entra na planilha.');
-  $('kmlStatus').textContent='Sem preenchimento e com contorno vermelho fino, como o QGIS.';
+  $('kmlStatus').textContent='Sem preenchimento e com contorno vermelho fino, como o QGIS.'+avisoKmlBH([...state.selected]);
   applyAlertPreset();$('modalback').style.display='flex';
 }
 $('create').onclick=()=>state.editando?abrirEdicao():openModal();
@@ -539,8 +590,12 @@ function featureKml(f){
   return polys.map(poly=>`<Polygon><outerBoundaryIs><LinearRing><coordinates>${coordString(poly[0])}</coordinates></LinearRing></outerBoundaryIs></Polygon>`).join('');
 }
 function kmlStamp(){const d=new Date(),p=n=>String(n).padStart(2,'0');return p(d.getHours())+'_'+p(d.getMinutes())+'_'+p(d.getSeconds());}
+/* v4.3: Belo Horizonte sai no texto do alerta, mas nunca no KML (nem na emissão, nem no "Baixar KML"). */
+const FORA_DO_KML=new Set(['Belo Horizonte']);
+function citiesKml(cities){return cities.filter(n=>!FORA_DO_KML.has(n));}
+function avisoKmlBH(cities){return cities.some(n=>FORA_DO_KML.has(n))?' Belo Horizonte entra na mensagem, mas fica fora do KML.':'';}
 function montarKml(cities,folder){
-  const placemarks=cities.map(name=>{
+  const placemarks=citiesKml(cities).map(name=>{
     const f=featureByName.get(name);
     return `<Placemark><name>${escXml(name)}</name><Style><LineStyle><color>ff0000ff</color><width>1</width></LineStyle><PolyStyle><fill>0</fill><outline>1</outline></PolyStyle></Style><MultiGeometry>${featureKml(f)}</MultiGeometry></Placemark>`;
   }).join('');
@@ -557,7 +612,7 @@ function baixarKml(cities,folder,opc){
 $('downloadKml').onclick=()=>{
   const cities=[...state.selected].sort((a,b)=>a.localeCompare(b,'pt-BR'));if(!cities.length)return;
   const size=baixarKml(cities);
-  $('kmlStatus').textContent=`KML pronto • ${Math.max(1,Math.round(size/1024))} KB • contorno vermelho sem preenchimento`;
+  $('kmlStatus').textContent=`KML pronto • ${Math.max(1,Math.round(size/1024))} KB • contorno vermelho sem preenchimento.`+avisoKmlBH(cities);
 };
 
 /* ---------------- registro diário (.txt) ---------------- */
@@ -571,7 +626,7 @@ $('downloadTxt').onclick=()=>{
     gsRun()
       .withSuccessHandler(r=>{
         btn.disabled=false;
-        const rows=((r&&r.linhas)||[]).map(x=>[dataTxt(x.registradoEm),hhmm(x.horario)||x.horario,hhmm(x.duracao)||x.duracao,x.municipio].join('\t'));
+        const rows=((r&&r.linhas)||[]).map(x=>[dataTxt(regDoAlerta(x.alerta,x.registradoEm)),hhmm(x.horario)||x.horario,hhmm(x.duracao)||x.duracao,x.municipio].join('\t'));
         if(!rows.length){alert('Não há alertas válidos registrados no plantão '+rotuloTurno(t)+'.\n\nPara outro turno, escolha-o no campo "Plantão" (aba Plantão e relatório).');return;}
         salvarMaterial('alertas_'+ddmmaa(t.data)+'_'+t.turno.toLowerCase()+'.txt',new Blob([rows.join('\r\n')+'\r\n'],{type:'text/plain;charset=utf-8'}));
       })
@@ -594,7 +649,7 @@ $('emit').onclick=()=>{
   if(!/^([01]?\d|2[0-3]):[0-5]\d$/.test(start)){
     emitStatus('Horário inválido. Use o formato HH:MM, por exemplo 15:40.','erro');$('time').focus();return;
   }
-  const folder=kmlStamp(),orig=state.editando;   // v4.3: alerta sendo editado (é substituído depois que o novo for registrado)
+  const folder=kmlStamp(),orig=state.editando;   // v4.4: alerta sendo editado (é substituído depois que o novo for registrado)
   const a={id:'',kmlUrl:'',type:$('type').value,owner:$('owner').value.trim()||$('pResp').value.trim()||'Sem identificação',
     start,end:endTime(start,dur),duration:dur,cities,phen:fenomenos(),message:$('message').value,folder,renovaDe:state.renovando?(state.renovando.id||''):(orig&&orig.renovaDe)||'',editaDe:orig?(orig.id||''):''};
   const payload={
@@ -604,7 +659,7 @@ $('emit').onclick=()=>{
     kml:montarKml(cities,folder),
     turno:state.turno.turno,dataTurno:state.turno.data,
     renovacaoDe:a.renovaDe,   // v4.1: ID do alerta renovado (o Apps Script pode ignorar)
-    edicaoDe:a.editaDe        // v4.3: ID do alerta editado (o Apps Script pode ignorar; o original é excluído pelo excluirAlerta)
+    edicaoDe:a.editaDe        // v4.4: ID do alerta editado (o Apps Script pode ignorar; o original é excluído pelo excluirAlerta)
   };
   $('emit').disabled=true;emitStatus('Salvando o KML no Drive e o alerta na planilha…');
   gsRun()
@@ -1404,7 +1459,7 @@ function opcoesMapaAlertas(nomes){
     titulo:'Alertas - '+dataTxt+(turno?' ('+turno+')':''),
     textoValidade:'Alertas emitidos no plantão'+(turno?' '+turno.toLowerCase():'')+(data?' de '+dataTxt:''),
     credito:'Alertas - SIMGE/IGAM, '+((data||new Date().toISOString()).slice(0,4)),
-    // v4.1.1: amarelo forte e opaco, com contorno escuro — com o mapa base (OSM) por baixo, o amarelo translúcido sumia
+    // v4.4 (antes v4.1.1): amarelo forte e opaco, com contorno escuro — com o mapa base (OSM) por baixo, o amarelo translúcido sumia
     areas:[...nomes].map(n=>featureByName.get(n)).filter(Boolean).map(f=>({geometry:f.geometry,fill:'#ffc107',opacity:1,stroke:'#5c3a00',strokeWidth:0.3})),
     legenda:[{fill:'#ffc107',label:'Município com alerta no plantão'},{fill:'#ffffff',label:'Sem alerta'}],
     cidadesNomes:CIDADES_REF
@@ -1699,7 +1754,16 @@ function podeExcluir(a){
   if(a.meu)return true;
   return !!(a.email&&state.meuEmail&&a.email===state.meuEmail);
 }
-function hhmm(s){const m=/(\d{1,2}):(\d{2})/.exec(String(s||''));return m?m[1].padStart(2,'0')+':'+m[2]:'';}
+function hhmm(s){s=String(s||'');const m=/(\d{1,2}):(\d{2})/.exec(s);if(!m)return '';let h=+m[1];   // v4.3: aceita "8:30:00 PM"
+  if(/\bp\.?\s?m\b/i.test(s)&&h<12)h+=12;else if(/\ba\.?\s?m\b/i.test(s)&&h===12)h=0;
+  return String(h).padStart(2,'0')+':'+m[2];}
+/* v4.3: "Registrado em" confiável. A planilha pode devolver essa coluna como "6/11/2026 8:31:00" ou com dia e mês
+   trocados; o ID do alerta (A + aaaaMMdd-HHmmss) é texto gravado pelo próprio app e não muda. */
+function regDoAlerta(id,registradoEm){
+  const m=/^A(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/.exec(String(id||'').trim());
+  if(m)return m[3]+'/'+m[2]+'/'+m[1]+' '+m[4]+':'+m[5];
+  return registradoEm||'';
+}
 /* Fim do alerta a partir do "Registrado em" (dd/mm/aaaa HH:mm) da planilha. */
 function expiraEm(registradoEm,start,dur){
   const m=/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2})/.exec(String(registradoEm||''));
@@ -1738,7 +1802,7 @@ function sincronizarAlertas(cb){
           start,duration,end:hhmm(sv.end)||l.end||(start?endTime(start,duration):''),
           cities:(sv.cities&&sv.cities.length)?sv.cities:(l.cities||[]),
           phen:l.phen||String(sv.phen||'').split(',').map(x=>x.trim()).filter(Boolean),
-          expiresAt:l.expiresAt||expiraEm(sv.registradoEm,start,duration),
+          expiresAt:l.expiresAt||expiraEm(regDoAlerta(sv.id,sv.registradoEm),start,duration),
           folder:l.folder||'',meu:!!l.meu
         });
       });
@@ -2029,7 +2093,7 @@ function alertasVigentesEm(cities){
   state.active.concat(herdadosVigentes(t)).forEach(a=>{
     if(a.expiresAt&&a.expiresAt<=t)return;            // vencido: pode emitir de novo
     if(state.renovando&&(a===state.renovando||(a.id&&a.id===state.renovando.id)))return;   // v4.1: é o próprio alerta sendo renovado
-    if(state.editando&&(a===state.editando||(a.id&&a.id===state.editando.id)))return;      // v4.3: é o próprio alerta sendo editado
+    if(state.editando&&(a===state.editando||(a.id&&a.id===state.editando.id)))return;      // v4.4: é o próprio alerta sendo editado
     const em=(a.cities||[]).filter(n=>alvo.has(n));
     if(em.length)out.push({a,em});
   });
@@ -2063,7 +2127,7 @@ function carregarHerdados(cb){
           start,duration,end:hhmm(sv.end)||(start?endTime(start,duration):''),
           cities:Array.isArray(sv.cities)?sv.cities:[],
           phen:String(sv.phen||'').split(',').map(x=>x.trim()).filter(Boolean),
-          kmlUrl:sv.kmlUrl||'',expiresAt:expiraEm(sv.registradoEm,start,duration)};
+          kmlUrl:sv.kmlUrl||'',expiresAt:expiraEm(regDoAlerta(sv.id,sv.registradoEm),start,duration)};
       });
       desenharHerdados();pintarMapa();fim();
     })
@@ -2125,7 +2189,7 @@ function fimRenovacao(){
 }
 state.renovando=null;
 
-/* ---- v4.3 (03/11/2026): Editar alerta vigente ----
+/* ---- v4.4 (09/11/2026; criado em 03/11 e mesclado sobre a v4.3 da equipe): Editar alerta vigente ----
    Só para alertas do próprio plantonista e ainda vigentes. Abre a janela de emissão preenchida com o alerta
    (municípios, tipo, fenômenos, horário e duração); "Ajustar municípios no mapa" deixa incluir/retirar municípios.
    Ao salvar, a versão editada é registrada como um alerta NOVO (nova linha na planilha e KML novo, mensagem com
