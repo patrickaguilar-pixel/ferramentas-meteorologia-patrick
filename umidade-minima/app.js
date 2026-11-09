@@ -344,12 +344,12 @@
   }
   function desenhar() {
     const el = $('urMapa');
-    if (!S.j) { el.innerHTML = '<div class="vazio">Sem dados para desenhar o mapa.</div>'; $('urPng').disabled = true; tabela(); return; }
+    if (!S.j) { el.innerHTML = '<div class="vazio">Sem dados para desenhar o mapa.</div>'; $('urPng').disabled = true; $('urPrevia').disabled = true; tabela(); return; }
     if (!window.LayoutMapa) { el.innerHTML = '<div class="vazio">Não foi possível carregar o layout do mapa. Recarregue a página.</div>'; return; }
     const op = opMapa(), img = new Image(); img.alt = op.titulo;
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(LayoutMapa.svg(op));
     el.innerHTML = ''; el.appendChild(img);
-    $('urPng').disabled = false;
+    $('urPng').disabled = false; $('urPrevia').disabled = false;
     tabela();
     try { document.dispatchEvent(new CustomEvent('ur:mapa')); } catch (e) { }   // aba Relatório refaz a prévia
   }
@@ -395,6 +395,7 @@
     $('urIso').innerHTML = ISO_ORDEM.map(k => `<option value="${k}"${k === S.isoOp ? ' selected' : ''}>${ISO_OPCOES[k].nome}</option>`).join('');
     $('urIso').addEventListener('change', e => { S.isoOp = e.target.value; try { localStorage.setItem('urIsolinhas', S.isoOp); } catch (er) { } desenhar(); });
     $('urPng').addEventListener('click', png);
+    $('urPrevia').addEventListener('click', () => { if (S.j && window.LayoutMapa) LayoutMapa.previa(opMapa()); });
     $('urCsv').addEventListener('click', csv);
     $('urEstados').innerHTML = ESTADOS.slice().reverse().map(e => `${selo(e)} ${e.faixa}`).join(' &nbsp; ');
     desenhar();

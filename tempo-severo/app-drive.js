@@ -638,6 +638,7 @@ document.getElementById('modelBtn').onclick=()=>document.getElementById('modelMo
 garantirLayoutMapa().then(()=>{
   if(LayoutMapa.fundoNoEditor)LayoutMapa.fundoNoEditor(map,{mg:MG_MASK,aoMudar:null});
   if(LayoutMapa.editorExtras)LayoutMapa.editorExtras(map,{suavizarAnel,corDesenho:()=>selected.stroke||selected.fill,mg:MG_MASK,estados:window.BRASIL_ESTADOS});
-  if(LayoutMapa.painelAoVivo)LayoutMapa.painelAoVivo(document.querySelector('section.panel.preview'),opcoesMapa,'Mapa final — Tempo Severo',
+  // 09/11/2026: painel "Mapa final" no fim da página removido (pedido do Patrick) — o mapa final aparece no botão "Prévia do mapa".
+  if(false&&LayoutMapa.painelAoVivo)LayoutMapa.painelAoVivo(document.querySelector('section.panel.preview'),opcoesMapa,'Mapa final — Tempo Severo',
     ()=>JSON.stringify([drawnFeatures(),document.getElementById('forecastDate').value,document.getElementById('validUntil').value,recorteAreas.decisao()]));
 }).catch(()=>{});

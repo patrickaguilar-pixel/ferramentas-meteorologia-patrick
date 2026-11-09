@@ -91,6 +91,10 @@
     '#smJanela .prev figure{margin:0;border:1px solid #d3e4f2;border-radius:10px;background:#f6fafd;padding:8px;overflow:hidden}',
     '#smJanela .prev svg,#smJanela .prev img{display:block;width:100%;height:auto;max-height:260px;object-fit:contain;background:#fff;pointer-events:none}',
     '#smJanela .prev figcaption{font:600 12.5px "Barlow",Arial,sans-serif;color:#5f7393;margin-top:6px}',
+    '#smPreviaTela .prev{display:grid;gap:12px}#smPreviaTela .prev[hidden]{display:none}',
+    '#smPreviaTela .prev figure{margin:0;border:1px solid #d3e4f2;border-radius:10px;background:#f6fafd;padding:8px}',
+    '#smPreviaTela .prev svg,#smPreviaTela .prev img{display:block;width:100%;height:auto;max-height:80vh;object-fit:contain;background:#fff;pointer-events:none}',
+    '#smPreviaTela .prev figcaption{font:600 13px "Barlow",Arial,sans-serif;color:#5f7393;margin-top:6px}',
     '#smBotao{position:fixed;right:22px;bottom:22px;z-index:99980;display:inline-flex;align-items:center;gap:12px;border:3px solid #fff;border-radius:16px;background:#ffb703;color:#092b6a;padding:12px 20px 12px 14px;font:800 16px/1.1 "Barlow",Arial,"Liberation Sans",sans-serif;letter-spacing:.04em;cursor:pointer;text-align:left;box-shadow:0 0 0 2px #092b6a,0 10px 28px rgba(0,0,0,.35);transition:transform .15s,box-shadow .15s}',
     '#smBotao:hover{transform:translateY(-2px);background:#ffc93c;box-shadow:0 0 0 2px #092b6a,0 14px 34px rgba(0,0,0,.4)}',
     '#smBotao:focus-visible{outline:3px solid #006cbf;outline-offset:3px}',
@@ -249,8 +253,8 @@
   // seletores dos mapas/páginas que a ferramenta mostra na tela; aparece a que estiver visível.
   var PREVIAS = {
     'previsao': [['#paper svg', 'Mapa do dia'], ['#bPages .a4 svg', 'Boletim (página 1)'], ['#cPages .a4 svg', 'Previsão por cidade (página 1)']],
-    'tempo-severo': [['#lmPainel [data-folha]', 'Mapa final', layoutAoVivo]],
-    'chuva': [['#lmPainel [data-folha]', 'Mapa final', layoutAoVivo]],
+    'tempo-severo': [[null, 'Mapa final', layoutAoVivo]],   // 09/11: sem o painel na tela, monta na hora
+    'chuva': [[null, 'Mapa final', layoutAoVivo]],   // 09/11: sem o painel na tela, monta na hora
     'alertas': [['#mapSvg', 'Mapa de alertas'], ['#relPages .a4 svg', 'Relatório (página 1)']],
     'reservatorios': [['#resCanvas', 'Reservatórios'], ['#wk1Canvas', 'Week 1'], ['#wk2Canvas', 'Week 2'],
       ['#a24Canvas', '24 h'], ['#a72Canvas', '3 dias'], ['#a120Canvas', '5 dias']]
@@ -274,14 +278,14 @@
     }
     return c;
   }
-  function desenharPrevias() {
-    var box = fundo.querySelector('.prev');
+  function desenharPrevias() { return previasEm(fundo.querySelector('.prev')); }
+  function previasEm(box) {
     box.innerHTML = '';
     var achou = 0;
     (PREVIAS[FERRAMENTA()] || []).forEach(function (pv) {
-      var el = document.querySelector(pv[0]);
-      if (!visivel(el)) return;
-      var c = copiaDaTela(el);
+      var el = pv[0] ? document.querySelector(pv[0]) : null;
+      if (pv[0] && !visivel(el)) return;
+      var c = el ? copiaDaTela(el) : null;
       if (!c && pv[2]) { var h = pv[2](); if (h) { var t = document.createElement('div'); t.innerHTML = h; c = t.querySelector('svg'); if (c) { c.removeAttribute('width'); c.removeAttribute('height'); } } }
       if (!c) return;
       c.setAttribute('aria-hidden', 'true');
@@ -292,6 +296,38 @@
     });
     box.className = 'prev' + (achou > 1 ? ' duas' : '');
     box.hidden = !achou;
+    return achou;
+  }
+  /* ---------------- botão "Prévia do mapa" (09/11/2026): em todas as ferramentas ----------------
+     Tempo Severo e Chuva já têm o próprio (#previewBtn). Nas outras, abre uma janela com o mapa da aba aberta
+     (as mesmas prévias do painel de salvamento). */
+  var IC_OLHO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  function abrirPreviaTela() {
+    var m = document.getElementById('smPreviaTela');
+    if (!m) {
+      m = document.createElement('div'); m.id = 'smPreviaTela'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Prévia do mapa');
+      m.style.cssText = 'position:fixed;inset:0;z-index:99990;background:rgba(9,43,106,.45);display:flex;align-items:center;justify-content:center;padding:16px';
+      m.innerHTML = '<div style="background:#fff;border-radius:12px;padding:14px;width:min(1200px,96vw);max-height:94vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.3)">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font:600 15px Barlow,Arial,sans-serif;color:#092b6a"><span style="flex:1">Prévia do mapa</span>' +
+        '<button type="button" data-fechar style="border:1px solid #c9d8ea;background:#fff;border-radius:8px;padding:5px 12px;font:600 13px Barlow,Arial,sans-serif;color:#092b6a;cursor:pointer">Fechar</button></div>' +
+        '<div class="prev" data-caixa></div><div data-vazio style="font:500 14px Barlow,Arial,sans-serif;color:#6b7f9e;padding:20px 6px">Ainda não há mapa nesta aba. Gere o mapa e abra a prévia de novo.</div></div>';
+      m.addEventListener('click', function (e) { if (e.target === m || e.target.hasAttribute('data-fechar')) m.style.display = 'none'; });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && m.style.display !== 'none') m.style.display = 'none'; });
+      document.body.appendChild(m);
+    }
+    var n = previasEm(m.querySelector('[data-caixa]'));
+    m.querySelector('[data-vazio]').style.display = n ? 'none' : 'block';
+    m.style.display = 'flex';
+  }
+  function botaoPrevia() {
+    if (document.getElementById('previewBtn') || document.getElementById('smPreviaBtn')) return;
+    var b = document.createElement('button'); b.type = 'button'; b.id = 'smPreviaBtn'; b.className = 'btn';
+    b.innerHTML = IC_OLHO + 'Prévia do mapa'; b.title = 'Ver o mapa da aba aberta em tamanho grande';
+    b.onclick = abrirPreviaTela;
+    var acoes = document.querySelector('body > .bar .actions');
+    if (acoes) { acoes.insertBefore(b, acoes.firstChild); return; }
+    var top = document.querySelector('body > header .top');
+    if (top) { b.className = 'secondary'; b.style.cssText = 'display:inline-flex;align-items:center;gap:7px;flex:none;white-space:nowrap'; b.querySelector('svg').style.cssText = 'width:16px;height:16px;flex:none'; var pl = document.getElementById('plannerBtn'); if (pl && pl.parentNode === top) top.insertBefore(b, pl); else top.appendChild(b); }
   }
   var SEMPRE_ESCONDER = { 'alertas': ['#downloadKml', '.alert-card .download-kml'] };   // salvos pelo Criar alerta
   function esconderBotoes() {
@@ -651,6 +687,7 @@
     faixaTeste();
     carregarTutorial();
     carregarCabecalho();
+    botaoPrevia(); [1500, 4000].forEach(function (t) { setTimeout(botaoPrevia, t); });
     esconderBotoes();
     padronizarNavegador();
     [1500, 4000, 9000].forEach(function (t) { setTimeout(padronizarNavegador, t); });   // Alertas termina de iniciar depois

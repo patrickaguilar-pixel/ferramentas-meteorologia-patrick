@@ -34,8 +34,8 @@
     'body > .bar .actions > #plannerBtn::before{content:"";position:absolute;left:-9px;top:6px;bottom:6px;width:1px;background:#d6dee6;pointer-events:none}',
     'body > .bar .actions > #sugestoesBtn{order:91}',
     /* telas até 1599 px: Planner e Sugestões só com o ícone */
-    '@media (max-width:1599px){body > .bar .actions > #plannerBtn,body > .bar .actions > #sugestoesBtn{font-size:0!important;gap:0!important;padding:0!important;width:38px;min-width:38px;justify-content:center}',
-    '  body > .bar .actions > #plannerBtn svg,body > .bar .actions > #sugestoesBtn svg{width:18px;height:18px}}',
+    '@media (max-width:1599px){body > .bar .actions > #smPreviaBtn,body > .bar .actions > #plannerBtn,body > .bar .actions > #sugestoesBtn{font-size:0!important;gap:0!important;padding:0!important;width:38px;min-width:38px;justify-content:center}',
+    '  body > .bar .actions > #smPreviaBtn svg,body > .bar .actions > #plannerBtn svg,body > .bar .actions > #sugestoesBtn svg{width:18px;height:18px}}',
     /* telas até 1279 px: as ações da ferramenta também só com o ícone */
     '@media (max-width:1279px){body > .bar .actions > .btn{font-size:0!important;gap:0!important;padding:0!important;width:38px;min-width:38px;justify-content:center}',
     '  body > .bar .actions > .btn svg{width:18px;height:18px}',

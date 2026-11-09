@@ -36,7 +36,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .mapa{background:#f7fcff;border:1px solid #cfd8e3;border-radius:6px;overflow:hidden;line-height:0;min-height:120px}
 .mapa img{width:100%;height:auto;display:block}
 .vazio{line-height:1.4;padding:30px;font-size:13px;color:var(--muted)}
-.um .mapa{max-width:1100px}
+.um .mapa{max-width:760px;margin:0 auto}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
@@ -71,7 +71,7 @@ th{background:#f7f9fc}
 
 <div class="card">
 <div id="cpMapas" class="um"><div id="cpMapaA" class="mapa"></div><div id="cpMapaB" class="mapa"></div></div>
-<div class="actions"><button id="cpPngA" class="secondary" disabled>Baixar PNG</button><button id="cpPngB" class="secondary" disabled>Baixar PNG do WRF</button></div>
+<div class="actions"><button id="cpPrevA" class="secondary" disabled>Prévia do mapa</button><button id="cpPrevB" class="secondary" disabled>Prévia do WRF</button><button id="cpPngA" class="secondary" disabled>Baixar PNG</button><button id="cpPngB" class="secondary" disabled>Baixar PNG do WRF</button></div>
 <div class="small" style="margin-top:6px">O WRF tem grade de 7 km e o GFS de ~27 km: parte da diferença nos máximos vem da resolução, não só da previsão.</div>
 </div>
 
@@ -86,12 +86,12 @@ th{background:#f7f9fc}
 </div>
 </main>
 <script>window.BASE_DADOS='../';window.FERRAMENTA='curto-prazo';</script>
-<script src="../previsao/data/geo.js?v=teste-20261109f"></script>
-<script src="../chuva/data/cidades.js?v=teste-20261109f"></script>
-<script src="../assets/layout-mapa.js?v=teste-20261109f"></script>
-<script src="../curto-prazo/meso.js?v=teste-20261109f"></script>
-<script src="../curto-prazo/app.js?v=teste-20261109f"></script>
-<script src="../assets/cabecalho.js?v=teste-20261109f"></script>   <!-- cabeçalho padrão -->
-<script src="../assets/planner-teste.js?v=teste-20261109f"></script>   <!-- Planner da semana + Sugestões (botões no cabeçalho) -->
+<script src="../previsao/data/geo.js?v=teste-20261109g"></script>
+<script src="../chuva/data/cidades.js?v=teste-20261109g"></script>
+<script src="../assets/layout-mapa.js?v=teste-20261109g"></script>
+<script src="../curto-prazo/meso.js?v=teste-20261109g"></script>
+<script src="../curto-prazo/app.js?v=teste-20261109g"></script>
+<script src="../assets/cabecalho.js?v=teste-20261109g"></script>   <!-- cabeçalho padrão -->
+<script src="../assets/planner-teste.js?v=teste-20261109g"></script>   <!-- Planner da semana + Sugestões (botões no cabeçalho) -->
 </body>
 </html>

@@ -442,7 +442,8 @@ pngBtn.onclick=generatePNG;
 garantirLayoutMapa().then(()=>{
   if(LayoutMapa.fundoNoEditor)LayoutMapa.fundoNoEditor(map,{mg:MG_MASK,aoMudar:()=>atualizarAmostraSem()});
   if(LayoutMapa.editorExtras)LayoutMapa.editorExtras(map,{suavizarAnel,corDesenho:()=>selected.stroke||selected.fill,mg:MG_MASK,estados:BRASIL_ESTADOS,desenharEstados:false});
-  if(LayoutMapa.painelAoVivo)LayoutMapa.painelAoVivo(document.querySelector('section.panel.preview'),opcoesMapa,'Mapa final — Chuva e Tendência',
+  // 09/11/2026: painel "Mapa final" no fim da página removido (pedido do Patrick) — o mapa final aparece no botão "Prévia do mapa".
+  if(false&&LayoutMapa.painelAoVivo)LayoutMapa.painelAoVivo(document.querySelector('section.panel.preview'),opcoesMapa,'Mapa final — Chuva e Tendência',
     ()=>JSON.stringify([features(),product,forecastDate.value,validUntil.value,(window.trendDate1||{}).value,(window.trendDate2||{}).value,LEVELS.map(l=>l.label),window.recorteAreas&&recorteAreas.decisao()]));
 }).catch(()=>{});
 // legenda da tela: "Sem Previsão de Chuvas" mostra como Minas aparece (recorte do mapa base ou o tom claro de Minas)

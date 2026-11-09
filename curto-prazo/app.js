@@ -231,6 +231,8 @@
     else previa($('cpMapaA'), S.vista, S.prod);
     $('cpPngA').disabled = !(tem && S.dados[dois ? 'gfs' : S.vista]); $('cpPngB').disabled = !(tem && dois && S.dados.wrf);
     $('cpPngA').textContent = dois ? 'Baixar PNG do GFS' : 'Baixar PNG'; $('cpPngB').style.display = dois ? '' : 'none';
+    $('cpPrevA').disabled = $('cpPngA').disabled; $('cpPrevB').disabled = $('cpPngB').disabled;
+    $('cpPrevA').textContent = dois ? 'Prévia do GFS' : 'Prévia do mapa'; $('cpPrevB').style.display = dois ? '' : 'none';
     tabelas();
   }
 
@@ -304,6 +306,8 @@
     $('cpCidades').addEventListener('change', desenhar);
     $('cpPngA').addEventListener('click', () => png(S.vista === 'cmp' ? 'gfs' : S.vista));
     $('cpPngB').addEventListener('click', () => png('wrf'));
+    $('cpPrevA').addEventListener('click', () => { const m = S.vista === 'cmp' ? 'gfs' : S.vista; if (S.dados[m]) LayoutMapa.previa(opMapa(m, S.prod)); });
+    $('cpPrevB').addEventListener('click', () => { if (S.dados.wrf) LayoutMapa.previa(opMapa('wrf', S.prod)); });
     $('cpCsvMeso').addEventListener('click', csvMeso);
     $('cpCsvCid').addEventListener('click', csvCid);
     $('cpEscala').textContent = ESCALA.nome + ': ' + ESCALA.labels.join(' · ') + ' mm';
