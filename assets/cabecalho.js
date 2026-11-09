@@ -10,6 +10,8 @@
  * - em telas menores, Planner e Sugestões (< 1600 px) e depois as ações (< 1280 px) mostram só o ícone
  *   (o nome aparece ao passar o mouse);
  * - subtítulo sempre numa linha; o título não espreme.
+ * Tema único (09/11): nas páginas de cabeçalho em duas linhas, mesmas cores (azul #006cbf), fonte (Barlow) e fundo
+ * das outras; o título perde o "SIMGE/IGAM | ".
  * Nas páginas com cabeçalho de duas linhas (Reservatórios, Curto Prazo, Umidade Mínima): título, selo,
  * Planner, Sugestões e OPÇÕES na 1ª linha; as abas (quando há) na 2ª.
  */
@@ -53,7 +55,30 @@
     /* OPÇÕES DE SALVAMENTO dentro da 1ª linha (antes ficava no meio das duas linhas e cobria os botões) */
     'body > header .top > #smBotao.topo{position:static!important;transform:none!important;flex:none;margin-left:6px}',
     'body > header .top > #smBotao.topo:hover{transform:scale(1.03)!important}',
-    'body.smTopo header .top{padding-right:0!important}'
+    'body.smTopo header .top{padding-right:0!important}',
+
+    /* ---- tema único (09/11/2026): as páginas de cabeçalho em duas linhas usam as cores e a fonte das outras ----
+       (azul #006cbf, títulos azul-marinho #092b6a, fundo #f4f9fd, Barlow). Só vale com a classe body.cab-tema. */
+    'body.cab-tema{--bg:#f4f9fd;--card:#fff;--line:#d3e4f2;--text:#092b6a;--muted:#6b7f9e;--accent:#006cbf;--accent-bg:#e6f0f9;--ok:#1d7a46;' +
+      'background:#f4f9fd!important;color:#092b6a!important;font:400 15px/1.45 "Barlow",Arial,"Liberation Sans",Helvetica,sans-serif!important;-webkit-font-smoothing:antialiased}',
+    'body.cab-tema button,body.cab-tema select,body.cab-tema input,body.cab-tema textarea{font-family:inherit}',
+    'body.cab-tema > header{background:#fff;border-bottom:1px solid #d3e4f2;padding:10px 20px!important}',
+    'body.cab-tema > header .wrap{max-width:none!important}',
+    'body.cab-tema > header .top h1{font:700 20px/1.15 "Barlow",Arial,sans-serif!important;color:#092b6a;letter-spacing:-.01em}',
+    'body.cab-tema > header .top .muted{font-size:13px;color:#6b7f9e}',
+    'body.cab-tema .badge{background:#e6f0f9!important;color:#00559a!important}',
+    'body.cab-tema .card,body.cab-tema .previewWrap{border-radius:12px!important;border-color:#d3e4f2!important}',
+    'body.cab-tema .card h2,body.cab-tema h3{color:#092b6a}',
+    'body.cab-tema .primary{background:#006cbf!important;color:#fff!important;border:1px solid #006cbf!important;border-radius:8px!important;font-weight:600!important}',
+    'body.cab-tema .primary:hover:not(:disabled){background:#00559a!important}',
+    'body.cab-tema .secondary,body.cab-tema .ghost{background:#fff!important;color:#092b6a!important;border:1px solid #d3e4f2!important;border-radius:8px!important;font-weight:600!important}',
+    'body.cab-tema .secondary:hover:not(:disabled),body.cab-tema .ghost:hover:not(:disabled){border-color:#006cbf!important}',
+    'body.cab-tema .tab,body.cab-tema .abas button{border-radius:8px!important;font-weight:600!important;color:#3d5a8a;border-color:#d3e4f2!important}',
+    'body.cab-tema .tab.active,body.cab-tema .abas button.ativa,body.cab-tema .grupo button.on,body.cab-tema .grupo button.ativo{background:#006cbf!important;border-color:#006cbf!important;color:#fff!important}',
+    'body.cab-tema th{background:#f4f9fd!important;color:#092b6a}',
+    'body.cab-tema .status{background:#f7fbfe;border-color:#d3e4f2}',
+    'body.cab-tema input[type=checkbox]{accent-color:#006cbf}',
+    'body.cab-tema .mapa{margin-left:auto;margin-right:auto}'
   ].join('\n');
   var st = document.createElement('style'); st.id = 'cabecalhoPadraoCss'; st.textContent = css;
   document.head.appendChild(st);
@@ -79,7 +104,20 @@
       d.style.right = Math.max(8, document.documentElement.clientWidth - r.right) + 'px';
     }
   }
-  function tudo() { rotular(); arrumarOpcoes(); }
+  // tema único nas páginas de cabeçalho em duas linhas (Reservatórios, Curto Prazo, Umidade Mínima)
+  function tema() {
+    if (!document.body || document.body.classList.contains('cab-tema')) return;
+    if (!document.querySelector('body > header .top') || document.querySelector('body > .bar')) return;
+    document.body.classList.add('cab-tema');
+    if (!document.querySelector('link[href*="family=Barlow"]')) {
+      var l = document.createElement('link'); l.rel = 'stylesheet';
+      l.href = 'https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&display=swap';
+      document.head.appendChild(l);
+    }
+    var h = document.querySelector('body > header .top h1');   // "SIMGE/IGAM | Reservatórios" -> "Reservatórios" (como nas outras)
+    if (h && h.firstChild && h.firstChild.nodeType === 3) h.firstChild.nodeValue = h.firstChild.nodeValue.replace(/^\s*SIMGE\/IGAM\s*\|\s*/, '');
+  }
+  function tudo() { tema(); rotular(); arrumarOpcoes(); }
   function iniciar() {
     tudo();
     [300, 1200, 3000, 6000].forEach(function (t) { setTimeout(tudo, t); });   // Planner, Sugestões e OPÇÕES entram depois
