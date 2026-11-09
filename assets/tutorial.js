@@ -128,6 +128,23 @@
       { s: '#wkGenerate', t: 'Gerar Week 1 + Week 2', d: 'Só se mudar as imagens ou as datas.' },
       { s: '#accGenerate', t: 'Gerar acumulados', d: 'Só se mudar as imagens ou as datas.' },
       SALVAR
+    ],
+    'curto-prazo': [
+      { s: '#cpStatus', t: 'Dados', d: 'GFS e WRF 7 km da rodada 00Z, baixados sozinhos a cada 2 horas.' },
+      { s: '[data-modo]', t: 'Visão', d: 'Por dia (09h às 09h de cada dia) ou Acumulado (24, 48 e 72 h).' },
+      { s: '#cpPeriodo', t: 'Dia ou período', d: 'Escolha o dia (ou o acumulado) do mapa e das tabelas.' },
+      { s: '[data-vista]', t: 'Modelo', d: 'GFS, WRF ou os dois lado a lado (Comparar).' },
+      { s: '#cpMapas', t: 'Mapa', d: 'No layout padrão. A Prévia do mapa mostra em tamanho grande.' },
+      { s: '#cpMesoBody', t: 'Mesorregiões', d: 'Faixa predominante, maior faixa e máximo em cada mesorregião.' },
+      SALVAR
+    ],
+    'umidade-minima': [
+      { s: '#urStatus', t: 'Dados', d: 'UR do WRF 7 km às 15h de 3 dias (rodada 00Z), baixada sozinha a cada 2 horas.' },
+      { s: '#urIso', t: 'Isolinhas', d: 'Quantas linhas aparecem no mapa. A escolha fica guardada neste navegador.' },
+      { s: '#urMapa', t: 'Mapa', d: 'Média da UR das 15h dos 3 dias. A Prévia do mapa mostra em tamanho grande.' },
+      { s: '#urMesoBody', t: 'Mesorregiões', d: 'Menor UR de cada dia e da média, com o estado do Manual (Observação, Atenção, Alerta, Emergência).' },
+      { s: '#abaRelBtn', t: 'Relatório (PDF)', d: 'Aviso Meteorológico no modelo da equipe: texto automático (editável), mapa e OBS.' },
+      SALVAR
     ]
   };
 

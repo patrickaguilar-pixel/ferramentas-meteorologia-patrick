@@ -223,16 +223,15 @@
     $('cpTabModo2').textContent = $('cpTabModo').textContent;
     document.querySelectorAll('[data-vista]').forEach(b => b.classList.toggle('on', b.dataset.vista === S.vista));
     const dois = S.vista === 'cmp';
-    $('cpMapas').className = dois ? 'dual' : 'um';
+    $('cpMapas').className = dois ? 'mapas dual' : 'mapas';
     $('cpMapaB').style.display = dois ? '' : 'none';
     const tem = Object.keys(S.dados).length > 0;
     if (!tem) { $('cpMapaA').innerHTML = '<div class="vazio">Clique em <strong>Carregar dados</strong>.</div>'; }
     else if (dois) { previa($('cpMapaA'), 'gfs', S.prod); previa($('cpMapaB'), 'wrf', S.prod); }
     else previa($('cpMapaA'), S.vista, S.prod);
     $('cpPngA').disabled = !(tem && S.dados[dois ? 'gfs' : S.vista]); $('cpPngB').disabled = !(tem && dois && S.dados.wrf);
-    $('cpPngA').textContent = dois ? 'Baixar PNG do GFS' : 'Baixar PNG'; $('cpPngB').style.display = dois ? '' : 'none';
-    $('cpPrevA').disabled = $('cpPngA').disabled; $('cpPrevB').disabled = $('cpPngB').disabled;
-    $('cpPrevA').textContent = dois ? 'Prévia do GFS' : 'Prévia do mapa'; $('cpPrevB').style.display = dois ? '' : 'none';
+    $('cpPngA').textContent = dois ? 'Baixar PNG do GFS' : 'Baixar PNG'; $('cpPngB').hidden = !dois;
+    $('previewBtn').disabled = $('cpPngA').disabled;
     tabelas();
   }
 
@@ -265,7 +264,7 @@
 
   /* ---------------- arquivos (só no computador, como no painel de testes) ---------------- */
   function baixar(nome, blob) {
-    if (typeof window.ponteBaixarNoPc === 'function') return window.ponteBaixarNoPc(nome, blob);
+    // com a ponte (assets/ponte-drive.js), este clique é interceptado e o arquivo vai para o PC e o Drive (OPÇÕES DE SALVAMENTO)
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
   }
@@ -306,8 +305,14 @@
     $('cpCidades').addEventListener('change', desenhar);
     $('cpPngA').addEventListener('click', () => png(S.vista === 'cmp' ? 'gfs' : S.vista));
     $('cpPngB').addEventListener('click', () => png('wrf'));
-    $('cpPrevA').addEventListener('click', () => { const m = S.vista === 'cmp' ? 'gfs' : S.vista; if (S.dados[m]) LayoutMapa.previa(opMapa(m, S.prod)); });
-    $('cpPrevB').addEventListener('click', () => { if (S.dados.wrf) LayoutMapa.previa(opMapa('wrf', S.prod)); });
+    $('previewBtn').addEventListener('click', () => {   // no Comparar, os dois mapas na mesma janela
+      const ms = S.vista === 'cmp' ? ['gfs', 'wrf'] : [S.vista], ok = ms.filter(m => S.dados[m]);
+      if (!ok.length) return;
+      LayoutMapa.previa(opMapa(ok[0], S.prod)).then(() => {
+        const f = document.querySelector('#layoutMapaPrevia [data-folha]');
+        ok.slice(1).forEach(m => { const d = document.createElement('div'); d.style.marginTop = '12px'; d.innerHTML = LayoutMapa.svg(opMapa(m, S.prod)); const sv = d.querySelector('svg'); sv.setAttribute('width', '100%'); sv.removeAttribute('height'); f.appendChild(d); });
+      }).catch(() => { });
+    });
     $('cpCsvMeso').addEventListener('click', csvMeso);
     $('cpCsvCid').addEventListener('click', csvCid);
     $('cpEscala').textContent = ESCALA.nome + ': ' + ESCALA.labels.join(' · ') + ' mm';

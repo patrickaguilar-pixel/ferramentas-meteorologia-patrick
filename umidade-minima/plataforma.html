@@ -1,123 +1,112 @@
-<!-- UMIDADE MÍNIMA (painel de testes). Ferramenta nova: ainda não existe na plataforma oficial (Apps Script). -->
+<!-- UMIDADE MÍNIMA (painel de testes). Ferramenta nova: ainda não existe na plataforma oficial (Apps Script).
+     09/11/2026: mesmo visual e organização das outras ferramentas (barra do topo, painéis, OPÇÕES DE SALVAMENTO). -->
 <!doctype html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SIMGE/IGAM | Umidade Mínima (WRF)</title>
-<style>
-:root{--bg:#f4f7fb;--card:#fff;--line:#d8e1eb;--text:#172033;--muted:#65758a;--accent:#006cbf;--accent-bg:#e6f0f9}
-*{box-sizing:border-box}
-body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
-header{background:#fff;border-bottom:1px solid var(--line);padding:16px 20px;position:sticky;top:0;z-index:5}
-.wrap{max-width:1500px;margin:auto}
-.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-h1{font-size:24px;margin:0} .muted{color:var(--muted);font-size:13px;line-height:1.35}
-.badge{padding:6px 10px;border-radius:999px;background:var(--accent-bg);color:var(--accent);font-size:12px;font-weight:700}
-main{max-width:1500px;margin:18px auto;padding:0 16px 36px}
-.notice{background:#fff8dd;border:1px solid #ecd98f;border-radius:12px;padding:11px 13px;font-size:13px;margin-bottom:14px;line-height:1.45}
-.card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:15px;margin-bottom:14px}
-.card h2{font-size:16px;margin:0 0 10px}
-button{border:0;border-radius:9px;padding:10px 13px;font-weight:700;cursor:pointer;font-size:14px}
-.primary{background:var(--accent);color:#fff} .secondary{background:#edf2f7;color:#25354a}
-button:disabled{opacity:.45;cursor:not-allowed}
-.barra{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
-.check{display:flex;align-items:center;gap:6px;font-size:13px}
-select{font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff}
-.status{margin-top:12px;padding:10px;border-radius:10px;background:#f7f9fc;border:1px solid var(--line);font-size:12.5px;line-height:1.5}
-.urList{margin:6px 0 0;padding-left:18px}
-.warn{color:#9a5b00;font-weight:700}
-.mapa{background:#f7fcff;border:1px solid #cfd8e3;border-radius:6px;overflow:hidden;line-height:0;min-height:120px;max-width:760px}
-.mapa img{width:100%;height:auto;display:block}
-.vazio{line-height:1.4;padding:30px;font-size:13px;color:var(--muted)}
-.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
-th{background:#f7f9fc}
-.c{text-align:center}
-.small{font-size:11.5px;color:var(--muted);line-height:1.35}
-.scroll{overflow:auto;border:1px solid var(--line);border-radius:10px}
-.sw{display:inline-block;width:11px;height:11px;border:1px solid #8896a6;border-radius:2px;margin-right:5px;vertical-align:-1px}
-.selo{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700}
-.cabTab{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:8px}
-.abas{display:flex;gap:6px;margin-top:12px}
-.abas button{border:1px solid var(--line);background:#fff;color:#25354a;padding:9px 14px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer}
-.abas button.ativa{background:var(--accent);border-color:var(--accent);color:#fff}
-.rel{display:grid;grid-template-columns:minmax(320px,440px) 1fr;gap:14px;align-items:start}
-@media (max-width:980px){.rel{grid-template-columns:1fr}}
-.rel label{display:block;font-size:13px;font-weight:700;margin:10px 0 5px}
-.rel input[type=date],.rel input[type=text],.rel textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 9px;font:14px/1.45 Arial,Helvetica,sans-serif;background:#fff;color:var(--text)}
-.rel textarea{resize:vertical}
-.rel .lin3{display:grid;grid-template-columns:1fr 1fr 90px;gap:8px}
-.rel .dica{font-size:12px;color:var(--muted);line-height:1.4;margin-top:4px}
-.folha{background:#e9eef3;border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;justify-content:center}
-.folha canvas{width:100%;max-width:640px;height:auto;background:#fff;box-shadow:0 2px 14px rgba(20,40,70,.18)}
-.status.aviso{background:#fff8e1;border-color:#f0d78c;color:#7a5200}
-.status.erro{background:#fdecea;border-color:#f3b8b2;color:#8a1c12}
-.status.ok{background:#e9f7ef;border-color:#a9dcbf;color:#14532d}
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Umidade Mínima — Minas Gerais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/ferramenta-base.css?v=teste-20261109j">
 </head>
 <body>
-<header><div class="wrap"><div class="top">
-<div><h1>SIMGE/IGAM | Umidade Mínima</h1><div class="muted">Umidade relativa do ar mínima prevista para os <strong>próximos 3 dias</strong> com o <strong>WRF 7 km</strong> (CPTEC/INPE). Produto das segundas e quintas no período seco (PREVINCÊNDIO).</div></div>
-<span class="badge">v0.2 · teste</span>
-</div>
-<nav class="abas" role="tablist" aria-label="Partes da ferramenta"><button id="abaMapaBtn" class="ativa" role="tab" aria-selected="true" type="button">Mapa e tabela</button><button id="abaRelBtn" role="tab" aria-selected="false" type="button">Relatório (PDF)</button></nav>
-</div></header>
-<main>
-<section id="abaMapa">
-<div class="notice"><strong>Como funciona:</strong> a umidade relativa a 2 m do WRF 7 km é baixada automaticamente a cada 2 horas (rodada 00Z). A ferramenta usa o campo das <strong>15h (18 UTC), hora local</strong>, do dia da rodada e dos dois dias seguintes e mostra a <strong>média desses três dias</strong>, como no notebook da equipe. O mapa tem uma suavização leve (só no desenho); a tabela usa os valores do modelo sem suavização.</div>
-
-<div class="card">
-<div class="barra">
-<label class="check">Isolinhas <select id="urIso"></select></label>
-<label class="check"><input id="urCidades" type="checkbox" checked> Cidades de referência</label>
-<button id="urLoad" class="primary">Carregar dados</button>
-</div>
-<div id="urStatus" class="status">Carregando…</div>
-</div>
-
-<div class="card">
-<div id="urMapa" class="mapa"></div>
-<div class="actions"><button id="urPrevia" class="secondary" disabled>Prévia do mapa</button><button id="urPng" class="secondary" disabled>Baixar PNG</button></div>
+<div class="bar">
+  <svg class="stripes" viewBox="0 0 218 64" preserveAspectRatio="none" aria-hidden="true"><path d="M42 0H218V64H0Z" fill="#006cbf"/><path d="M42 0H83L40 64H0Z" fill="#a9e0f4"/><path d="M83 0H121L78 64H40Z" fill="#078fd2"/></svg>
+  <h1>Umidade Mínima <small>Minas Gerais · UR mínima prevista (WRF 7 km)</small></h1>
+  <nav class="tabs" role="tablist" aria-label="Espaços de trabalho">
+    <button role="tab" id="abaMapaBtn" aria-selected="true" type="button">Mapa e tabela</button>
+    <button role="tab" id="abaRelBtn" aria-selected="false" type="button">Relatório (PDF)</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="actions">
+    <button class="btn" id="previewBtn" type="button" data-view="mapa" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+      Prévia do mapa</button>
+    <!-- arquivos: saem pelo botão OPÇÕES DE SALVAMENTO (assets/ponte-drive.js), que esconde estes botões -->
+    <button class="btn primary" id="urPng" type="button" disabled>Baixar PNG</button>
+    <button class="btn" id="urCsv" type="button" disabled>Baixar CSV</button>
+    <button class="btn" id="relPdf" type="button" disabled>Baixar PDF</button>
+  </div>
 </div>
 
-<div class="card">
-<div class="cabTab"><div><h2 style="margin:0">Mesorregiões</h2><div class="small">Menor valor de UR em cada mesorregião (grade de 0,025°, sem suavização) em cada dia e na média dos 3 dias. O estado segue o critério de Baixa Umidade do Manual de Atividades, pelo menor valor da média, arredondado: <span id="urEstados"></span></div></div><button id="urCsv" class="secondary" disabled>Baixar CSV</button></div>
-<div class="scroll"><table><thead id="urMesoHead"></thead><tbody id="urMesoBody"></tbody></table></div>
-</div>
-</section>
+<!-- ===== aba Mapa e tabela ===== -->
+<main class="tool" id="abaMapa">
+  <section class="panel">
+    <header><h2>Dados do modelo</h2><p class="lede">UR a 2 m do WRF 7 km (CPTEC/INPE), rodada 00Z, baixada automaticamente a cada 2 horas.</p></header>
+    <div class="secbody">
+      <div id="urStatus" class="stbox">Carregando…</div>
+      <div class="r"><button id="urLoad" class="btn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+        Carregar dados</button></div>
+      <div>
+        <p class="sublbl">Mapa</p>
+        <label>Isolinhas <select id="urIso" class="field"></select></label>
+      </div>
+      <div class="checks"><label><input id="urCidades" type="checkbox" checked> Cidades de referência</label></div>
+    </div>
+    <details class="sec">
+      <summary>Como é calculado</summary>
+      <div class="secbody">
+        <p>A ferramenta usa o campo das <b>15h (18 UTC), hora local</b>, do dia da rodada e dos dois dias seguintes e mostra a <b>média desses três dias</b>, como no notebook da equipe.</p>
+        <p>O mapa tem uma suavização leve (só no desenho). A tabela usa os valores do modelo sem suavização.</p>
+        <p>Produto das segundas e quintas no período seco (PREVINCÊNDIO).</p>
+      </div>
+    </details>
+    <details class="sec">
+      <summary>Estados do Manual <small>Baixa Umidade</small></summary>
+      <div class="secbody"><p id="urEstados"></p><p class="hint">Pelo menor valor da média em cada mesorregião, arredondado.</p></div>
+    </details>
+    <details class="sec">
+      <summary>Sobre esta versão <small>v0.2</small></summary>
+      <div class="secbody"><p>Mapa, tabela por mesorregião e relatório em PDF no modelo do Aviso Meteorológico. Os arquivos saem pelo botão <b>OPÇÕES DE SALVAMENTO</b>.</p></div>
+    </details>
+  </section>
 
-<section id="abaRel" hidden>
-<div class="rel">
-<div class="card">
-<h2>Relatório — Aviso Meteorológico</h2>
-<div class="small">Modelo "UMIDADE RELATIVA DO AR MÍNIMA" da equipe. O mapa é o da aba <b>Mapa e tabela</b> (mesmas isolinhas e cidades).</div>
-<label>Período de vigência</label>
-<div class="lin3"><input id="relIni" type="date" aria-label="Início da vigência"><input id="relFim" type="date" aria-label="Fim da vigência"><input id="relHora" type="text" value="15h" aria-label="Hora do fim da vigência"></div>
-<div class="dica">Sai como: "Período de Vigência: DD/MM/AAAA até às 15h do dia DD/MM/AAAA".</div>
-<label for="relTexto">Texto do aviso</label>
-<textarea id="relTexto" rows="11"></textarea>
-<div class="dica">Use <b>**duas estrelas**</b> para negrito (ex.: **Estado de Atenção**). Linha em branco começa outro parágrafo.</div>
-<div class="actions"><button id="relGerar" class="secondary" type="button">Gerar texto a partir da tabela</button></div>
-<label for="relObs">OBS</label>
-<textarea id="relObs" rows="4"></textarea>
-<div class="actions"><button id="relObsPadrao" class="secondary" type="button">Voltar a OBS padrão</button></div>
-<div class="actions" style="margin-top:14px"><button id="relPdf" class="primary" type="button" disabled>Baixar PDF</button></div>
-<div id="relStatus" class="status">Abrindo…</div>
-</div>
-<div class="card"><h2>Prévia (A4)</h2><div class="folha"><canvas id="relCanvas" width="1240" height="1754"></canvas></div></div>
-</div>
-</section>
+  <section class="panel">
+    <header><h2>Mapa</h2><p class="lede">Layout de impressão (297 × 210 mm), igual ao das outras ferramentas. O PNG sai assim.</p></header>
+    <div class="stage"><div id="urMapa" class="folha-mapa"></div></div>
+  </section>
+
+  <section class="panel full">
+    <header><h2>Mesorregiões</h2><p class="lede">Menor valor de UR em cada mesorregião (grade de 0,025°, sem suavização) em cada dia e na média dos 3 dias, com o estado do Manual.</p></header>
+    <div class="scroll"><table><thead id="urMesoHead"></thead><tbody id="urMesoBody"></tbody></table></div>
+  </section>
 </main>
-<script>window.BASE_DADOS='../';window.FERRAMENTA='umidade-minima';</script>
-<script src="../previsao/data/geo.js?v=teste-20261109g"></script>
-<script src="../chuva/data/cidades.js?v=teste-20261109g"></script>
-<script src="../assets/layout-mapa.js?v=teste-20261109g"></script>
-<script src="../umidade-minima/meso.js?v=teste-20261109g"></script>
-<script src="../umidade-minima/app.js?v=teste-20261109g"></script>
-<script src="../umidade-minima/relatorio.js?v=teste-20261109g"></script>
-<script src="../assets/cabecalho.js?v=teste-20261109g"></script>   <!-- cabeçalho padrão -->
-<script src="../assets/planner-teste.js?v=teste-20261109g"></script>   <!-- Planner da semana + Sugestões (botões no cabeçalho) -->
+
+<!-- ===== aba Relatório (PDF) ===== -->
+<main class="tool" id="abaRel" hidden>
+  <section class="panel">
+    <header><h2>Relatório — Aviso Meteorológico</h2><p class="lede">Modelo "UMIDADE RELATIVA DO AR MÍNIMA". O mapa é o da aba <b>Mapa e tabela</b> (mesmas isolinhas e cidades).</p></header>
+    <div class="secbody">
+      <div>
+        <p class="sublbl">Período de vigência</p>
+        <div class="lin3"><input id="relIni" class="field" type="date" aria-label="Início da vigência"><input id="relFim" class="field" type="date" aria-label="Fim da vigência"><input id="relHora" class="field" type="text" value="15h" aria-label="Hora do fim da vigência"></div>
+        <p class="hint" style="margin-top:5px">Sai como: "Período de Vigência: DD/MM/AAAA até às 15h do dia DD/MM/AAAA".</p>
+      </div>
+      <label>Texto do aviso <textarea id="relTexto" class="field" rows="11"></textarea></label>
+      <p class="hint" style="margin-top:-8px">Use <b>**duas estrelas**</b> para negrito (ex.: **Estado de Atenção**). Linha em branco começa outro parágrafo.</p>
+      <div class="r"><button id="relGerar" class="btn" type="button">Gerar texto a partir da tabela</button></div>
+      <label>OBS <textarea id="relObs" class="field" rows="4"></textarea></label>
+      <div class="r"><button id="relObsPadrao" class="btn small" type="button">Voltar a OBS padrão</button></div>
+      <div id="relStatus" class="stbox">Abrindo…</div>
+    </div>
+  </section>
+  <section class="panel">
+    <header><h2>Prévia (A4)</h2><p class="lede">O PDF sai igual a esta página. Salve pelo botão <b>OPÇÕES DE SALVAMENTO</b>.</p></header>
+    <div class="folha"><canvas id="relCanvas" width="1240" height="1754"></canvas></div>
+  </section>
+</main>
+
+<script>window.BASE_DADOS='../';window.FERRAMENTA='umidade-minima';window.VERSAO_APP='teste-20261109j';</script>
+<script src="../previsao/data/geo.js?v=teste-20261109j"></script>
+<script src="../chuva/data/cidades.js?v=teste-20261109j"></script>
+<script src="../assets/layout-mapa.js?v=teste-20261109j"></script>
+<script src="../umidade-minima/meso.js?v=teste-20261109j"></script>
+<script src="../umidade-minima/app.js?v=teste-20261109j"></script>
+<script src="../umidade-minima/relatorio.js?v=teste-20261109j"></script>
+<script src="../assets/ponte-drive.js?v=teste-20261109j"></script>   <!-- OPÇÕES DE SALVAMENTO, faixa de teste, tutorial e cabeçalho padrão -->
+<script src="../assets/planner-teste.js?v=teste-20261109j"></script>   <!-- Planner da semana + Sugestões -->
 </body>
 </html>

@@ -213,6 +213,18 @@
       { info: true, alvo: '#salvarPlantao', tipo: 'PDF', nome: 'Relatório final do plantão', vista: '#viewPlantao',
         desc: 'É salvo ao encerrar o plantão (Drive, PC e e-mail). Use Salvar passagem e gerar relatório.', botao: 'Ir para o botão' }
     ],
+    // ferramentas novas (09/11/2026)
+    'curto-prazo': [
+      { id: 'cpPngA', nome: 'Mapa de chuva', tipo: 'PNG', desc: 'Modelo e período da tela (no Comparar: GFS)', precisa: 'Clique em “Carregar dados”' },
+      { id: 'cpPngB', nome: 'Mapa de chuva (WRF)', tipo: 'PNG', desc: 'Só no Comparar', precisa: 'Clique em “Carregar dados”' },
+      { id: 'cpCsvMeso', nome: 'Tabela das mesorregiões', tipo: 'CSV', precisa: 'Clique em “Carregar dados”' },
+      { id: 'cpCsvCid', nome: 'Tabela das cidades', tipo: 'CSV', precisa: 'Clique em “Carregar dados”' }
+    ],
+    'umidade-minima': [
+      { id: 'urPng', nome: 'Mapa de umidade mínima', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#abaMapa', precisa: 'Clique em “Carregar dados”' },
+      { id: 'urCsv', nome: 'Tabela das mesorregiões', tipo: 'CSV', vista: '#abaMapa', precisa: 'Clique em “Carregar dados”' },
+      { id: 'relPdf', nome: 'Relatório (Aviso Meteorológico)', tipo: 'PDF', desc: 'A4, igual à prévia', vista: '#abaRel', onde: 'Relatório (PDF)', aba: '#abaRelBtn', precisa: 'Carregue os dados na aba Mapa e tabela' }
+    ],
     'reservatorios': [
       { id: 'resPng', nome: 'Reservatórios', tipo: 'PNG', desc: 'Mapa Week 1', onde: 'Reservatórios · Week 1', aba: '.tab[data-tab=reserv]', precisa: 'Clique em “Gerar mapa” na aba Reservatórios' },
       { id: 'resCsv', nome: 'Reservatórios', tipo: 'CSV', desc: 'Tabela de precipitação', onde: 'Reservatórios · Week 1', aba: '.tab[data-tab=reserv]', precisa: 'Clique em “Gerar mapa” na aba Reservatórios' },
@@ -256,6 +268,8 @@
     'tempo-severo': [[null, 'Mapa final', layoutAoVivo]],   // 09/11: sem o painel na tela, monta na hora
     'chuva': [[null, 'Mapa final', layoutAoVivo]],   // 09/11: sem o painel na tela, monta na hora
     'alertas': [['#mapSvg', 'Mapa de alertas'], ['#relPages .a4 svg', 'Relatório (página 1)']],
+    'curto-prazo': [['#cpMapaA img', 'Mapa'], ['#cpMapaB img', 'WRF']],
+    'umidade-minima': [['#urMapa img', 'Mapa de umidade mínima'], ['#relCanvas', 'Relatório (página 1)']],
     'reservatorios': [['#resCanvas', 'Reservatórios'], ['#wk1Canvas', 'Week 1'], ['#wk2Canvas', 'Week 2'],
       ['#a24Canvas', '24 h'], ['#a72Canvas', '3 dias'], ['#a120Canvas', '5 dias']]
   };
@@ -360,7 +374,7 @@
   function fechar() { fundo.classList.remove('on'); if (botao) botao.focus(); }
   function aberto() { return !!(fundo && fundo.classList.contains('on')); }
 
-  var NOMES = { 'previsao': 'Previsão diária', 'tempo-severo': 'Tempo Severo', 'chuva': 'Chuva e Tendência', 'alertas': 'Alertas', 'reservatorios': 'Reservatórios e Tendência' };
+  var NOMES = { 'previsao': 'Previsão diária', 'tempo-severo': 'Tempo Severo', 'chuva': 'Chuva e Tendência', 'alertas': 'Alertas', 'reservatorios': 'Reservatórios e Tendência', 'curto-prazo': 'Curto Prazo', 'umidade-minima': 'Umidade Mínima' };
   function nomeDoMapa() {   // ferramenta · aba aberta (ex.: "Previsão diária · Boletim em PDF")
     var aba = document.querySelector('[role=tab][aria-selected=true], .tab.active');
     var t = aba ? aba.textContent.replace(/\s+/g, ' ').trim() : '';

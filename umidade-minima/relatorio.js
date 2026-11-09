@@ -292,7 +292,7 @@
   }
   function dataBR(iso) { var p = String(iso || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : '—'; }
   function periodo() { return 'Período de Vigência: ' + dataBR($('relIni').value) + ' até às ' + ($('relHora').value.trim() || '15h') + ' do dia ' + dataBR($('relFim').value); }
-  function st(t, c) { var e = $('relStatus'); e.className = 'status' + (c ? ' ' + c : ''); e.innerHTML = t; }
+  function st(t, c) { var e = $('relStatus'); e.className = 'stbox' + (c ? ' ' + c : ''); e.innerHTML = t; }
 
   var fila = 0;
   function previa() {
@@ -331,6 +331,7 @@
     $('abaMapaBtn').classList.toggle('ativa', !rel); $('abaRelBtn').classList.toggle('ativa', rel);
     $('abaMapaBtn').setAttribute('aria-selected', String(!rel)); $('abaRelBtn').setAttribute('aria-selected', String(rel));
     $('abaMapa').hidden = rel; $('abaRel').hidden = !rel;
+    var pv = $('previewBtn'); if (pv) pv.hidden = rel;   // a prévia do relatório já está na tela
     try { sessionStorage.setItem('urAba', qual); } catch (e) { }
     if (rel) previa();
   }
