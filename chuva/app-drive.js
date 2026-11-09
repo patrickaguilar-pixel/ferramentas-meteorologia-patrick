@@ -288,6 +288,14 @@ const editorAreas=criarEditorAreas({
 });
 let drawControl;document.getElementById('drawBtn').onclick=()=>{drawControl=new L.Draw.Polygon(map,{allowIntersection:false,showArea:false,shapeOptions:styleFor(selected)});drawControl.enable();setStatus('Desenhando '+selected.label+'...')};
 map.on(L.Draw.Event.CREATED,e=>{const f=e.layer.toGeoJSON();editorAreas.empilhar();const n=addFeature(f,selected.id);setStatus(n.length?'Área criada. Clique nela para editar; Ctrl+Z desfaz.':'O desenho ficou fora de Minas Gerais e não foi adicionado.')});
+/* 09/11/2026: Pincel (desenho à mão livre: segurar e contornar) — assets/pincel.js, mesmo ?v= deste arquivo */
+(function(){
+  const meu=document.currentScript&&document.currentScript.src||'',v=(meu.match(/[?&]v=([^&]+)/)||[])[1]||'';
+  const ligar=()=>window.Pincel&&window.Pincel.ligar({map,estilo:()=>styleFor(selected),nivel:()=>selected.label,status:setStatus,
+    antes:()=>{if(drawControl&&drawControl.enabled&&drawControl.enabled())drawControl.disable();if(editorAreas.emEdicao())editorAreas.cancelar();}});
+  if(window.Pincel)return ligar();
+  const s=document.createElement('script');s.src=(window.BASE_DADOS||'../')+'assets/pincel.js'+(v?'?v='+v:'');s.onload=ligar;document.head.appendChild(s);
+})();
 function features(){const a=[];editorAreas.cadaCamada(l=>{const f=l._orig?JSON.parse(JSON.stringify(l._orig)):l.toGeoJSON();f.properties={level:l._level};a.push(f)});return a}
 /* ===== Recorte de sobreposições (2026.10.22) =====
    Comum ao Tempo Severo e à Chuva/Tendência (o mesmo código nos dois app-drive.js).
