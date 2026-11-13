@@ -9,12 +9,9 @@
  * (chuva/data/cidades.js, já carregado na página). Quando a aba abre, carrega: municípios (alertas/data/municipios.js),
  * logos (assets/logo_simge.png e logo_igam.png) e, só para o PDF, o jsPDF (previsao/lib/jspdf.umd.min.js).
  *
- * Representações:
- *   Original · Estado (blocos)  — igual ao boletim de hoje (layout_chuva_72horas_barragens_semzoom / _brumadinho.qpt)
- *   Original · Zoom (blocos)    — igual ao layout_chuva_72horas_barragens.qpt (extensão do QGIS, nomes das barragens)
- *   Proposta · Região detalhada — chuva suavizada, limites municipais, barragens numeradas e mapa de localização
- *   Proposta · Por município    — cada município pintado pela chuva média na área dele (a unidade usada no texto)
- *   Proposta · Dia a dia        — um mapa por dia + total, e gráfico da chuva diária em cada município
+ * Visualizações (todas no layout padrão da plataforma, assets/layout-mapa.js):
+ *   Minas Gerais · Zoom na região · Média por município · Dia a dia
+ * Critério de emissão: padrão 100 mm em um dia ou 100 mm em 72 h na região (Manual de Procedimentos); ajustável na tela.
  */
 (function () {
   'use strict';
@@ -43,7 +40,10 @@
   ].join('\n');
 
   // cor do losango por nível de emergência (N2 = vermelho do boletim; N3 mais escuro; N1 laranja; sem nível = cinza)
-  var COR_NIVEL = { 3: '#7f0010', 2: '#db1e2a', 1: '#f28c28', 0: '#8c8c8c' };
+  // 13/11/2026: cores dos níveis de emergência no padrão usado para barragens (N1 amarelo, N2 laranja, N3 vermelho),
+  // com contorno escuro para destacar sobre o azul da chuva. Antes: N3 vinho e N2 vermelho (pouca diferença entre eles).
+  var COR_NIVEL = { 3: '#d7191c', 2: '#fd8d3c', 1: '#ffd92f', 0: '#8c8c8c' };
+  var CONTORNO_BARRAGEM = '#1a1a1a';
   function corB(b) { return COR_NIVEL[b && b.nv != null ? b.nv : 0]; }
   function nivelInt(t) { var m = /n[ií]vel\s*([0-3])|\bN\s*([0-3])\b/i.exec(String(t || '')); return m ? +(m[1] || m[2]) : null; }
 
@@ -77,7 +77,7 @@
     var linhas = String(txt || '').replace(/^﻿/, '').split(/\r?\n/).filter(function (l) { return l.trim(); });
     if (linhas.length < 2) throw new Error('o arquivo não tem linhas de barragens');
     var sep = linhas[0].indexOf('\t') >= 0 ? '\t' : (linhas[0].indexOf(';') >= 0 ? ';' : null);
-    if (!sep) throw new Error('o arquivo não é separado por tabulação (como o BARRAGENS.txt do QGIS)');
+    if (!sep) throw new Error('o arquivo não é separado por tabulação (como o BARRAGENS.txt)');
     var cab = linhas[0].split(sep).map(norm), col = function (n) { return cab.indexOf(n); };
     var iLa = col('LATITUDE'), iLo = col('LONGITUDE'), iNo = col('NOME_SIGBM'), iBd = col('NOME_BDA'), iMu = col('MUNICIPIO'), iNi = col('EMERGENCIA'), iDp = col('DPA_ANM');
     if (iLa < 0 || iLo < 0 || iMu < 0 || (iNo < 0 && iBd < 0)) throw new Error('faltam colunas: LATITUDE, LONGITUDE, NOME_SIGBM/NOME_BDA e MUNICIPIO');
@@ -169,7 +169,7 @@
     var munNome = produto === 'brumadinho' ? 'Brumadinho' : $('brMunicipio').value;
     if (produto === 'brumadinho') produto = 'municipio';
     return { produto: produto, horas: h, escala: N.ESCALAS[$('brEscala').value] || N.ESCALAS.boletim, escalaId: $('brEscala').value, munNome: munNome,
-      cidades: $('brCidades').checked, niveis: niveisEscolhidos(), raio: +$('brRaio').value };
+      cidades: $('brCidades').checked, niveis: niveisEscolhidos(), raio: +$('brRaio').value, crit: criterioTela() };
   }
   // municípios monitorados: os das barragens (cadastro) ou o município escolhido
   function monitorados(o) {
@@ -184,13 +184,14 @@
 
   /* ---------------- cálculo ---------------- */
   // gatilho no município: maior chuva de um dia e maior soma de 72 h entre os pontos dentro do limite
-  function gatilhoMunicipio(J, f, dias) {
+  function gatilhoMunicipio(J, f, dias, crit) {
+    crit = N.criterio(crit);
     var pts = f._amostras || (f._amostras = N.amostras(f)), g = J.grade;
     var porDia = dias.map(function (k) { var mx = -Infinity; pts.forEach(function (p) { var v = N.bilinear(g, J.produtos[k].mm, p[0], p[1]); if (v > mx) mx = v; }); return mx; });
     var jan = [];
     for (var a = 0; a + 3 <= dias.length; a++) { var mx = -Infinity; pts.forEach(function (p) { var s = 0; for (var k = a; k < a + 3; k++) s += N.bilinear(g, J.produtos[dias[k]].mm, p[0], p[1]); if (s > mx) mx = s; }); jan.push({ ini: a, fim: a + 2, mm: mx }); }
     var dm = Math.max.apply(null, porDia), j72 = jan.reduce(function (b, x) { return !b || x.mm > b.mm ? x : b; }, null), mot = [];
-    if (dm >= N.LIMIAR_DIA) mot.push('dia'); if (j72 && j72.mm >= N.LIMIAR_72H) mot.push('72h');
+    if (crit.dia != null && dm >= crit.dia) mot.push('dia'); if (crit.h72 != null && j72 && j72.mm >= crit.h72) mot.push('72h');
     return { porDia: porDia, diaMax: dm, iDia: porDia.indexOf(dm), janelas: jan, max72: j72, dispara: mot.length > 0, motivos: mot };
   }
   function calcular(o) {
@@ -203,10 +204,10 @@
     var pontos = o.produto === 'barragens' ? S.barragens.map(function (b) {
       return { b: b, bruto: N.celula(J.grade, J.produtos[H.total].mm, b.lon, b.lat), suave: N.bilinear(J.grade, J.produtos[H.total].mm, b.lon, b.lat),
         dias: H.dias.map(function (d) { return N.bilinear(J.grade, J.produtos[d].mm, b.lon, b.lat); }),
-        gat: N.gatilho(J, b.lon, b.lat, o.raio, H.dias) };
+        gat: N.gatilho(J, b.lon, b.lat, o.raio, H.dias, o.crit) };
     }) : [];
     // Brumadinho / município: gatilho no município (maior valor dentro do limite)
-    var gatMun = o.produto !== 'barragens' && mons[0] ? gatilhoMunicipio(J, mons[0], H.dias) : null;
+    var gatMun = o.produto !== 'barragens' && mons[0] ? gatilhoMunicipio(J, mons[0], H.dias, o.crit) : null;
     var jan = N.janelas(J, o.horas);
     // faixa de cada dia: da menor à maior média dos municípios monitorados (como o "Acumulados totais" do boletim)
     var diasTxt = jan.map(function (w, k) {
@@ -259,7 +260,7 @@
     if (op.halo) a += ' stroke="#fff" stroke-width="' + mm(op.halo === true ? tam * 0.25 : op.halo) + '" stroke-linejoin="round" paint-order="stroke"';
     return '<text x="' + mm(x) + '" y="' + mm(y) + '"' + a + '>' + esc(t) + '</text>';
   }
-  function losango(x, y, r, cor) { return '<path d="M' + mm(x) + ' ' + mm(y - r) + 'L' + mm(x + r) + ' ' + mm(y) + 'L' + mm(x) + ' ' + mm(y + r) + 'L' + mm(x - r) + ' ' + mm(y) + 'Z" fill="' + cor + '" stroke="#fff" stroke-width="0.35"/>'; }
+  function losango(x, y, r, cor) { return '<path d="M' + mm(x) + ' ' + mm(y - r) + 'L' + mm(x + r) + ' ' + mm(y) + 'L' + mm(x) + ' ' + mm(y + r) + 'L' + mm(x - r) + ' ' + mm(y) + 'Z" fill="' + cor + '" stroke="' + CONTORNO_BARRAGEM + '" stroke-width="0.3"/>'; }
   function tituloProduto(o) {
     if (o.produto !== 'barragens') return o.munNome + ' - MG';
     var nv = (o.niveis || [2, 3]).slice().sort();
@@ -384,16 +385,19 @@
     mons.forEach(function (f) { var d = caminho(f.geometry, P); s += '<path d="' + d + '" fill="none" stroke="#fff" stroke-width="' + (op.fino ? 1.0 : 1.6) + '" stroke-linejoin="round"/><path d="' + d + '" fill="none" stroke="#000" stroke-width="' + (op.fino ? 0.5 : 0.8) + '" stroke-linejoin="round"/>'; });
     s += '</g>';
     if (op.semRotulos) {
-      if (barrMapa(C).length) gruposBarragens(P, 2.2, barrMapa(C)).forEach(function (g) { s += losango(g.x, g.y, 1.05, COR_NIVEL[g.nv]); });
+      if (barrMapa(C).length) gruposBarragens(P, 2.2, barrMapa(C)).forEach(function (g) { g.itens.forEach(function (b, i) { s += losango(g.x + (i - (g.itens.length - 1) / 2) * 2.3, g.y, 1.05, COR_NIVEL[b.nv || 0]); }); });
       return s;
     }
     var marcas = '', nomes = '';
     // barragens primeiro (reservam o lugar dos rótulos)
     var grupos = gruposBarragens(P, 3.2, barrMapa(C));
-    grupos.forEach(function (g) { rot.ocupar([g.x - 1.8, g.y - 1.8, g.x + 1.8, g.y + 1.8]); });
+    // barragens muito próximas: losangos lado a lado (um por barragem, cada um com a cor do nível) e um nome só
+    var PASSO = 3.8;
+    grupos.forEach(function (g) { var meia = (g.itens.length - 1) / 2 * PASSO; rot.ocupar([g.x - meia - 1.9, g.y - 1.9, g.x + meia + 1.9, g.y + 1.9]); });
     grupos.forEach(function (g) {
-      marcas += losango(g.x, g.y, 1.7, COR_NIVEL[g.nv]);
-      var t = g.nome, pos = rot.colocar(g.x, g.y, t, 3.0, 700, 2.4);
+      var n = g.itens.length, meia = (n - 1) / 2 * PASSO;
+      g.itens.slice().sort(function (a, b) { return a.lon - b.lon; }).forEach(function (b, i) { marcas += losango(g.x - meia + i * PASSO, g.y, 1.7, COR_NIVEL[b.nv || 0]); });
+      var t = g.nome, pos = rot.colocar(g.x + (n > 1 ? meia : 0), g.y, t, 3.0, 700, 2.4, ['direita', 'acima', 'abaixo']) || rot.colocar(g.x - meia, g.y, t, 3.0, 700, 2.4, ['esquerda']);
       if (pos) nomes += texto(pos.x, pos.y, t, 3.0, { peso: 700, anc: pos.anc, halo: true });
     });
     // nome (e valor, no mapa por município) dos municípios monitorados
@@ -431,7 +435,7 @@
       l.push({ forma: 'contorno', fill: 'none', stroke: '#000', strokeWidth: 0.7, label: 'Município de ' + o.munNome });
       if (!semBarragens) (C.barrMun || []).forEach(function (b) { if (niv.indexOf(b.nv) < 0) niv.push(b.nv); });
     }
-    niv.slice().sort(function (a, b) { return b - a; }).forEach(function (n) { l.push({ forma: 'losango', fill: COR_NIVEL[n], stroke: '#fff', label: 'Barragem nível ' + n + (o.produto === 'barragens' ? '' : ' (ANM)') }); });
+    niv.slice().sort(function (a, b) { return b - a; }).forEach(function (n) { l.push({ forma: 'losango', fill: COR_NIVEL[n], stroke: CONTORNO_BARRAGEM, label: 'Barragem nível ' + n + (o.produto === 'barragens' ? '' : ' (ANM)') }); });
     return l;
   }
   function validade(C) {
@@ -457,9 +461,13 @@
         var g = null; for (var k = 0; k < grupos.length; k++) if (Math.abs(grupos[k].lon - b.lon) < 0.06 && Math.abs(grupos[k].lat - b.lat) < 0.06) { g = grupos[k]; break; }
         if (!g) { g = { lon: b.lon, lat: b.lat, itens: [] }; grupos.push(g); } g.itens.push(b);
       });
+      // barragens a menos de ~6 km (que cairiam umas sobre as outras no mapa de Minas) ficam lado a lado, cada uma com a sua cor,
+      // e o nome sai uma vez só (ex.: "Forquilha II e III"): o número de losangos é sempre o número de barragens
       grupos.forEach(function (g) {
-        var nv = Math.max.apply(null, g.itens.map(function (b) { return b.nv || 0; }));
-        op.pontos.push({ forma: 'losango', lon: g.lon, lat: g.lat, cor: COR_NIVEL[nv], rotulo: juntarNomes(g.itens.map(function (b) { return b.nome.replace(/^Barragem\s+(de\s+)?/i, ''); })) });
+        var n = g.itens.length, passo = 3.3 / 18.6, nome = juntarNomes(g.itens.map(function (b) { return b.nome.replace(/^Barragem\s+(de\s+)?/i, ''); }));
+        g.itens.slice().sort(function (a, b) { return a.lon - b.lon; }).forEach(function (b, i) {
+          op.pontos.push({ forma: 'losango', lon: g.lon + (i - (n - 1) / 2) * passo, lat: g.lat, cor: COR_NIVEL[b.nv || 0], rotulo: i === n - 1 ? nome : '' });
+        });
       });
       arrumarRotulos(op.pontos, cidades);
     } else {
@@ -477,26 +485,32 @@
   }
   // caixas aproximadas (em graus) no mapa de Minas (~18,6 mm por grau): ponto 3,2 mm; cidade 3,5 mm embaixo do ponto
   function arrumarRotulos(pontos, cidades) {
-    var K = 18.6, H = 0.17, PADX = 0.05;
+    var K = 18.6, H = 0.16, PADX = 0.02, MK = 0.07;   // MK: meio losango (1,45 mm) em graus
     function peso(c) { return /^Belo Horizonte$/.test(c.nome) ? 5 : 1; }   // a capital só sai em último caso
-    function caixaCidade(c) { var w = larguraTexto(c.nome, 3.5, 700) / K + 2 * PADX; return [c.lon - w / 2, c.lat - 0.28, c.lon + w / 2, c.lat - 0.04]; }
+    function caixaCidade(c) { return caixaCidadeEm(c, c.posicao); }
     function caixaPonto(p, lado) {
-      var w = larguraTexto(p.rotulo, 3.2, 700) / K + PADX, d = 0.11;
+      var w = larguraTexto(p.rotulo, 3.2, 700) / K + PADX, d = 0.1;
       if (lado === 'esquerda') return [p.lon - d - w, p.lat - H / 2, p.lon - d, p.lat + H / 2];
       if (lado === 'acima') return [p.lon - w / 2, p.lat + 0.08, p.lon + w / 2, p.lat + 0.08 + H];
       if (lado === 'abaixo') return [p.lon - w / 2, p.lat - 0.08 - H, p.lon + w / 2, p.lat - 0.08];
       return [p.lon + d, p.lat - H / 2, p.lon + d + w, p.lat + H / 2];
     }
     function cz(a, b) { return !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]); }
+    // antes de tudo: cidade com uma barragem embaixo do nome já muda o nome de lugar (acima ou à direita)
+    cidades.forEach(function (c) {
+      var temPonto = function (pos) { var bx = caixaCidadeEm(c, pos); return pontos.some(function (p) { return cz(bx, [p.lon - MK, p.lat - MK, p.lon + MK, p.lat + MK]); }); };
+      if (!temPonto()) return;
+      if (!temPonto('acima')) c.posicao = 'acima'; else if (!temPonto('direita')) c.posicao = 'direita';
+    });
     var ocupadas = [];
     // marcas das barragens e dos pontos das cidades também contam como obstáculo
-    pontos.forEach(function (p) { ocupadas.push([p.lon - 0.08, p.lat - 0.08, p.lon + 0.08, p.lat + 0.08]); });
+    pontos.forEach(function (p) { ocupadas.push([p.lon - MK, p.lat - MK, p.lon + MK, p.lat + MK]); });
     pontos.forEach(function (p) {
       var melhor = null;
       ['direita', 'esquerda', 'acima', 'abaixo'].some(function (lado) {
         var bx = caixaPonto(p, lado), custo = 0;
-        cidades.forEach(function (c) { if (cz(bx, caixaCidade(c)) || cz(bx, [c.lon - 0.05, c.lat - 0.05, c.lon + 0.05, c.lat + 0.05])) custo += peso(c); });
-        ocupadas.forEach(function (o) { if (cz(bx, o) && !(o[0] === p.lon - 0.08 && o[1] === p.lat - 0.08)) custo += 10; });
+        cidades.forEach(function (c) { if (cz(bx, caixaCidade(c)) || cz(bx, [c.lon - 0.04, c.lat - 0.04, c.lon + 0.04, c.lat + 0.04])) custo += peso(c); });
+        ocupadas.forEach(function (o) { if (cz(bx, o) && !(o[0] === p.lon - MK && o[1] === p.lat - MK)) custo += 10; });
         if (!melhor || custo < melhor.custo) melhor = { lado: lado, bx: bx, custo: custo };
         return custo === 0;
       });
@@ -506,13 +520,14 @@
     // cidade cujo nome bate numa barragem: tenta o nome acima ou à direita do ponto; se não couber, o nome sai
     function caixaCidadeEm(c, pos) {
       var w = larguraTexto(c.nome, 3.5, 700) / K + 2 * PADX;
-      if (pos === 'acima') return [c.lon - w / 2, c.lat + 0.055, c.lon + w / 2, c.lat + 0.245];
+      if (pos === 'acima') return [c.lon - w / 2, c.lat + 0.06, c.lon + w / 2, c.lat + 0.24];
       if (pos === 'direita') return [c.lon + 0.05, c.lat - 0.12, c.lon + 0.05 + w, c.lat + 0.12];
-      return caixaCidade(c);
+      var w0 = larguraTexto(c.nome, 3.5, 700) / K + 2 * PADX; return [c.lon - w0 / 2, c.lat - 0.28, c.lon + w0 / 2, c.lat - 0.04];
     }
     for (var i = cidades.length - 1; i >= 0; i--) {
       var c = cidades[i], livre = function (pos) { var bx = caixaCidadeEm(c, pos); return !ocupadas.some(function (o) { return cz(bx, o); }); };
-      if (livre('abaixo')) continue;
+      if (livre(c.posicao)) continue;
+      if (livre()) { c.posicao = undefined; continue; }
       if (livre('acima')) c.posicao = 'acima'; else if (livre('direita')) c.posicao = 'direita'; else cidades.splice(i, 1);
     }
   }
@@ -570,7 +585,7 @@
     }
     if (gi + 1 < 6) {   // 72 h: sobra um quadro — vai o gatilho de cada município/barragem
       var qx = gap + ((gi + 1) % cols) * (pw + gap), qy = gap + Math.floor((gi + 1) / cols) * (ph + gap);
-      s += '<rect x="' + mm(qx) + '" y="' + mm(qy) + '" width="' + mm(pw) + '" height="' + mm(tb) + '" fill="#e3eef8"/>' + texto(qx + 1.6, qy + 3.6, 'Gatilho do manual (4.6)', 3.0, { peso: 700, cor: NAVY });
+      s += '<rect x="' + mm(qx) + '" y="' + mm(qy) + '" width="' + mm(pw) + '" height="' + mm(tb) + '" fill="#e3eef8"/>' + texto(qx + 1.6, qy + 3.6, 'Critério de emissão', 3.0, { peso: 700, cor: NAVY });
       s += '<rect x="' + mm(qx) + '" y="' + mm(qy + tb) + '" width="' + mm(pw) + '" height="' + mm(ph - tb) + '" fill="#fff"/>';
       var linhasG = o.produto === 'barragens' ? C.pontos.map(function (p) { return [p.b.nome, p.gat]; }) : [[o.munNome, C.gatMun]];
       s += texto(qx + 2, qy + tb + 5, 'Local', 2.3, { peso: 700, cor: NAVY }) + texto(qx + pw - 22, qy + tb + 5, 'maior dia', 2.3, { peso: 700, anc: 'end', cor: NAVY }) + texto(qx + pw - 2, qy + tb + 5, '72 h', 2.3, { peso: 700, anc: 'end', cor: NAVY });
@@ -578,7 +593,7 @@
         var yy = qy + tb + 10 + i * 4.6, g = r[1];
         s += texto(qx + 2, yy, r[0], 2.3, { cor: g && g.dispara ? '#b10d1c' : '#000', peso: g && g.dispara ? 700 : 400 }) + texto(qx + pw - 22, yy, g ? f0(g.diaMax) + ' mm' : '—', 2.3, { anc: 'end' }) + texto(qx + pw - 2, yy, g && g.max72 ? f0(g.max72.mm) + ' mm' : '—', 2.3, { anc: 'end', peso: 700 });
       });
-      s += texto(qx + 2, qy + ph - 2.4, 'Dispara com ≥ 100 mm/dia ou ≥ 100 mm/72 h', 2.1, { cor: '#33414f' });
+      s += texto(qx + 2, qy + ph - 2.4, 'Atinge com ' + textoCriterio(o.crit), 2.1, { cor: '#33414f' });
       s += '<rect x="' + mm(qx) + '" y="' + mm(qy) + '" width="' + mm(pw) + '" height="' + mm(ph) + '" fill="none" stroke="rgb(86,123,154)" stroke-width="0.3"/>';
     }
     return { titulo: 'Precipitação Prevista por Dia · ' + tituloCurto(o), regiao: o.produto === 'barragens' ? 'Minas Gerais (recorte)' : o.munNome + ' e entorno',
@@ -625,8 +640,13 @@
       '<div id="brBarrBox"><h3>Barragens <span id="brBarrN" class="small"></span></h3>' +
       '<label for="brFonte" style="margin-top:0">Lista de barragens</label><select id="brFonte"><option value="anm">ANM/SIGBM (automático)</option><option value="equipe">Lista da equipe (BARRAGENS.txt)</option></select>' +
       '<div class="small" id="brAnmInfo" style="margin-top:4px"></div>' +
-      '<label>Níveis de emergência</label><div class="niv"><label class="check"><input type="checkbox" id="brN3" checked> <span class="lz" style="background:#7f0010"></span>N3</label><label class="check"><input type="checkbox" id="brN2" checked> <span class="lz" style="background:#db1e2a"></span>N2</label><label class="check"><input type="checkbox" id="brN1"> <span class="lz" style="background:#f28c28"></span>N1</label></div>' +
-      '<div class="small">O manual (4.6) pede N2 e N3. Para emitir por nível, deixe marcado só o nível desejado.</div>' +
+      '<label>Níveis de emergência</label><div class="niv"><label class="check"><input type="checkbox" id="brN3" checked> <span class="lz" style="background:#d7191c;outline:0.5px solid #1a1a1a"></span>N3</label><label class="check"><input type="checkbox" id="brN2" checked> <span class="lz" style="background:#fd8d3c;outline:0.5px solid #1a1a1a"></span>N2</label><label class="check"><input type="checkbox" id="brN1"> <span class="lz" style="background:#ffd92f;outline:0.5px solid #1a1a1a"></span>N1</label></div>' +
+      '<div class="small">Padrão: N2 e N3. Para emitir por nível, deixe marcado só o nível desejado.</div>' +
+      '<h3 style="margin-top:14px">Critério de emissão <span id="brCritSelo" class="selo o">padrão</span></h3>' +
+      '<label class="check"><input type="checkbox" id="brCritDiaOn" checked> Chuva em um dia ≥ <input id="brCritDia" type="number" min="10" max="500" step="5" value="100" style="width:74px;padding:4px 6px;margin:0 4px"> mm</label>' +
+      '<label class="check"><input type="checkbox" id="brCrit72On" checked> Soma em 72 h ≥ <input id="brCrit72" type="number" min="10" max="800" step="5" value="100" style="width:74px;padding:4px 6px;margin:0 4px"> mm</label>' +
+      '<div class="small">Basta um dos marcados para disparar. 40–50 mm/h não é avaliado (o GFS tem passos de 6 h).</div>' +
+      '<div class="actions" style="margin-top:6px"><button id="brCritPadrao" class="ghost" type="button">Voltar ao padrão (100 mm/dia ou 100 mm/72 h)</button></div>' +
       '<label for="brRaio">Região da barragem (para o gatilho)</label><select id="brRaio"><option value="0">Só o ponto da barragem</option><option value="10" selected>Raio de 10 km</option><option value="20">Raio de 20 km</option></select>' +
       '<div id="brEquipeBox"><div class="small" id="brBarrOrigem" style="margin-top:8px"></div>' +
       '<div class="actions" style="margin-top:6px"><label class="ghost" style="margin:0;display:inline-block;border-radius:9px;padding:8px 11px;font-weight:700;cursor:pointer;font-size:13px">Trocar lista (BARRAGENS.txt)<input id="brBarrArq" type="file" accept=".txt,.tsv,.csv,text/plain" hidden></label><button id="brBarrPadrao" class="ghost" type="button">Voltar à lista padrão</button></div>' +
@@ -642,7 +662,7 @@
       '<p><b>Mapas:</b> todos no layout padrão da plataforma. A chuva é a interpolação bilinear do GFS desenhada em alta resolução (sem os blocos de 0,25°). O zoom enquadra sozinho os municípios e as barragens escolhidos.</p></details>' +
       '</aside><div>' +
       '<div class="previewWrap"><div class="reprs" id="brReprs"></div><div class="rdesc" id="brReprDesc"></div><div id="brMapa" class="lmPrev"></div></div>' +
-      '<div class="card tableCard" id="brGatCard"><h2>Gatilho do manual (4.6)</h2><div id="brGat" class="gat"></div>' +
+      '<div class="card tableCard" id="brGatCard"><h2>Critério de emissão</h2><div id="brGat" class="gat"></div>' +
       '<label class="check"><input type="checkbox" id="brForcar"> Emitir mesmo sem gatilho (decisão do meteorologista)</label><input id="brForcarJust" type="text" placeholder="Justificativa (obrigatória, vai no rodapé do PDF)" hidden></div>' +
       '<div class="card tableCard"><h2>Texto do boletim <span class="small">(edite à vontade antes de gerar o PDF)</span></h2>' +
       '<label for="brCondicao">Condição do tempo (abre o texto)</label><input id="brCondicao" type="text" placeholder="Ex.: Previsão de tempo instável">' +
@@ -653,7 +673,7 @@
       '<label class="check"><input type="checkbox" id="brFig2"> Incluir o mapa “Dia a dia” como Figura 2 no PDF</label>' +
       '<div class="actions"><button id="brRefazTexto" class="ghost" type="button">Refazer o texto com os números atuais</button></div></div>' +
       '<div class="card tableCard"><h2>Chuva nos municípios monitorados (mm)</h2><div class="scroll"><table id="brTabMun"></table></div></div>' +
-      '<div class="card tableCard" id="brTabBarrCard"><h2>Barragens</h2><div class="small" style="margin-bottom:6px">Valor no ponto: “bloco” = célula de 0,25° do GFS (o que aparece no mapa original); “ponto” = interpolação bilinear.</div><div class="scroll"><table id="brTabBarr"></table></div></div>' +
+      '<div class="card tableCard" id="brTabBarrCard"><h2>Barragens</h2><div class="small" style="margin-bottom:6px">Valor no ponto: “bloco” = célula de 0,25° do GFS; “ponto” = interpolação bilinear. No mapa, barragens muito próximas (ex.: Forquilha II e III, a 1,6 km) aparecem lado a lado com um nome só: cada losango é uma barragem.</div><div class="scroll"><table id="brTabBarr"></table></div></div>' +
       '</div></div>';
     main.appendChild(sec);
     // controles
@@ -677,6 +697,8 @@
     $('brFonte').addEventListener('change', function () { S.fonte = this.value; ls('barrFonte', S.fonte); aplicarLista(); });
     ['brN1', 'brN2', 'brN3'].forEach(function (k) { $(k).addEventListener('change', function () { if (!niveisEscolhidos().length) { this.checked = true; return; } aplicarLista(); }); });
     $('brRaio').addEventListener('change', gerar);
+    ['brCritDiaOn', 'brCrit72On', 'brCritDia', 'brCrit72'].forEach(function (k) { $(k).addEventListener('change', function () { seloCriterio(); gerar(); }); });
+    $('brCritPadrao').addEventListener('click', function () { $('brCritDia').value = N.LIMIAR_DIA; $('brCrit72').value = N.LIMIAR_72H; $('brCritDiaOn').checked = true; $('brCrit72On').checked = true; seloCriterio(); gerar(); });
     $('brForcar').addEventListener('change', function () { $('brForcarJust').hidden = !this.checked; liberarPdf(); });
     $('brForcarJust').addEventListener('input', liberarPdf);
     var fs = ls('barrFonte'); if (fs === 'equipe') { S.fonte = 'equipe'; $('brFonte').value = 'equipe'; }
@@ -684,6 +706,10 @@
     var salvo = ls('barrLista');
     try { usarLista(salvo || BARRAGENS_TXT_PADRAO, salvo ? 'arquivo carregado neste navegador' : 'padrão'); } catch (e) { usarLista(BARRAGENS_TXT_PADRAO, 'padrão'); }
     trocarProduto();
+  }
+  function seloCriterio() {
+    var c = criterioTela(), el = $('brCritSelo'), pad = criterioPadrao(c);
+    el.textContent = pad ? 'padrão' : 'alterado'; el.style.background = pad ? '' : '#fff3d6'; el.style.color = pad ? '' : '#8a5a00';
   }
   function trocarProduto() {
     var b = $('brProduto').value === 'barragens';
@@ -693,7 +719,7 @@
     var r = lerBarragensTxt(txt);
     r.lista.forEach(function (b) { b.nv = nivelInt(b.nivel); b.fonte = 'equipe'; });
     S.listaEquipe = r.lista; S.avisosEquipe = r.avisos; S.origemLista = origem;
-    $('brBarrOrigem').innerHTML = 'Lista da equipe: <b>' + esc(origem) + '</b>' + (origem === 'padrão' ? ' (BARRAGENS.txt do projeto QGIS, níveis de quando a lista foi feita)' : '');
+    $('brBarrOrigem').innerHTML = 'Lista da equipe: <b>' + esc(origem) + '</b>' + (origem === 'padrão' ? ' (BARRAGENS.txt da equipe, com os níveis da época em que foi feita)' : '');
     aplicarLista();
   }
   function niveisEscolhidos() { return [3, 2, 1].filter(function (n) { var el = $('brN' + n); return el && el.checked; }); }
@@ -769,7 +795,7 @@
     } catch (e) { console.error(e); status('Não foi possível carregar os limites municipais: ' + esc(e.message), 'erro'); aberta = false; }
   }
   function habilitar(on) { ['brPng', 'brPdf', 'brCsv'].forEach(function (k) { $(k).disabled = !on; }); if (on) liberarPdf(); }
-  // manual 4.6: o boletim só sai com gatilho; sem gatilho, só com a decisão do meteorologista e justificativa
+  // o boletim só sai com o critério de emissão atingido; sem gatilho, só com a decisão do meteorologista e justificativa
   function forcado() { return $('brForcar').checked && $('brForcarJust').value.trim().length >= 10; }
   function liberarPdf() { var C = S.calc; $('brPdf').disabled = !C || !(C.dispara || forcado()); }
   function txtGat(g, jan) {
@@ -778,9 +804,22 @@
     var w = g.max72 ? 'dias ' + (g.max72.ini + 1) + '–' + (g.max72.fim + 1) : '';
     return { dia: f0(g.diaMax) + ' mm (' + d + ')', h72: g.max72 ? f0(g.max72.mm) + ' mm (' + w + ')' : '—' };
   }
+  // critério de emissão escolhido na tela (padrão: 100 mm em um dia ou 100 mm em 72 h); não fica guardado: ao recarregar, volta ao padrão
+  function criterioTela() {
+    var v = function (id, on) { var n = parseFloat(String($(id).value).replace(',', '.')); return $(on).checked && isFinite(n) && n > 0 ? n : null; };
+    return { dia: v('brCritDia', 'brCritDiaOn'), h72: v('brCrit72', 'brCrit72On') };
+  }
+  function criterioPadrao(c) { return c.dia === N.LIMIAR_DIA && c.h72 === N.LIMIAR_72H; }
+  function textoCriterio(c) {
+    var p = [];
+    if (c.dia != null) p.push('≥ ' + fmtN(c.dia) + ' mm em um dia');
+    if (c.h72 != null) p.push('≥ ' + fmtN(c.h72) + ' mm em 72 h');
+    return p.length ? p.join(' ou ') : 'nenhum critério marcado';
+  }
+  function fmtN(n) { return String(n).replace('.', ','); }
   function mostrarGatilho() {
     var C = S.calc, el = $('brGat'), h = '';
-    var crit = 'Critério: chuva ≥ <b>100 mm em um dia</b> ou ≥ <b>100 mm somados em 72 h</b> na região' + (C.o.produto === 'barragens' ? ' da barragem (' + (C.o.raio ? 'raio de ' + C.o.raio + ' km' : 'só o ponto') + ')' : ' do município') +
+    var crit = 'Critério: <b>' + esc(textoCriterio(C.o.crit)) + '</b> na região' + (C.o.produto === 'barragens' ? ' da barragem (' + (C.o.raio ? 'raio de ' + C.o.raio + ' km' : 'só o ponto') + ')' : ' do município') +
       '. O critério de 40–50 mm/h não é avaliado (o GFS tem passos de 6 h): fica com o meteorologista.';
     if (C.o.produto === 'barragens') {
       var porNivel = {};
@@ -899,14 +938,14 @@
       ['Municipio', 'Geocodigo'].concat(C.jan.map(function (w, k) { return 'Dia' + (k + 1) + '_' + w.rotulo + '_media_mm'; }), ['Total_media_mm', 'Total_min_mm', 'Total_max_mm', 'Faixa_texto'])];
     C.linhas.forEach(function (l) { L.push([l.nome, l.f.properties.geocodigo].concat(l.dias.map(function (d) { return f1(d.media); }), [f1(l.total.media), f1(l.total.min), f1(l.total.max), l.faixa])); });
     if (C.o.produto === 'barragens') {
-      L.push([]); L.push(['Barragem', 'Nome_BDA', 'Municipio_cadastro', 'Municipio_coordenada', 'Nivel', 'Latitude', 'Longitude', 'Total_bloco_mm', 'Total_ponto_mm'].concat(C.jan.map(function (w, k) { return 'Dia' + (k + 1) + '_ponto_mm'; }), ['Fonte', 'Raio_km', 'Maior_dia_regiao_mm', 'Maior_72h_regiao_mm', 'Janela_72h', 'Gatilho', 'Aviso']));
-      C.pontos.forEach(function (p) { var b = p.b; L.push([b.nome, b.nomeBda, b.municipio, b.munCoord, b.nivel, String(b.lat).replace('.', ','), String(b.lon).replace('.', ','), f1(p.bruto), f1(p.suave)].concat(p.dias.map(f1), [b.fonte || '', C.o.raio, f1(p.gat.diaMax), f1(p.gat.max72 ? p.gat.max72.mm : NaN), p.gat.max72 ? 'dias ' + (p.gat.max72.ini + 1) + '-' + (p.gat.max72.fim + 1) : '', p.gat.dispara ? 'DISPARA' : 'nao', (b.avisos || []).join('; ')])); });
+      L.push([]); L.push(['Barragem', 'Nome_BDA', 'Municipio_cadastro', 'Municipio_coordenada', 'Nivel', 'Latitude', 'Longitude', 'Total_bloco_mm', 'Total_ponto_mm'].concat(C.jan.map(function (w, k) { return 'Dia' + (k + 1) + '_ponto_mm'; }), ['Fonte', 'Raio_km', 'Criterio', 'Maior_dia_regiao_mm', 'Maior_72h_regiao_mm', 'Janela_72h', 'Gatilho', 'Aviso']));
+      C.pontos.forEach(function (p) { var b = p.b; L.push([b.nome, b.nomeBda, b.municipio, b.munCoord, b.nivel, String(b.lat).replace('.', ','), String(b.lon).replace('.', ','), f1(p.bruto), f1(p.suave)].concat(p.dias.map(f1), [b.fonte || '', C.o.raio, textoCriterio(C.o.crit), f1(p.gat.diaMax), f1(p.gat.max72 ? p.gat.max72.mm : NaN), p.gat.max72 ? 'dias ' + (p.gat.max72.ini + 1) + '-' + (p.gat.max72.fim + 1) : '', p.gat.dispara ? 'DISPARA' : 'nao', (b.avisos || []).join('; ')])); });
     }
     baixarCsv(L, baseNome() + '.csv');
   }
   async function salvarPdf() {
     var C = S.calc; if (!C) return;
-    if (!C.dispara && !forcado()) { alert('Sem gatilho do manual (4.6). Para emitir assim mesmo, marque “Emitir mesmo sem gatilho” e escreva a justificativa.'); return; }
+    if (!C.dispara && !forcado()) { alert('O critério de emissão não foi atingido. Para emitir assim mesmo, marque “Emitir mesmo sem gatilho” e escreva a justificativa.'); return; }
     var pend = [];
     if (!$('brCondicao').value.trim() && /\[condição do tempo\]/.test($('brTexto').value)) pend.push('a condição do tempo no parágrafo');
     if (pend.length && !confirm('Falta preencher ' + pend.join(' e ') + '. Gerar o PDF assim mesmo?')) return;
@@ -956,7 +995,8 @@
       }
       var np = doc.getNumberOfPages();
       for (var p = 1; p <= np; p++) { doc.setPage(p); doc.setFontSize(8); doc.setTextColor(110); doc.text('SIMGE/IGAM — GFS/NCEP/NOAA, rodada ' + J.ciclo + 'Z de ' + N.br(J.data_ciclo) + (C.o.produto === 'barragens' ? ' — barragens: ' + (S.fonte === 'anm' && S.anm ? 'ANM/SIGBM de ' + N.br(S.anm.baixado_em.slice(0, 10)) : 'lista da equipe') : '') + ' — página ' + p + ' de ' + np, W / 2, 291, { align: 'center' });
-        if (!C.dispara && forcado()) doc.text(doc.splitTextToSize('Emitido sem atingir o gatilho do manual (4.6). Justificativa: ' + $('brForcarJust').value.trim(), W - 2 * M), M, 284); doc.setTextColor(0); }
+        if (!criterioPadrao(C.o.crit)) doc.text('Critério de emissão usado: ' + textoCriterio(C.o.crit).replace(/≥ /g, 'a partir de ') + ' (alterado em relação ao padrão).', M, 287);
+        if (!C.dispara && forcado()) doc.text(doc.splitTextToSize('Emitido sem atingir o critério de emissão. Justificativa: ' + $('brForcarJust').value.trim(), W - 2 * M), M, 284); doc.setTextColor(0); }
       baixar(doc.output('blob'), baseNome() + '.pdf');
     } catch (e) { console.error(e); alert('Não foi possível gerar o PDF: ' + e.message); }
     finally { b.disabled = false; }

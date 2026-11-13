@@ -405,7 +405,7 @@
       var p = proj(pt.lon, pt.lat), x = p[0] - MAP.x, y = p[1] - MAP.y, rs = 3.2;
       // 13/11/2026 (aditivo): pt.forma = 'losango' (barragens) e pt.lado = 'abaixo'; sem eles, nada muda
       var rr = pt.forma === 'losango' ? 1.45 : 0.85, fo = pt.forma === 'losango' ? 0.6 : 0;
-      if (pt.forma === 'losango') o.push('<path d="M' + f2(x) + ' ' + f2(y - rr) + 'L' + f2(x + rr) + ' ' + f2(y) + 'L' + f2(x) + ' ' + f2(y + rr) + 'L' + f2(x - rr) + ' ' + f2(y) + 'Z" fill="' + (pt.cor || '#e60000') + '" stroke="#fff" stroke-width="0.3"/>');
+      if (pt.forma === 'losango') o.push('<path d="M' + f2(x) + ' ' + f2(y - rr) + 'L' + f2(x + rr) + ' ' + f2(y) + 'L' + f2(x) + ' ' + f2(y + rr) + 'L' + f2(x - rr) + ' ' + f2(y) + 'Z" fill="' + (pt.cor || '#e60000') + '" stroke="' + (pt.contorno || '#1a1a1a') + '" stroke-width="0.3"/>');
       else o.push('<circle cx="' + f2(x) + '" cy="' + f2(y) + '" r="0.85" fill="' + (pt.cor || '#e60000') + '" stroke="#fff" stroke-width="0.25"/>');
       var lx = x + 1.3 + fo, ly = y + (ASC - DESC) / 2 * rs, la = 'start';
       if (pt.lado === 'esquerda') { lx = x - 1.3 - fo; la = 'end'; }

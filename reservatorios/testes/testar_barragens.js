@@ -75,4 +75,13 @@ t('gatilho: 100 mm/dia, 100 mm em 72 h, raio', () => {
   assert.strictEqual(N.gatilho(P, -44, -20, 30).dispara, true);
   assert.ok(N.gatilho(P, -44, -20, 10).diaMax < 100);
 });
+t('critério ajustável (padrão = 100/100; null desliga)', () => {
+  const K = JSON.parse(JSON.stringify(J)); const fill = (v) => lat.map(() => lon.map(() => v));
+  K.produtos.dia1 = { mm: fill(30) }; K.produtos.dia2 = { mm: fill(30) }; K.produtos.dia3 = { mm: fill(30) }; K.produtos.dia4 = { mm: fill(0) };
+  assert.strictEqual(N.gatilho(K, -44, -20, 0).dispara, false);
+  assert.deepStrictEqual(N.gatilho(K, -44, -20, 0, null, { h72: 80 }).motivos, ['72h']);
+  assert.deepStrictEqual(N.gatilho(K, -44, -20, 0, null, { dia: 25, h72: null }).motivos, ['dia']);
+  assert.strictEqual(N.gatilho(K, -44, -20, 0, null, { dia: null, h72: null }).dispara, false);
+  assert.deepStrictEqual(N.criterio(), { dia: 100, h72: 100 });
+});
 console.log(n + ' testes ok');

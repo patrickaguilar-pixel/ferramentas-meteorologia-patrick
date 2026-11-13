@@ -139,8 +139,10 @@
       if ((x / dlo) * (x / dlo) + (y / dla) * (y / dla) <= 1) pts.push([lon + x, lat + y]);
     return pts;
   }
-  function gatilho(j, lon, lat, km, dias) {
-    dias = dias || ['dia1', 'dia2', 'dia3', 'dia4'];
+  // crit (opcional) = {dia: mm ou null, h72: mm ou null}; null desliga o critério. Padrão: 100 mm/dia ou 100 mm/72 h.
+  function criterio(c) { c = c || {}; return { dia: c.dia === undefined ? LIMIAR_DIA : c.dia, h72: c.h72 === undefined ? LIMIAR_72H : c.h72 }; }
+  function gatilho(j, lon, lat, km, dias, crit) {
+    dias = dias || ['dia1', 'dia2', 'dia3', 'dia4']; crit = criterio(crit);
     var pts = amostrasRaio(lon, lat, km), g = j.grade;
     var porDia = dias.map(function (k) { var m = j.produtos[k].mm, mx = -Infinity; pts.forEach(function (p) { var v = bilinear(g, m, p[0], p[1]); if (v > mx) mx = v; }); return mx; });
     // soma de 72 h em cada janela (dias 1-3, 2-4…), pegando o maior valor da soma dentro da região (não a soma dos máximos)
@@ -153,8 +155,8 @@
     var diaMax = Math.max.apply(null, porDia), iDia = porDia.indexOf(diaMax);
     var j72 = janelas.reduce(function (b, x) { return !b || x.mm > b.mm ? x : b; }, null);
     var motivos = [];
-    if (diaMax >= LIMIAR_DIA) motivos.push('dia');
-    if (j72 && j72.mm >= LIMIAR_72H) motivos.push('72h');
+    if (crit.dia != null && diaMax >= crit.dia) motivos.push('dia');
+    if (crit.h72 != null && j72 && j72.mm >= crit.h72) motivos.push('72h');
     return { porDia: porDia, diaMax: diaMax, iDia: iDia, janelas: janelas, max72: j72, dispara: motivos.length > 0, motivos: motivos, pontos: pts.length };
   }
 
@@ -173,5 +175,5 @@
   }
 
   return { VERSAO: VERSAO, ESCALAS: ESCALAS, HORIZONTES: HORIZONTES, classe: classe, validar: validar, celula: celula, bilinear: bilinear,
-    dentro: dentro, caixa: caixa, amostras: amostras, gatilho: gatilho, amostrasRaio: amostrasRaio, LIMIAR_DIA: LIMIAR_DIA, LIMIAR_72H: LIMIAR_72H, estatMunicipio: estatMunicipio, faixa: faixa, janelas: janelas, br: br, soma: soma, fmt: fmt };
+    dentro: dentro, caixa: caixa, amostras: amostras, gatilho: gatilho, criterio: criterio, amostrasRaio: amostrasRaio, LIMIAR_DIA: LIMIAR_DIA, LIMIAR_72H: LIMIAR_72H, estatMunicipio: estatMunicipio, faixa: faixa, janelas: janelas, br: br, soma: soma, fmt: fmt };
 });
