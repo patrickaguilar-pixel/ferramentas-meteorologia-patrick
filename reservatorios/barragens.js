@@ -254,6 +254,12 @@
   function hexRgbArr(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
   function hexRgb(h) { return 'rgb(' + hexRgbArr(h).join(',') + ')'; }
   function corClasse(v, esc) { return esc.cores[N.classe(v, esc.lim)]; }
+  // número da isolinha legível no fundo escuro (mesma regra do app.js: branco se as faixas dos dois lados forem escuras)
+  function rotuloNoFundo(r, esc) {
+    if (r.halo || !(window.RESERV_ISO && window.RESERV_ISO.rotuloNoFundo)) return r;
+    var nv = parseFloat(String(r.texto).replace(',', '.'));
+    return window.RESERV_ISO.rotuloNoFundo(r, hexRgbArr(corClasse(nv - 0.01, esc)), hexRgbArr(corClasse(nv + 0.01, esc)));
+  }
   function texto(x, y, t, tam, op) {
     op = op || {};
     var a = ' font-family="' + FONTE + '" font-size="' + mm(tam) + '"' + (op.peso ? ' font-weight="' + op.peso + '"' : '') + (op.anc ? ' text-anchor="' + op.anc + '"' : '') + ' fill="' + (op.cor || '#000') + '"';
@@ -394,6 +400,7 @@
           dentro: function (lo, la) { return lo > P.e.x0 && lo < P.e.x1 && la > P.e.y0 && la < P.e.y1; } });
         s += '<g clip-path="url(#' + id + 'mg)"><path d="' + I.linhas.map(function (ln) { return ln.map(function (q, i) { return (i ? 'L' : 'M') + mm(P.X(q[0])) + ' ' + mm(P.Y(q[1])); }).join(''); }).join('') + '" fill="none" stroke="' + E.linha + '" stroke-width="' + (E.largura * 1.36).toFixed(2) + '" stroke-opacity="' + E.opacLinha + '" stroke-linejoin="round"/></g>';
         I.rotulos.forEach(function (r) {
+          r.halo = E.halo; rotuloNoFundo(r, esc);
           var x = P.X(r.lon), y = P.Y(r.lat), dg = 4 / P.k;
           evZ.push([r.lon - dg, r.lat - dg / 2, r.lon + dg, r.lat + dg / 2]);
           isoRot += '<text x="' + mm(x) + '" y="' + mm(y + r.tamanho * 0.35) + '" transform="rotate(' + r.angulo + ' ' + mm(x) + ' ' + mm(y) + ')" font-family="' + FONTE + '" font-size="' + r.tamanho + '" fill="' + r.cor + '" fill-opacity="' + r.opacidade + '" text-anchor="middle"' + (E.halo ? ' stroke="#fff" stroke-width="' + mm(r.tamanho * 0.22) + '" stroke-linejoin="round" paint-order="stroke"' : '') + '>' + String(r.texto).replace(/[<&]/g, '') + '</text>';
@@ -520,7 +527,7 @@
         var I = IsoLinhas.calcular({ valor: function (lo, la) { return N.bilinear(S.J.grade, m, lo, la); }, ext: { x0: -51.2, x1: -39.7, y0: -23.2, y1: -14.1 }, passo: 0.025, niveis: E.niveis, mmGrau: 18.6,
           dentro: dentroMinas, evitar: evitar.slice(), rotulos: isoValores(), tam: E.rotTam, cor: E.rotCor, opacidade: E.rotOpac });
         op.isolinhas.push({ linhas: I.linhas, stroke: E.linha, width: E.largura, opacity: E.opacLinha });
-        I.rotulos.forEach(function (r) { r.halo = E.halo; op.rotulosIso.push(r); evitar.push([r.lon - 0.2, r.lat - 0.12, r.lon + 0.2, r.lat + 0.12]); });
+        I.rotulos.forEach(function (r) { r.halo = E.halo; rotuloNoFundo(r, esc); op.rotulosIso.push(r); evitar.push([r.lon - 0.2, r.lat - 0.12, r.lon + 0.2, r.lat + 0.12]); });
       });
     }
     return op;

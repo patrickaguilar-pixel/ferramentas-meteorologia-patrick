@@ -543,6 +543,12 @@
         : isolinhas(grade, niveisIso, $('mcIsoRot').checked, $('mcCidades').checked, chIso, 0, estIso);
       op.isolinhas = [passoIso ? { linhas: I.linhas, stroke: ISO_INT.linha, width: ISO_INT.largura, opacity: ISO_INT.opacLinha } : { linhas: I.linhas, stroke: ISO.cor, width: ISO.largura, opacity: ISO.opacidade }];
       op.rotulosIso = I.rotulos;
+      // a cada 50/100: número branco quando as faixas dos dois lados da linha são escuras (mesma regra da Reservatórios)
+      if (passoIso) op.rotulosIso = I.rotulos.map(function (r) {
+        var nv = parseFloat(String(r.texto).replace(',', '.')), lum = function (h) { return (0.299 * parseInt(h.slice(1, 3), 16) + 0.587 * parseInt(h.slice(3, 5), 16) + 0.114 * parseInt(h.slice(5, 7), 16)) / 255; };
+        var L = Math.min(lum(es.cores[N.classe(nv - 0.01, es.lim)]), lum(es.cores[N.classe(nv + 0.01, es.lim)]));
+        return L < 0.45 ? Object.assign({}, r, { cor: '#ffffff', opacidade: 0.92 }) : Object.assign({}, r, { cor: ISO_INT.rotCor, opacidade: ISO_INT.rotOpac });
+      });
     }
     if ($('mcMostrarEst').checked) op.pontos = C.pts.filter(function (x) { return x.lon > -52 && x.lon < -39 && x.lat > -23.5 && x.lat < -14; }).map(function (x) { return { lon: x.lon, lat: x.lat, rotulo: '', cor: '#111' }; });
     return op;

@@ -183,7 +183,16 @@ function isoConjuntos(limFaixas){
   const cinq=Object.assign({}, ISO_ESTILO, { niveis:ISO_NIVEIS, largura:t==='duas'?0.4:ISO_ESTILO.largura, halo:false });
   return t==='faixas'?[faixas]:t==='duas'?[cinq,faixas]:[cinq];
 }
-window.RESERV_ISO={ suave:()=>opcaoMapa('mapaSuave',true), linhas:()=>opcaoMapa('mapaIso',false), valores:()=>opcaoMapa('mapaIsoVal',false), niveis:ISO_NIVEIS, estilo:ISO_ESTILO, tipo:isoTipo, conjuntos:isoConjuntos };
+// rótulo legível no fundo escuro (13/11/2026): o número fica sobre a linha, entre a faixa de baixo e a de cima; se a média
+// mais escura das duas cores for escura, o número sai branco; no fundo claro continua cinza. Só nos rótulos sem contorno branco.
+function luminancia(rgb){ return (0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2])/255; }
+function rotuloNoFundo(r, rgbBaixo, rgbCima){
+  if(r.halo) return r;
+  const L=Math.min(luminancia(rgbBaixo),luminancia(rgbCima));   // basta um dos lados ser escuro
+  if(L<0.45){ r.cor='#ffffff'; r.opacidade=0.92; }
+  return r;
+}
+window.RESERV_ISO={ rotuloNoFundo, suave:()=>opcaoMapa('mapaSuave',true), linhas:()=>opcaoMapa('mapaIso',false), valores:()=>opcaoMapa('mapaIsoVal',false), niveis:ISO_NIVEIS, estilo:ISO_ESTILO, tipo:isoTipo, conjuntos:isoConjuntos };
 // ponto dentro de Minas (mesorregiões)
 const MESO_BB=MESO.features.map(f=>{ const b=[1e9,1e9,-1e9,-1e9]; (f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates).forEach(p=>p[0].forEach(c=>{ b[0]=Math.min(b[0],c[0]); b[1]=Math.min(b[1],c[1]); b[2]=Math.max(b[2],c[0]); b[3]=Math.max(b[3],c[1]); })); return b; });
 function dentroMG(lon,lat){
@@ -211,7 +220,7 @@ function isoGfs(g,cidades){
     const I=IsoLinhas.calcular({ valor:(lo,la)=>gfsValor(g,lo,la), ext:{x0:-51.2,x1:-39.7,y0:-23.2,y1:-14.1}, passo:0.025, niveis:E.niveis, mmGrau:18.6,
       dentro:dentroMG, evitar, rotulos:RESERV_ISO.valores(), tam:E.rotTam, cor:E.rotCor, opacidade:E.rotOpac });
     out.isolinhas.push({ linhas:I.linhas, stroke:E.linha, width:E.largura, opacity:E.opacLinha });
-    I.rotulos.forEach(r=>{ r.halo=E.halo; out.rotulosIso.push(r); evitar.push([r.lon-0.2,r.lat-0.12,r.lon+0.2,r.lat+0.12]); });   // o segundo conjunto não põe número em cima do primeiro
+    I.rotulos.forEach(r=>{ r.halo=E.halo; const nv=parseFloat(String(r.texto).replace(',','.')); rotuloNoFundo(r, CLASS_COLORS[classeMm(nv-0.01)], CLASS_COLORS[classeMm(nv+0.01)]); out.rotulosIso.push(r); evitar.push([r.lon-0.2,r.lat-0.12,r.lon+0.2,r.lat+0.12]); });   // o segundo conjunto não põe número em cima do primeiro
   });
   return out;
 }
