@@ -1,0 +1,52 @@
+name: Nível de emergência das barragens (ANM/SIGBM)
+
+# Baixa o conjunto de dados aberto "Barragens da Mineração (SIGBM)" da ANM, separa as barragens de MG e grava
+# reservatorios/barragens/anm.json (lista), status.json (última verificação) e diagnostico.md (o que foi lido).
+# Se o arquivo da ANM mudar de formato ou falhar nas conferências, o anm.json anterior é mantido.
+# Nada de senha ou chave: só dados públicos da ANM.
+
+on:
+  schedule:
+    - cron: "23 10 * * *"   # 07h23 de Brasília
+    - cron: "23 19 * * *"   # 16h23 de Brasília
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/dados-barragens.yml"
+      - "scripts/baixar_barragens_anm.py"
+
+permissions:
+  contents: write             # só para gravar os arquivos no repositório
+
+concurrency:
+  group: dados-barragens
+  cancel-in-progress: false
+
+jobs:
+  baixar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # ação oficial do GitHub, fixada pelo commit (v4.2.2) para não mudar sem aviso
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Baixar e conferir os dados da ANM
+        run: python3 -I scripts/baixar_barragens_anm.py reservatorios/barragens
+
+      - name: Gravar se mudou
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reservatorios/barragens
+          if git diff --cached --quiet; then
+            echo "Nada novo."
+            exit 0
+          fi
+          git commit -m "Barragens ANM/SIGBM verificadas ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            sleep 10
+          done
+          exit 1
