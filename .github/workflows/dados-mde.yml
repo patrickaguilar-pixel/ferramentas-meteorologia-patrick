@@ -1,0 +1,40 @@
+name: Relevo (MDE) para os Mapas Climáticos
+
+# Baixa o Copernicus DEM GLO-90 (público, AWS Open Data) e grava a altitude média por célula em
+# mapas-climaticos/mde/ (grade do mapa de MG e grade da região das estações). Roda só quando o script muda
+# ou à mão: o relevo não muda. Se as conferências falharem, nada é gravado.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/dados-mde.yml"
+      - "scripts/baixar_mde.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dados-mde
+  cancel-in-progress: false
+
+jobs:
+  mde:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Dependências (ambiente isolado, versões fixas)
+        run: python3 -m venv /tmp/venv && /tmp/venv/bin/pip install --quiet numpy==2.1.3 rasterio==1.4.3
+      - name: Baixar e agregar o MDE
+        run: /tmp/venv/bin/python scripts/baixar_mde.py mapas-climaticos/mde
+      - name: Gravar
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mapas-climaticos/mde
+          if git diff --cached --quiet; then echo "Nada novo."; exit 0; fi
+          git commit -m "MDE (Copernicus GLO-90) para os Mapas Climáticos ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+          for i in 1 2 3; do git pull --rebase origin main && git push origin HEAD:main && exit 0; sleep 10; done
+          exit 1
