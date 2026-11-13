@@ -250,7 +250,11 @@
       { id: 'wk2Png', nome: 'Tendência Week 2', tipo: 'PNG', onde: 'Tendência · Week 1 + Week 2', aba: '.tab[data-tab=weekly]', precisa: 'Clique em “Gerar Week 1 + Week 2”' },
       { id: 'a24Png', nome: 'Acumulado 24 h', tipo: 'PNG', onde: 'Acumulados · 24h / 3 dias / 5 dias', aba: '.tab[data-tab=accum]', precisa: 'Gere os acumulados na aba Acumulados' },
       { id: 'a72Png', nome: 'Acumulado 3 dias', tipo: 'PNG', onde: 'Acumulados · 24h / 3 dias / 5 dias', aba: '.tab[data-tab=accum]', precisa: 'Gere os acumulados na aba Acumulados' },
-      { id: 'a120Png', nome: 'Acumulado 5 dias', tipo: 'PNG', onde: 'Acumulados · 24h / 3 dias / 5 dias', aba: '.tab[data-tab=accum]', precisa: 'Gere os acumulados na aba Acumulados' }
+      { id: 'a120Png', nome: 'Acumulado 5 dias', tipo: 'PNG', onde: 'Acumulados · 24h / 3 dias / 5 dias', aba: '.tab[data-tab=accum]', precisa: 'Gere os acumulados na aba Acumulados' },
+      // 13/11/2026: aba Barragens e municípios (72/96 h)
+      { id: 'brPng', nome: 'Barragens/município · figura aberta', tipo: 'PNG', desc: 'Representação escolhida na tela', onde: 'Barragens e municípios', aba: '.tab[data-tab=barr]', precisa: 'Clique em “Buscar dados do GFS” na aba Barragens e municípios' },
+      { id: 'brPdf', nome: 'Barragens/município · boletim', tipo: 'PDF', desc: 'Texto, figura e previsão diária', onde: 'Barragens e municípios', aba: '.tab[data-tab=barr]', precisa: 'Clique em “Buscar dados do GFS” na aba Barragens e municípios' },
+      { id: 'brCsv', nome: 'Barragens/município · tabelas', tipo: 'CSV', desc: 'Chuva por município e por barragem', onde: 'Barragens e municípios', aba: '.tab[data-tab=barr]', precisa: 'Clique em “Buscar dados do GFS” na aba Barragens e municípios' }
     ]
   };
   function materiais() {
@@ -290,7 +294,7 @@
     'umidade-minima': [['#urMapa img', 'Mapa de umidade mínima'], ['#relCanvas', 'Relatório (página 1)']],
     'mapas-climaticos': [['#mcMapa img', 'Mapa'], ['#mcEstSvg', 'Estações']],
     'reservatorios': [['#resCanvas', 'Reservatórios'], ['#wk1Canvas', 'Week 1'], ['#wk2Canvas', 'Week 2'],
-      ['#a24Canvas', '24 h'], ['#a72Canvas', '3 dias'], ['#a120Canvas', '5 dias']]
+      ['#a24Canvas', '24 h'], ['#a72Canvas', '3 dias'], ['#a120Canvas', '5 dias'], ['#brMapa img', 'Barragens e municípios']]
   };
   // Tempo Severo e Chuva: o "Mapa final" só é desenhado quando aparece na tela; se ainda não foi,
   // a prévia é montada na hora com o mesmo layout (sem o mapa base, que demora a carregar).

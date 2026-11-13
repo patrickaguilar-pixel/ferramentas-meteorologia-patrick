@@ -13,6 +13,8 @@ O que sai  <destino>/<ciclo>/gfs.json
   (1 casa decimal):
     24h   = 0–24 h      day3  = 0–72 h      day5 = 0–120 h
     week1 = 0–168 h     week2 = 168–336 h   (mesmos períodos das imagens do CPC)
+    (13/11/2026, aba Barragens e municípios) day4 = 0–96 h e cada dia separado:
+    dia1 = 0–24 h, dia2 = 24–48 h, dia3 = 48–72 h, dia4 = 72–96 h
   + origem, data do ciclo, hora do download e sha256 de cada arquivo baixado.
 
 Cuidados
@@ -50,8 +52,11 @@ REGIAO = {"leftlon": "307.5", "rightlon": "321.5", "toplat": "-13", "bottomlat":
 CICLOS = ["00", "06"]
 PASSO_H = 6
 FIM_H = 336
-PRODUTOS = {"24h": (0, 24), "day3": (0, 72), "day5": (0, 120), "week1": (0, 168), "week2": (168, 336)}
-ORDEM_CRESCENTE = ["24h", "day3", "day5", "week1"]   # cada um contém o anterior
+PRODUTOS = {"24h": (0, 24), "day3": (0, 72), "day5": (0, 120), "week1": (0, 168), "week2": (168, 336),
+            # 13/11/2026: aba "Barragens e municípios" (72/96 h e a chuva de cada dia)
+            "day4": (0, 96), "dia1": (0, 24), "dia2": (24, 48), "dia3": (48, 72), "dia4": (72, 96)}
+ORDEM_CRESCENTE = ["24h", "day3", "day4", "day5", "week1"]   # cada um contém o anterior
+PRODUTOS_NOVOS = ["day4", "dia1", "dia2", "dia3", "dia4"]    # JSON antigo sem eles é refeito na próxima coleta
 TAM_MAX = 2 * 1024 * 1024
 PAUSA_S = 1.4
 UA = "SIMGE-IGAM ferramentas-meteorologia (GitHub Actions; dados publicos GFS/NOMADS)"
@@ -241,6 +246,14 @@ def processar(data, ciclo, destino):
         produtos[k] = {"de_h": a, "ate_h": b, "max_mm": round(mx, 1),
                        "mm": [[round(x, 1) for x in linha] for linha in m]}
     # conferências cruzadas
+    # a soma dos dias tem que bater com o acumulado (dia1+dia2+dia3 = day3; +dia4 = day4)
+    for total, partes in (("day3", ["dia1", "dia2", "dia3"]), ("day4", ["dia1", "dia2", "dia3", "dia4"])):
+        soma = produtos[partes[0]]["mm"]
+        for k in partes[1:]:
+            soma = somar(soma, produtos[k]["mm"])
+        dif = max(abs(x - y) for lx, ly in zip(soma, produtos[total]["mm"]) for x, y in zip(lx, ly))
+        if dif > 0.5:
+            raise ValueError(f"soma dos dias difere de {total} em {dif:.1f} mm: dado inconsistente")
     for p, q in zip(ORDEM_CRESCENTE, ORDEM_CRESCENTE[1:]):
         mp, mq = produtos[p]["mm"], produtos[q]["mm"]
         if any(x > y + 0.3 for lx, ly in zip(mp, mq) for x, y in zip(lx, ly)):
@@ -280,7 +293,10 @@ def processar(data, ciclo, destino):
 def data_atual(destino, ciclo):
     try:
         with open(os.path.join(destino, ciclo, "gfs.json"), encoding="utf-8") as f:
-            return json.load(f).get("data_ciclo")
+            j = json.load(f)
+        if any(k not in j.get("produtos", {}) for k in PRODUTOS_NOVOS):
+            return None          # arquivo de antes dos produtos novos: refaz a rodada mais recente
+        return j.get("data_ciclo")
     except (OSError, ValueError):
         return None
 
