@@ -620,7 +620,7 @@
       '<div id="brBarrAvisos" class="av" style="margin-top:6px"></div></div>' +
       '<h3>Salvar</h3><div class="small">PNG da figura aberta, PDF do boletim e CSV das tabelas: pelo botão amarelo <b>OPÇÕES DE SALVAMENTO</b>.</div>' +
       '<div class="actions" style="margin-top:0"><button id="brPng" class="secondary" disabled>PNG da figura</button><button id="brPdf" class="secondary" disabled>PDF do boletim</button><button id="brCsv" class="secondary" disabled>CSV (tabelas)</button></div>' +
-      '<div id="brStatus" class="status">Escolha a rodada e clique em <b>Buscar dados do GFS</b>.</div>' +
+      '<div id="brStatus" class="status">Carregando os limites municipais e o GFS…</div>' +
       '<details><summary>Como é calculado</summary>' +
       '<p><b>Chuva:</b> acumulado do GFS 0,25° (NOAA) desde a rodada: 72 h = 0 a 72 h; 96 h = 0 a 96 h; cada dia = 24 h (dia 1 = 0–24 h, …). Rodada 00Z começa às 21h do dia anterior (hora local). A soma dos dias é conferida com o acumulado antes de usar.</p>' +
       '<p><b>Município:</b> média, mínimo e máximo nos pontos de uma grade de ~1 km dentro do limite municipal (IBGE), sobre a interpolação bilinear do GFS. É o número que entra no texto e nas tabelas.</p>' +
@@ -700,6 +700,7 @@
       await garantirMunicipios(); conferirBarragens(); mostrarAvisosLista();
       $('brMunLista').innerHTML = S.mun.features.map(function (f) { return '<option value="' + esc(f.properties.nome) + '">'; }).join('');
       var cs = document.getElementById('cpcCycle'); if (cs && cs.value) $('brCiclo').value = cs.value;
+      if (!S.J) buscarGfs();   // 13/11: carrega sozinho ao abrir a aba (antes ficava em branco até clicar)
     } catch (e) { console.error(e); status('Não foi possível carregar os limites municipais: ' + esc(e.message), 'erro'); aberta = false; }
   }
   function habilitar(on) { ['brPng', 'brPdf', 'brCsv'].forEach(function (k) { $(k).disabled = !on; }); }
