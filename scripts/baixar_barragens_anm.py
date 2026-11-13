@@ -23,6 +23,10 @@ Sem dependências além da biblioteca padrão (XLSX lido com zipfile + xml, sem 
 """
 import csv
 import datetime as dt
+import os
+import ssl
+import subprocess
+import tempfile
 import hashlib
 import html
 import io
@@ -32,6 +36,7 @@ import sys
 import time
 import unicodedata
 import urllib.parse
+import urllib.error
 import urllib.request
 import zipfile
 import xml.etree.ElementTree as ET
@@ -61,6 +66,70 @@ def norm(s):
     return re.sub(r"[^A-Z0-9]+", " ", s).strip()
 
 
+# ------------------------------------------------------------------ cadeia de certificados
+# O dadosabertos.anm.gov.br não envia o certificado intermediário (cadeia incompleta): navegadores completam sozinhos
+# (AIA), o Python não. Aqui a cadeia é completada do mesmo jeito, SEM desligar a verificação:
+#   1. lê o certificado do servidor e o endereço "CA Issuers" (AIA) que ele mesmo indica;
+#   2. baixa o intermediário desse endereço;
+#   3. só aceita o intermediário se o openssl confirmar que ele é assinado por uma raiz confiável do sistema;
+#   4. a conexão continua verificando certificado e nome do servidor normalmente.
+CONTEXTOS = {}
+BUNDLE_SISTEMA = "/etc/ssl/certs/ca-certificates.crt"
+
+
+def sh(args, entrada=None):
+    return subprocess.run(args, input=entrada, capture_output=True, timeout=60)
+
+
+def completar_cadeia(host):
+    if host in CONTEXTOS:
+        return CONTEXTOS[host]
+    CONTEXTOS[host] = None
+    try:
+        r = sh(["openssl", "s_client", "-connect", f"{host}:443", "-servername", host, "-showcerts"], b"")
+        pems = re.findall(rb"-----BEGIN CERTIFICATE-----.+?-----END CERTIFICATE-----", r.stdout, re.S)
+        log(f"  {host}: o servidor enviou {len(pems)} certificado(s)")
+        if not pems:
+            return None
+        txt = sh(["openssl", "x509", "-noout", "-text"], pems[0]).stdout.decode("utf-8", "replace")
+        m = re.search(r"CA Issuers - URI:(\S+)", txt)
+        if not m:
+            log(f"  {host}: o certificado não indica onde buscar o intermediário (AIA)")
+            return None
+        aia = m.group(1)
+        log(f"  {host}: intermediário indicado pelo certificado (AIA): {aia}")
+        p = urllib.parse.urlparse(aia)
+        if p.scheme not in ("http", "https"):
+            return None
+        with urllib.request.urlopen(urllib.request.Request(aia, headers={"User-Agent": UA}), timeout=60) as resp:
+            der = resp.read(200000)
+        d = tempfile.mkdtemp()
+        inter = os.path.join(d, "inter.pem")
+        conv = sh(["openssl", "x509", "-inform", "DER", "-outform", "PEM"], der)
+        if conv.returncode != 0:
+            conv = sh(["openssl", "x509", "-inform", "PEM", "-outform", "PEM"], der)
+        if conv.returncode != 0:
+            p7 = sh(["openssl", "pkcs7", "-inform", "DER", "-print_certs"], der)
+            conv = p7 if p7.returncode == 0 else conv
+        if conv.returncode != 0 or b"BEGIN CERTIFICATE" not in conv.stdout:
+            log(f"  {host}: não consegui ler o intermediário baixado")
+            return None
+        open(inter, "wb").write(conv.stdout)
+        ver = sh(["openssl", "verify", "-CAfile", BUNDLE_SISTEMA, inter])
+        log(f"  {host}: intermediário conferido contra as raízes do sistema: {ver.stdout.decode().strip() or ver.stderr.decode().strip()}")
+        if ver.returncode != 0:
+            return None
+        subj = sh(["openssl", "x509", "-noout", "-subject", "-issuer", "-enddate"], conv.stdout).stdout.decode().strip().replace("\n", " | ")
+        log(f"  {host}: {subj}")
+        ctx = ssl.create_default_context(cafile=BUNDLE_SISTEMA)
+        ctx.load_verify_locations(cafile=inter)
+        CONTEXTOS[host] = ctx
+        return ctx
+    except Exception as e:  # noqa: BLE001
+        log(f"  {host}: não foi possível completar a cadeia ({e})")
+        return None
+
+
 def baixar(url, limite=MAX_BYTES):
     u = urllib.parse.urlparse(url)
     if u.scheme != "https" or u.hostname not in HOSTS_OK:
@@ -69,7 +138,19 @@ def baixar(url, limite=MAX_BYTES):
     for tent in range(3):
         try:
             req = urllib.request.Request(url, headers={"User-Agent": UA})
-            with urllib.request.urlopen(req, timeout=90) as r:
+            ctx = CONTEXTOS.get(u.hostname)
+            try:
+                r0 = urllib.request.urlopen(req, timeout=90, context=ctx) if ctx else urllib.request.urlopen(req, timeout=90)
+            except urllib.error.URLError as e:
+                if "CERTIFICATE_VERIFY_FAILED" in str(e) and u.hostname not in CONTEXTOS:
+                    log(f"  {u.hostname}: cadeia de certificados incompleta; completando pelo AIA (com verificação)")
+                    ctx = completar_cadeia(u.hostname)
+                    if ctx is None:
+                        raise
+                    r0 = urllib.request.urlopen(req, timeout=90, context=ctx)
+                else:
+                    raise
+            with r0 as r:
                 dados = r.read(limite + 1)
                 if len(dados) > limite:
                     raise ValueError(f"arquivo maior que {limite // 1048576} MB: {url}")
