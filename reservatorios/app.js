@@ -85,7 +85,7 @@ for(const k in ESCALAS){ const e=ESCALAS[k]; if(e.labels.length!==e.colors.lengt
 // As outras são geradas com o mesmo número de faixas, interpolando pontos de controle (cor clara = pouca chuva, exceto Viridis).
 const PALETAS={
   azul:{nome:'Azul (atual)'},
-  viridis:{nome:'Viridis', pts:['#440154','#482878','#3e4989','#31688e','#26828e','#1f9e89','#35b779','#6ece58','#b5de2b','#fde725']},
+  viridis:{nome:'Viridis', pts:['#fde725','#b5de2b','#6ece58','#35b779','#1f9e89','#26828e','#31688e','#3e4989','#482878','#440154']},   // invertida (13/11): amarelo = pouca chuva, roxo = muita
   amarelo_indigo:{nome:'Amarelo → índigo', pts:['#ffffd9','#edf8b1','#c7e9b4','#7fcdbb','#41b6c4','#1d91c0','#225ea8','#253494','#2a1e78','#2e0854']}
 };
 function paletaEscolhida(){ const el=document.getElementById('coresMapa'); let v=el?el.value:null; if(!v){ try{ v=localStorage.getItem('reservCores'); }catch(e){} } return PALETAS[v]?v:'azul'; }
@@ -170,10 +170,38 @@ function cidadesPadrao(){
 // no mapa dos reservatórios, alguns nomes mudam de lado para não encobrir as siglas
 const POS_CIDADE_RES={'Belo Horizonte':'direita','Ipatinga':'direita','Carneirinho':'acima','Governador Valadares':'acima'};
 const LADO_RES={SFV:'acima',SSA:'esquerda',CA:'esquerda',PE:'esquerda'};
+// 13/11/2026: opções de desenho dos mapas do GFS (seletores no topo; ficam guardadas neste navegador)
+function opcaoMapa(id,padrao){ const el=document.getElementById(id); if(el) return el.checked; try{ const v=localStorage.getItem('reserv_'+id); return v==null?padrao:v==='1'; }catch(e){ return padrao; } }
+window.RESERV_ISO={ suave:()=>opcaoMapa('mapaSuave',true), linhas:()=>opcaoMapa('mapaIso',false), valores:()=>opcaoMapa('mapaIsoVal',false) };
+// ponto dentro de Minas (mesorregiões)
+const MESO_BB=MESO.features.map(f=>{ const b=[1e9,1e9,-1e9,-1e9]; (f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates).forEach(p=>p[0].forEach(c=>{ b[0]=Math.min(b[0],c[0]); b[1]=Math.min(b[1],c[1]); b[2]=Math.max(b[2],c[0]); b[3]=Math.max(b[3],c[1]); })); return b; });
+function dentroMG(lon,lat){
+  for(let i=0;i<MESO.features.length;i++){ const b=MESO_BB[i]; if(lon<b[0]||lon>b[2]||lat<b[1]||lat>b[3]) continue;
+    let ins=false; const g=MESO.features[i].geometry; (g.type==='Polygon'?[g.coordinates]:g.coordinates).forEach(p=>p.forEach(r=>{ for(let a=0,k=r.length-1;a<r.length;k=a++){ const xi=r[a][0],yi=r[a][1],xk=r[k][0],yk=r[k][1]; if((yi>lat)!==(yk>lat)&&lon<(xk-xi)*(lat-yi)/(yk-yi)+xi) ins=!ins; } }));
+    if(ins) return true; }
+  return false;
+}
+// chuva do GFS desenhada como imagem fina (mesma interpolação bilinear e mesma regra de faixa; só sem os degraus de 0,05°)
+function rasterGfs(g){
+  const A=LayoutMapa.MAPA, W=Math.round(A.wTotal*5), H=Math.round(A.h*5), cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const c=cv.getContext('2d'), img=c.createImageData(W,H), d=img.data;
+  for(let j=0;j<H;j++){ const lat=A.ymax-(j+0.5)/H*(A.ymax-A.ymin); if(lat>-13.8||lat<-23.4) continue;
+    for(let i=0;i<W;i++){ const lon=A.xmin+(i+0.5)/W*(A.xmax-A.xmin); if(lon<-51.2||lon>-39.7) continue;
+      const cc=CLASS_COLORS[classeMm(gfsValor(g,lon,lat))], o=(j*W+i)*4; d[o]=cc[0]; d[o+1]=cc[1]; d[o+2]=cc[2]; d[o+3]=255; } }
+  c.putImageData(img,0,0); return cv.toDataURL('image/png');
+}
+// isolinhas nos limites das faixas, com valores opcionais (assets/isolinhas.js)
+function isoGfs(g,cidades){
+  if(!window.IsoLinhas) return null;
+  const evitar=(cidades||[]).map(c=>{ const w=c.nome.length*0.105/2; return [c.lon-w,c.lat-0.3,c.lon+w,c.lat+0.04]; });
+  const I=IsoLinhas.calcular({ valor:(lo,la)=>gfsValor(g,lo,la), ext:{x0:-51.2,x1:-39.7,y0:-23.2,y1:-14.1}, passo:0.025, niveis:GFS_LIMITES, mmGrau:18.6,
+    dentro:dentroMG, evitar, rotulos:RESERV_ISO.valores(), tam:3.0, cor:'#1f2328', opacidade:0.85 });
+  return { isolinhas:[{ linhas:I.linhas, stroke:'#ffffff', width:0.22, opacity:0.85 }], rotulosIso:I.rotulos.map(r=>Object.assign(r,{halo:true})) };
+}
 function mapaOp(proc,cfg){
   const ano=(cfg.ano||String(new Date().getFullYear()));
   const fonte=proc&&proc.fonte==='gfs'?'GFS/NCEP/NOAA':'CPC/NCEP/NOAA';
-  return {
+  const op={
     titulo:cfg.titulo||'Total Previsto de Precipitação',
     textoValidade:cfg.subtitulo||'',
     credito:'Fonte de dados: '+fonte+' - SIMGE/IGAM, '+ano,
@@ -184,7 +212,14 @@ function mapaOp(proc,cfg){
     pontos:cfg.showReservoirs?RESERVOIRS.map(([n,sig,lon,lat])=>({rotulo:sig,lon,lat,lado:LADO_RES[sig]})):[],
     lagos:USAR_LAGOS&&cfg.showReservoirs&&LAGOS?Object.values(LAGOS).map(l=>({geometry:l.geometry})):[]   // v0.18: contorno dos lagos (ANA)
   };
+  // 13/11/2026: com o GFS, mapa suave (imagem fina) e isolinhas/valores conforme os seletores do topo
+  if(proc&&proc.gfs){
+    if(RESERV_ISO.suave()){ op.imagem=rasterGfs(proc.gfs); op.areas=[]; }
+    if(RESERV_ISO.linhas()){ const I=isoGfs(proc.gfs,op.cidades); if(I){ op.isolinhas=I.isolinhas; op.rotulosIso=I.rotulosIso; } }
+  }
+  return op;
 }
+
 // v0.18: contorno dos lagos dos reservatórios (ANA/SNIRH, camada "Massa d'água", simplificado ~0,003°)
 const USAR_LAGOS=false;   // 06/11/2026: desligado até a equipe decidir (lagos.json e o desenho ficam prontos; basta trocar para true)
 let LAGOS=null, lagosPromessa=null;
@@ -318,11 +353,21 @@ function montarSeletorFonte(){
   selC.value=PALETAS[pc]?pc:'azul';
   selC.addEventListener('change',()=>{ try{ localStorage.setItem('reservCores',selC.value); }catch(e){} trocarCores(); });
   selF.after(labC,selC);
+  // 13/11/2026: mapa suave e isolinhas (só com o dado bruto do GFS)
+  const box=document.createElement('span'); box.id='opcoesMapa'; box.style.cssText='display:inline-flex;gap:10px;align-items:center;flex-wrap:wrap';
+  [['mapaSuave','Suave',true],['mapaIso','Isolinhas',false],['mapaIsoVal','Valores',false]].forEach(([id,txt,pad])=>{
+    const l=document.createElement('label'); l.className='check'; l.style.margin='0'; l.style.whiteSpace='nowrap';
+    const cb=document.createElement('input'); cb.type='checkbox'; cb.id=id; cb.checked=opcaoMapa(id,pad);
+    cb.addEventListener('change',()=>{ try{ localStorage.setItem('reserv_'+id,cb.checked?'1':'0'); }catch(e){} if(id==='mapaIso') document.getElementById('mapaIsoVal').disabled=!cb.checked||fonteDados()!=='gfs'; trocarCores(); });
+    l.append(cb,' '+txt); box.appendChild(l);
+  });
+  selC.after(box);
   textoFonte();
 }
 function textoFonte(){
   const g=fonteDados()==='gfs', b=document.getElementById('cpcLoad'), h=document.querySelector('.cpcRow h2');
   const sf=document.getElementById('faixasMapa'); if(sf){ sf.disabled=!g; sf.title=g?'Escala usada nos mapas gerados com o GFS':'Com as imagens do CPC a escala é sempre a de 15 faixas'; }
+  ['mapaSuave','mapaIso','mapaIsoVal'].forEach(id=>{ const el=document.getElementById(id); if(el){ el.disabled=!g||(id==='mapaIsoVal'&&!document.getElementById('mapaIso').checked); el.parentElement.title=g?'':'Só com o dado bruto do GFS (as imagens do CPC não têm o valor em mm)'; } });
   aplicarEscala();
   if(b) b.textContent=g?'Buscar dados do GFS':'Buscar imagens do CPC';
   if(h) h.textContent=g?'Dados do GFS (NOAA)':'Imagens do CPC';
