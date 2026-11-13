@@ -172,7 +172,9 @@ const POS_CIDADE_RES={'Belo Horizonte':'direita','Ipatinga':'direita','Carneirin
 const LADO_RES={SFV:'acima',SSA:'esquerda',CA:'esquerda',PE:'esquerda'};
 // 13/11/2026: opções de desenho dos mapas do GFS (seletores no topo; ficam guardadas neste navegador)
 function opcaoMapa(id,padrao){ const el=document.getElementById(id); if(el) return el.checked; try{ const v=localStorage.getItem('reserv_'+id); return v==null?padrao:v==='1'; }catch(e){ return padrao; } }
-window.RESERV_ISO={ suave:()=>opcaoMapa('mapaSuave',true), linhas:()=>opcaoMapa('mapaIso',false), valores:()=>opcaoMapa('mapaIsoVal',false) };
+// isolinhas a cada 50 mm (50, 100, 150…), no estilo da Umidade Mínima: linha branca, rótulo cinza sem contorno (13/11/2026)
+const ISO_NIVEIS=Array.from({length:20},(_,i)=>50*(i+1)), ISO_ESTILO={ linha:'#ffffff', largura:0.22, opacLinha:0.8, rotCor:'#3a3a3a', rotOpac:0.7, rotTam:3.6 };
+window.RESERV_ISO={ suave:()=>opcaoMapa('mapaSuave',true), linhas:()=>opcaoMapa('mapaIso',false), valores:()=>opcaoMapa('mapaIsoVal',false), niveis:ISO_NIVEIS, estilo:ISO_ESTILO };
 // ponto dentro de Minas (mesorregiões)
 const MESO_BB=MESO.features.map(f=>{ const b=[1e9,1e9,-1e9,-1e9]; (f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates).forEach(p=>p[0].forEach(c=>{ b[0]=Math.min(b[0],c[0]); b[1]=Math.min(b[1],c[1]); b[2]=Math.max(b[2],c[0]); b[3]=Math.max(b[3],c[1]); })); return b; });
 function dentroMG(lon,lat){
@@ -190,13 +192,13 @@ function rasterGfs(g){
       const cc=CLASS_COLORS[classeMm(gfsValor(g,lon,lat))], o=(j*W+i)*4; d[o]=cc[0]; d[o+1]=cc[1]; d[o+2]=cc[2]; d[o+3]=255; } }
   c.putImageData(img,0,0); return cv.toDataURL('image/png');
 }
-// isolinhas nos limites das faixas, com valores opcionais (assets/isolinhas.js)
+// isolinhas a cada 50 mm (ISO_NIVEIS), com valores opcionais (assets/isolinhas.js)
 function isoGfs(g,cidades){
   if(!window.IsoLinhas) return null;
   const evitar=(cidades||[]).map(c=>{ const w=c.nome.length*0.105/2; return [c.lon-w,c.lat-0.3,c.lon+w,c.lat+0.04]; });
-  const I=IsoLinhas.calcular({ valor:(lo,la)=>gfsValor(g,lo,la), ext:{x0:-51.2,x1:-39.7,y0:-23.2,y1:-14.1}, passo:0.025, niveis:GFS_LIMITES, mmGrau:18.6,
-    dentro:dentroMG, evitar, rotulos:RESERV_ISO.valores(), tam:3.0, cor:'#1f2328', opacidade:0.85 });
-  return { isolinhas:[{ linhas:I.linhas, stroke:'#ffffff', width:0.22, opacity:0.85 }], rotulosIso:I.rotulos.map(r=>Object.assign(r,{halo:true})) };
+  const I=IsoLinhas.calcular({ valor:(lo,la)=>gfsValor(g,lo,la), ext:{x0:-51.2,x1:-39.7,y0:-23.2,y1:-14.1}, passo:0.025, niveis:ISO_NIVEIS, mmGrau:18.6,
+    dentro:dentroMG, evitar, rotulos:RESERV_ISO.valores(), tam:ISO_ESTILO.rotTam, cor:ISO_ESTILO.rotCor, opacidade:ISO_ESTILO.rotOpac });
+  return { isolinhas:[{ linhas:I.linhas, stroke:ISO_ESTILO.linha, width:ISO_ESTILO.largura, opacity:ISO_ESTILO.opacLinha }], rotulosIso:I.rotulos.map(r=>Object.assign(r,{halo:false})) };
 }
 function mapaOp(proc,cfg){
   const ano=(cfg.ano||String(new Date().getFullYear()));
