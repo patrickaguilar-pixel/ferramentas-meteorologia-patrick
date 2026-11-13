@@ -125,6 +125,7 @@
       { s: '#cpcCycle', t: 'Ciclo', d: '00Z (≈3h) ou 06Z (≈9h). Vale para Reservatórios, Tendência e Acumulados.' },
       { s: '#fonteDados', t: 'Fonte dos dados', d: 'Dado bruto GFS (chuva em mm, NOAA) ou Imagens do CPC. A escolha fica guardada neste navegador.' },
       { s: '#faixasMapa', t: 'Faixas', d: 'Escala de cores dos mapas feitos com o GFS. Com as imagens do CPC é sempre a de 15 faixas.' },
+      { s: '#coresMapa', t: 'Cores', d: 'Paleta de todos os mapas da ferramenta (inclusive Barragens): Azul (atual), Viridis ou Amarelo → índigo. A escolha fica guardada neste navegador.' },
       { s: '#cpcLoad', t: 'Buscar dados', d: 'Busca o ciclo escolhido, gera todos os mapas e preenche as datas.' },
       { s: '#cpcStatus', t: 'Situação', d: 'Qual rodada foi carregada e quando foi baixada. Vermelho = não carregou.' },
       { s: '.tabs', t: 'Abas', d: 'Reservatórios, Tendência (Week 1 e 2), Acumulados e Barragens e municípios (72/96 h).' },

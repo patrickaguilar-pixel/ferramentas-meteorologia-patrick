@@ -168,7 +168,7 @@
     var produto = $('brProduto').value, h = +$('brHorizonte').value;
     var munNome = produto === 'brumadinho' ? 'Brumadinho' : $('brMunicipio').value;
     if (produto === 'brumadinho') produto = 'municipio';
-    return { produto: produto, horas: h, escala: N.ESCALAS[$('brEscala').value] || N.ESCALAS.boletim, escalaId: $('brEscala').value, munNome: munNome,
+    return { produto: produto, horas: h, escala: escalaComPaleta(N.ESCALAS[$('brEscala').value] || N.ESCALAS.boletim), escalaId: $('brEscala').value, munNome: munNome,
       cidades: $('brCidades').checked, niveis: niveisEscolhidos(), raio: +$('brRaio').value, crit: criterioTela() };
   }
   // municípios monitorados: os das barragens (cadastro) ou o município escolhido
@@ -697,6 +697,7 @@
     $('brFonte').addEventListener('change', function () { S.fonte = this.value; ls('barrFonte', S.fonte); aplicarLista(); });
     ['brN1', 'brN2', 'brN3'].forEach(function (k) { $(k).addEventListener('change', function () { if (!niveisEscolhidos().length) { this.checked = true; return; } aplicarLista(); }); });
     $('brRaio').addEventListener('change', gerar);
+    window.addEventListener('reservPaleta', function () { if (S.J) gerar(); });
     ['brCritDiaOn', 'brCrit72On', 'brCritDia', 'brCrit72'].forEach(function (k) { $(k).addEventListener('change', function () { seloCriterio(); gerar(); }); });
     $('brCritPadrao').addEventListener('click', function () { $('brCritDia').value = N.LIMIAR_DIA; $('brCrit72').value = N.LIMIAR_72H; $('brCritDiaOn').checked = true; $('brCrit72On').checked = true; seloCriterio(); gerar(); });
     $('brForcar').addEventListener('change', function () { $('brForcarJust').hidden = !this.checked; liberarPdf(); });
@@ -805,6 +806,11 @@
     return { dia: f0(g.diaMax) + ' mm (' + d + ')', h72: g.max72 ? f0(g.max72.mm) + ' mm (' + w + ')' : '—' };
   }
   // critério de emissão escolhido na tela (padrão: 100 mm em um dia ou 100 mm em 72 h); não fica guardado: ao recarregar, volta ao padrão
+  // cores dos mapas: a paleta escolhida no topo da ferramenta (seletor "Cores", app.js); sem ela, as cores da escala
+  function escalaComPaleta(e) {
+    var c = window.RESERV_PALETA && window.RESERV_PALETA.cores(e.cores.length);
+    return c && c.length === e.cores.length ? { nome: e.nome, lim: e.lim, rotulos: e.rotulos, cores: c } : e;
+  }
   function criterioTela() {
     var v = function (id, on) { var n = parseFloat(String($(id).value).replace(',', '.')); return $(on).checked && isFinite(n) && n > 0 ? n : null; };
     return { dia: v('brCritDia', 'brCritDiaOn'), h72: v('brCrit72', 'brCrit72On') };

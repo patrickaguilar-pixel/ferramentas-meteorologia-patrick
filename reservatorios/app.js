@@ -81,9 +81,26 @@ const ESCALAS={
       colors:['#f7fbff','#e3f0f8','#c9e2f2','#a8d1e8','#82bddc','#5ba6ce','#398dc0','#1f72ad','#10598f','#084675','#06375e','#042943','#021b2e'].map(hx), lim:[10,20,30,40,50,60,70,80,100,150,200,300]}
 };
 for(const k in ESCALAS){ const e=ESCALAS[k]; if(e.labels.length!==e.colors.length||e.lim.length!==e.labels.length-1) throw new Error('escala '+k+' inconsistente'); }
+// 13/11/2026: paletas de cores dos mapas (o número de faixas continua vindo de ESCALAS). 'azul' = cores originais de cada escala.
+// As outras são geradas com o mesmo número de faixas, interpolando pontos de controle (cor clara = pouca chuva, exceto Viridis).
+const PALETAS={
+  azul:{nome:'Azul (atual)'},
+  viridis:{nome:'Viridis', pts:['#440154','#482878','#3e4989','#31688e','#26828e','#1f9e89','#35b779','#6ece58','#b5de2b','#fde725']},
+  amarelo_indigo:{nome:'Amarelo → índigo', pts:['#ffffd9','#edf8b1','#c7e9b4','#7fcdbb','#41b6c4','#1d91c0','#225ea8','#253494','#2a1e78','#2e0854']}
+};
+function paletaEscolhida(){ const el=document.getElementById('coresMapa'); let v=el?el.value:null; if(!v){ try{ v=localStorage.getItem('reservCores'); }catch(e){} } return PALETAS[v]?v:'azul'; }
+function coresPaleta(id,n){
+  const P=PALETAS[id]; if(!P||!P.pts) return null;
+  const pts=P.pts.map(hx), out=[];
+  for(let i=0;i<n;i++){ const t=n===1?0:i/(n-1)*(pts.length-1), k=Math.min(pts.length-2,Math.floor(t)), f=t-k;
+    out.push([0,1,2].map(c=>Math.round(pts[k][c]+(pts[k+1][c]-pts[k][c])*f))); }
+  return out;
+}
+// para a aba Barragens (barragens.js): a paleta escolhida, em hex, com n faixas (null = cores originais)
+window.RESERV_PALETA={ id:()=>paletaEscolhida(), cores:n=>{ const c=coresPaleta(paletaEscolhida(),n); return c?c.map(x=>'#'+x.map(v=>('0'+v.toString(16)).slice(-2)).join('')):null; } };
 function faixasEscolhidas(){ const el=document.getElementById('faixasMapa'); const n=el?el.value:'15'; return ESCALAS[n]?n:'15'; }
 // com as imagens do CPC a classe vem da cor da imagem (15 faixas), então só o GFS usa a escala escolhida
-function aplicarEscala(){ const e=ESCALAS[(typeof fonteDados==='function'&&fonteDados()==='gfs')?faixasEscolhidas():'15']; CLASS_LABELS=e.labels; CLASS_COLORS=e.colors; GFS_LIMITES=e.lim; }
+function aplicarEscala(){ const e=ESCALAS[(typeof fonteDados==='function'&&fonteDados()==='gfs')?faixasEscolhidas():'15']; CLASS_LABELS=e.labels; CLASS_COLORS=coresPaleta(paletaEscolhida(),e.colors.length)||e.colors; GFS_LIMITES=e.lim; }
 function classeMm(v){ let c=0; while(c<GFS_LIMITES.length && v>=GFS_LIMITES[c]) c++; return c; }
 // interpolação bilinear na grade 0,25° (lat do norte para o sul, lon do oeste para o leste)
 function gfsValor(g,lon,lat){
@@ -293,6 +310,14 @@ function montarSeletorFonte(){
   selF.value=ESCALAS[fx]?fx:'15';
   selF.addEventListener('change',()=>{ try{ localStorage.setItem('reservFaixas',selF.value); }catch(e){} trocarEscala(); });
   sel.after(labF,selF);
+  // 13/11/2026: paleta de cores de todos os mapas (Reservatórios, Tendência, Acumulados e Barragens)
+  const labC=document.createElement('label'); labC.htmlFor='coresMapa'; labC.style.margin='0'; labC.textContent='Cores';
+  const selC=document.createElement('select'); selC.id='coresMapa';
+  selC.innerHTML=Object.keys(PALETAS).map(k=>`<option value="${k}">${PALETAS[k].nome}</option>`).join('');
+  let pc='azul'; try{ pc=localStorage.getItem('reservCores')||'azul'; }catch(e){}
+  selC.value=PALETAS[pc]?pc:'azul';
+  selC.addEventListener('change',()=>{ try{ localStorage.setItem('reservCores',selC.value); }catch(e){} trocarCores(); });
+  selF.after(labC,selC);
   textoFonte();
 }
 function textoFonte(){
@@ -312,6 +337,18 @@ async function trocarEscala(){
   if(fonteDados()!=='gfs'||!(APP.reserv.source&&APP.reserv.source.gfs)) return;
   for(const [,sec,field,prev] of GFS_ITENS){ const s=APP[sec][field], im=document.getElementById(prev); if(s&&s.gfs&&im) im.src=previaGfs(s.gfs); }
   try{ await generateReserv(); await generateWeekly(); await generateAccum(); }catch(e){ console.error(e); }
+}
+// 13/11/2026: troca só as cores e refaz o que já estiver carregado (GFS ou imagens do CPC); avisa a aba Barragens
+async function trocarCores(){
+  aplicarEscala();
+  window.dispatchEvent(new Event('reservPaleta'));
+  const gfs=fonteDados()==='gfs'&&APP.reserv.source&&APP.reserv.source.gfs;
+  if(gfs){ for(const [,sec,field,prev] of GFS_ITENS){ const s=APP[sec][field], im=document.getElementById(prev); if(s&&s.gfs&&im) im.src=previaGfs(s.gfs); } }
+  try{
+    if(APP.reserv.source) await generateReserv();
+    if(APP.weekly.w1||APP.weekly.w2) await generateWeekly();
+    if(APP.accum.a24||APP.accum.a72||APP.accum.a120) await generateAccum();
+  }catch(e){ console.error(e); }
 }
 // confere o JSON antes de usar: estrutura, tamanhos, números finitos e limites físicos
 function validarGfs(j){
