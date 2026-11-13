@@ -78,4 +78,25 @@ t('nome de estação com HTML fica como texto (a tela escapa)', () => {
   const L = base.slice(); const c = L[1].split('\t'); c[1] = '<img src=x onerror=alert(1)>'; L[1] = c.join('\t');
   const A = N.lerTxt('PREC_SET_2026.txt', lat1(L.join('\r\n'))); assert.strictEqual(A.estacoes[0].estacao, '<img src=x onerror=alert(1)>');
 });
+t('krigagem: campo constante devolve a constante; pesos somam 1', () => {
+  const pts = []; for (let i = 0; i < 40; i++) pts.push({ lon: -50 + (i % 8) * 1.3, lat: -22 + Math.floor(i / 8) * 1.7, v: 7 });
+  const ctx = N.prepararKrigagem(pts, { pepita: 0.1, patamar: 1, alcance: 300 });
+  assert(Math.abs(N.krigarPonto(ctx, -45.3, -19.1) - 7) < 1e-9);
+});
+t('krigagem: sem pepita, em cima da estação devolve o valor dela', () => {
+  const pts = [{ lon: -44, lat: -19, v: 10 }, { lon: -43, lat: -19.5, v: 20 }, { lon: -44.5, lat: -20, v: 30 }, { lon: -43.2, lat: -20.4, v: 5 }];
+  const ctx = N.prepararKrigagem(pts, { pepita: 0, patamar: 50, alcance: 200 });
+  assert(Math.abs(N.krigarPonto(ctx, -43, -19.5) - 20) < 1e-8);
+});
+t('krigagem: piso físico (chuva nunca negativa)', () => {
+  const pts = [{ lon: -44, lat: -19, v: 0 }, { lon: -43.9, lat: -19, v: 0 }, { lon: -43.95, lat: -19.05, v: 80 }, { lon: -42, lat: -21, v: 0 }];
+  const ctx = N.prepararKrigagem(pts, { pepita: 0, patamar: 100, alcance: 50 });
+  for (const q of [[-44.2, -18.8], [-43.6, -19.3], [-41, -22]]) assert(N.krigarPonto(ctx, q[0], q[1], 0) >= 0);
+});
+t('variograma: ajuste determinístico (mesma entrada, mesmo resultado) e alcance dentro de 20–1200 km', () => {
+  const a = N.lerTxt('TEMP_MAX_SET_2026.txt', ex('TEMP_MAX_SET_2026.txt')); const p = N.pontosDoProduto(a, 'abs', {});
+  const v1 = N.ajustarVariograma(p), v2 = N.ajustarVariograma(p);
+  assert.deepStrictEqual(v1, v2); assert(v1.alcance >= 20 && v1.alcance <= 1200 && v1.pepita >= 0 && v1.patamar > 0);
+});
+t('produto Climatologia usa a coluna CLIMATOLOGIA do TXT de precipitação', () => { assert.strictEqual(N.PRODUTOS.clima.arq, 'PREC'); assert.strictEqual(N.PRODUTOS.clima.campo, 'clim'); assert(N.ORDEM.includes('clima')); });
 console.log(`\n${ok} ok, ${falhas} falha(s)`); process.exit(falhas ? 1 : 0);

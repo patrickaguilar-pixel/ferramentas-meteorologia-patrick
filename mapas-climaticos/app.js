@@ -1,5 +1,6 @@
 /*
- * Mapas Climáticos v0.1 (13/11/2026, Patrick/Claude) — SIMGE/IGAM
+ * Mapas Climáticos v0.2 (13/11/2026, Patrick/Claude) — SIMGE/IGAM
+ * v0.2: Climatologia de Precipitação; krigagem como método SEPARADO (em avaliação); isolinhas sutis opcionais.
  *
  * Tela da ferramenta. Os números saem todos de mapas-climaticos/nucleo.js (testado contra a referência em Python).
  * Etapa 1: carregar os TXT do mês, conferir e decidir as estações com alerta (com motivo e responsável).
@@ -22,7 +23,7 @@
   var COR_ST = { pendente: '#f59e0b', usada: '#2563eb', mantida: '#16a34a', retirada: '#dc2626', invalida: '#9aa3af' };
   var ROT_ST = { pendente: 'Pendente', usada: 'Usada', mantida: 'Mantida (conferida)', retirada: 'Retirada', invalida: 'Inválida' };
   var PLURAL = { pendente: ['pendente', 'pendentes'], usada: ['usada', 'usadas'], mantida: ['mantida após conferência', 'mantidas após conferência'], retirada: ['retirada', 'retiradas'], invalida: ['inválida', 'inválidas'] };
-  var S = { arqs: {}, meta: {}, geral: [], periodoArq: null, decisoes: {}, filtro: 'pendentes', tipoTab: 'PREC', prod: 'prec', escOpc: {}, cache: {}, sel: null, masc: null, erros: [] };
+  var S = { arqs: {}, meta: {}, geral: [], periodoArq: null, decisoes: {}, filtro: 'pendentes', tipoTab: 'PREC', prod: 'prec', metodo: 'idw', escOpc: {}, cache: {}, cacheK: {}, iso: {}, gen: 0, sel: null, masc: null, erros: [] };
 
   /* ---------------- guardar decisões neste navegador (para não perder ao recarregar) ---------------- */
   function chaveSessao() { return 'mcConf:' + TIPOS_ORDEM.map(function (t) { return S.meta[t] ? S.meta[t].sha256.slice(0, 16) : '-'; }).join('|'); }
@@ -70,7 +71,7 @@
   function remover(t) { delete S.arqs[t]; delete S.meta[t]; novaConferencia(); }
 
   function novaConferencia() {
-    S.decisoes = {}; S.cache = {}; S.sel = null;
+    S.decisoes = {}; limparCache(); S.sel = null;
     recuperar();
     // período vindo dos arquivos preenche os campos (se ainda não foi escolhido à mão)
     var per = null; TIPOS_ORDEM.forEach(function (t) { if (!per && S.arqs[t] && S.arqs[t].periodo) per = S.arqs[t].periodo; });
@@ -79,7 +80,7 @@
   }
   function periodoEscolhido() { var m = +$('mcMes').value, a = +$('mcAno').value; return m && a ? { mes: m, ano: a } : null; }
   function conferir() {
-    S.cache = {};
+    limparCache();
     if (!Object.keys(S.arqs).length) { S.geral = []; S.periodoArq = null; tudo(); return; }
     var r = N.conferir(S.arqs, MESOS, periodoEscolhido());
     S.geral = r.geral; S.periodoArq = r.periodoArquivos;
@@ -251,7 +252,7 @@
       if (!valor) delete S.decisoes[k];
       else { d = { acao: valor, motivo: valor === 'retirar' ? d.motivo || '' : '', obs: d.obs || '', por: por, em: agora() }; S.decisoes[k] = d; }
     } else { d[campo] = String(valor).slice(0, 200); d.por = por; d.em = agora(); S.decisoes[k] = d; }
-    S.cache = {};
+    limparCache();
     guardar(); slots(); resumoStatus(); abasArquivo(); resumoArquivo(); mapaEstacoes(); if (campo === 'acao' || campo === 'motivo') tabela(); atualizarBotoes();
   }
   function agora() { var d = new Date(), p = function (n) { return ('0' + n).slice(-2); }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()); }
@@ -264,15 +265,18 @@
     if (Date.now() - retirarConfirma > 4000) { retirarConfirma = Date.now(); b.textContent = 'Clique de novo para confirmar'; setTimeout(function () { tabela(); }, 4000); return; }
     retirarConfirma = 0;
     S.arqs[S.tipoTab].estacoes.forEach(function (e) { if (situacao(e) === 'pendente' && e.gravidade === 'forte') S.decisoes[N.chave(e)] = { acao: 'retirar', motivo: MOTIVOS[6], obs: e.problemas.filter(function (p) { return p.g === 'forte'; }).map(function (p) { return p.txt; }).join(' ').slice(0, 200), por: por, em: agora() }; });
-    S.cache = {}; guardar(); tudo();
+    limparCache(); guardar(); tudo();
   }
 
   /* ---------------- etapa 2: mapas ---------------- */
+  // Dois métodos SEPARADOS: "idw" (padrão, igual ao QGIS) e "krig" (krigagem, EM AVALIAÇÃO). Cada um tem a própria grade,
+  // o próprio cache, título, crédito, nome de arquivo e botões de salvar. A escala é a mesma (vem do IDW) para comparar.
+  function limparCache() { S.cache = {}; S.cacheK = {}; S.iso = {}; S.gen = (S.gen || 0) + 1; }
   function decisoesValidas() {   // só decisões completas valem para o cálculo
     var d = {}; Object.keys(S.decisoes).forEach(function (k) { if (decisaoCompleta(S.decisoes[k])) d[k] = S.decisoes[k]; }); return d;
   }
   function mascara() { return S.masc || (S.masc = N.mascara(MESOS)); }
-  function calcular(p) {
+  function calcular(p) {   // IDW (rápido, síncrono)
     if (S.cache[p]) return S.cache[p];
     var P = N.PRODUTOS[p], A = S.arqs[P.arq];
     if (!A) return null;
@@ -283,19 +287,43 @@
     var vc = N.validacaoCruzada(pts, 2, function (x) { return x.dentroMG; });
     return (S.cache[p] = { pts: pts, grade: g, vals: vals, vc: vc });
   }
+  // krigagem: ~4 s por mapa; calculada em pedaços para a tela não travar. Se as decisões mudarem no meio, recomeça.
+  function calcularKrig(p) { return S.cacheK[p] && S.cacheK[p].pronto ? S.cacheK[p] : null; }
+  function iniciarKrig(p) {
+    if (S.cacheK[p]) return;
+    var C = calcular(p); if (!C) return;
+    var P = N.PRODUTOS[p], G = N.GRADE, gen = S.gen, masc = mascara();
+    var K = S.cacheK[p] = { pronto: false, progresso: 0 };
+    var vario = N.ajustarVariograma(C.pts), ctx = N.prepararKrigagem(C.pts, vario), j = 0, PASSO = 30;
+    (function pedaco() {
+      if (gen !== S.gen || S.cacheK[p] !== K) return;   // cancelado (decisão mudou)
+      N.krigagemLinhas(ctx, masc, G, j, j + PASSO, P.piso); j += PASSO;
+      K.progresso = Math.min(1, j / G.ny);
+      if (S.prod === p && S.metodo === 'krig' && !$('abaMapas').hidden) { var el = $('mcMapa').querySelector('.vazio b'); if (el) el.textContent = Math.round(K.progresso * 100) + ' %'; }
+      if (j < G.ny) { setTimeout(pedaco, 0); return; }
+      setTimeout(function () {
+        if (gen !== S.gen || S.cacheK[p] !== K) return;
+        K.grade = ctx.grade; K.vario = vario; K.pts = C.pts; K.sistemas = ctx.sistemas;
+        K.vc = N.validacaoCruzadaKrig(C.pts, function (x) { return x.dentroMG; }, P.piso);
+        K.pronto = true;
+        if (!$('abaMapas').hidden && S.prod === p) mapas(); else atualizarBotoes();
+      }, 0);
+    })();
+  }
+  function gradeDe(p, metodo) { if (metodo === 'krig') { var K = calcularKrig(p); return K && K.grade; } var C = calcular(p); return C && C.grade; }
   function escala(p) {
     var C = calcular(p), o = S.escOpc[p] || {};
     return N.escalaDe(p, C.vals, o.auto === false ? { passo: o.passo, primeiro: o.primeiro, classes: o.classes } : {});
   }
-  function areas(C, es) {   // trechos seguidos da mesma classe viram retângulos (mesmo método da Umidade Mínima e do Curto Prazo)
+  function areas(grade, es) {   // trechos seguidos da mesma classe viram retângulos (mesmo método da Umidade Mínima e do Curto Prazo)
     var G = N.GRADE, masc = mascara(), polys = es.cores.map(function () { return []; }), h = G.d / 2;
     for (var j = 0; j < G.ny; j++) {
       var lat = N.latDe(G, j), i = 0;
       while (i < G.nx) {
         var c0 = j * G.nx + i;
-        if (masc[c0] < 0 || !isFinite(C.grade[c0])) { i++; continue; }
-        var cl = N.classe(C.grade[c0], es.lim), ie = i;
-        while (ie + 1 < G.nx) { var c1 = j * G.nx + ie + 1; if (masc[c1] < 0 || !isFinite(C.grade[c1]) || N.classe(C.grade[c1], es.lim) !== cl) break; ie++; }
+        if (masc[c0] < 0 || !isFinite(grade[c0])) { i++; continue; }
+        var cl = N.classe(grade[c0], es.lim), ie = i;
+        while (ie + 1 < G.nx) { var c1 = j * G.nx + ie + 1; if (masc[c1] < 0 || !isFinite(grade[c1]) || N.classe(grade[c1], es.lim) !== cl) break; ie++; }
         var l = N.lonDe(G, i) - h, r = N.lonDe(G, ie) + h;
         polys[cl].push([[[l, lat + h], [r, lat + h], [r, lat - h], [l, lat - h], [l, lat + h]]]);
         i = ie + 1;
@@ -303,50 +331,169 @@
     }
     return polys.map(function (pp, k) { return pp.length ? { geometry: { type: 'MultiPolygon', coordinates: pp }, fill: es.cores[k], stroke: es.cores[k], strokeWidth: 0.15 } : null; }).filter(Boolean);
   }
+
+  /* ---- isolinhas sutis (opcionais): nos limites das classes da escala, por marching squares na grade do método ---- */
+  var ISO = { cor: '#2b2b2b', largura: 0.13, opacidade: 0.45, rotTam: 2.4, rotCor: '#262626', rotOpac: 0.85, folga: 0.5, mmGrau: 18.61,
+    passoRot: 1.6, compMin: 1.2, distRot: 0.75, simplif: 0.012 };   // em graus: rótulo a cada ~1,6°; linha mínima 1,2°; rótulos a 0,75° um do outro
+  function dentroMGcel(lon, lat) { var G = N.GRADE, i = Math.round((lon - G.lon0) / G.d), j = Math.round((G.lat0 - lat) / G.d); return i >= 0 && j >= 0 && i < G.nx && j < G.ny && mascara()[j * G.nx + i] >= 0; }
+  function pertoDivisa(lon, lat, d) {
+    var fs = MESOS.features;
+    for (var f = 0; f < fs.length; f++) {
+      var g = fs[f].geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+      for (var p = 0; p < polys.length; p++) for (var r = 0; r < polys[p].length; r++) {
+        var ring = polys[p][r];
+        for (var i = 1; i < ring.length; i++) {
+          var x1 = ring[i - 1][0], y1 = ring[i - 1][1], dx = ring[i][0] - x1, dy = ring[i][1] - y1, L = dx * dx + dy * dy;
+          var t = L ? Math.max(0, Math.min(1, ((lon - x1) * dx + (lat - y1) * dy) / L)) : 0;
+          if (Math.hypot(lon - x1 - t * dx, lat - y1 - t * dy) < d) return true;
+        }
+      }
+    }
+    return false;
+  }
+  function isolinhas(grade, lim, comRotulos, comCidades, chave) {
+    chave = chave + '|' + (comRotulos ? 1 : 0) + (comCidades ? 1 : 0);
+    if (S.iso[chave]) return S.iso[chave];
+    var G = N.GRADE, nx = G.nx, ny = G.ny, ll = function (x, y) { return [G.lon0 + G.d * x, G.lat0 - G.d * y]; };
+    var linhas = [], rotulos = [], usados = [], cids = comCidades ? cidades() : [];
+    lim.forEach(function (nv) {
+      var segs = [], q;
+      for (var y = 0; y < ny - 1; y++) for (var x = 0; x < nx - 1; x++) {
+        var a = grade[y * nx + x], b = grade[y * nx + x + 1], c = grade[(y + 1) * nx + x + 1], d = grade[(y + 1) * nx + x];
+        if (!(isFinite(a) && isFinite(b) && isFinite(c) && isFinite(d))) continue;
+        var idx = (a > nv) | ((b > nv) << 1) | ((c > nv) << 2) | ((d > nv) << 3);   // "> limite" = acima da classe (valor <= limite fica na classe)
+        if (idx === 0 || idx === 15) continue;
+        var E = {
+          t: function () { return { k: 'h' + x + ',' + y, p: ll(x + (nv - a) / (b - a), y) }; },
+          r: function () { return { k: 'v' + (x + 1) + ',' + y, p: ll(x + 1, y + (nv - b) / (c - b)) }; },
+          b: function () { return { k: 'h' + x + ',' + (y + 1), p: ll(x + (nv - d) / (c - d), y + 1) }; },
+          l: function () { return { k: 'v' + x + ',' + y, p: ll(x, y + (nv - a) / (d - a)) }; }
+        };
+        var T = { 1: [['l', 't']], 2: [['t', 'r']], 3: [['l', 'r']], 4: [['r', 'b']], 5: [['l', 't'], ['r', 'b']], 6: [['t', 'b']], 7: [['l', 'b']],
+          8: [['b', 'l']], 9: [['b', 't']], 10: [['t', 'r'], ['b', 'l']], 11: [['b', 'r']], 12: [['r', 'l']], 13: [['r', 't']], 14: [['t', 'l']] }[idx];
+        T.forEach(function (pq) { segs.push([E[pq[0]](), E[pq[1]]()]); });
+      }
+      var porPonta = new Map();
+      segs.forEach(function (s, i) { s.forEach(function (e) { var l = porPonta.get(e.k); if (!l) porPonta.set(e.k, l = []); l.push(i); }); });
+      var usado = new Uint8Array(segs.length);
+      for (var i = 0; i < segs.length; i++) {
+        if (usado[i]) continue;
+        usado[i] = 1;
+        var pts = [segs[i][0], segs[i][1]];
+        [true, false].forEach(function (fim) {
+          for (;;) {
+            var e = fim ? pts[pts.length - 1] : pts[0], viz = porPonta.get(e.k) || [], j = -1;
+            for (var q = 0; q < viz.length; q++) if (!usado[viz[q]]) { j = viz[q]; break; }
+            if (j < 0) return;
+            usado[j] = 1;
+            var prox = segs[j][0].k === e.k ? segs[j][1] : segs[j][0];
+            if (fim) pts.push(prox); else pts.unshift(prox);
+          }
+        });
+        // simplifica (pontos a pelo menos ISO.simplif graus) para o desenho não ficar pesado
+        var ln = [pts[0].p];
+        for (q = 1; q < pts.length - 1; q++) { var u = ln[ln.length - 1], w = pts[q].p; if (Math.hypot(w[0] - u[0], w[1] - u[1]) >= ISO.simplif) ln.push(w); }
+        if (pts.length > 1) ln.push(pts[pts.length - 1].p);
+        var acum = [0]; for (q = 1; q < ln.length; q++) acum.push(acum[q - 1] + Math.hypot(ln[q][0] - ln[q - 1][0], ln[q][1] - ln[q - 1][1]));
+        var comp = acum[acum.length - 1], cortes = [];
+        if (comRotulos && comp >= ISO.compMin) {
+          var txt = N.fmt(nv), meia = (txt.length * 0.556 * ISO.rotTam / 2 + ISO.folga) / ISO.mmGrau;
+          for (var s0 = comp / 2 % ISO.passoRot || comp / 2; s0 < comp - meia; s0 += ISO.passoRot) {
+            if (s0 < meia) continue;
+            var k = 0; while (k < acum.length - 1 && acum[k + 1] < s0) k++;
+            var t0 = (s0 - acum[k]) / ((acum[k + 1] - acum[k]) || 1), lo = ln[k][0] + t0 * (ln[k + 1][0] - ln[k][0]), la = ln[k][1] + t0 * (ln[k + 1][1] - ln[k][1]);
+            if (![[0, 0], [0.12, 0], [-0.12, 0], [0, 0.08], [0, -0.08]].every(function (o) { return dentroMGcel(lo + o[0], la + o[1]); })) continue;
+            if (usados.some(function (u) { return Math.hypot(u[0] - lo, u[1] - la) < ISO.distRot; })) continue;
+            if (pertoDivisa(lo, la, 0.1)) continue;
+            if (cids.some(function (c) { return Math.abs(c.lon - lo) < 0.55 && la > c.lat - 0.32 && la < c.lat + 0.2; })) continue;
+            var ka = Math.max(0, k - 2), kb = Math.min(ln.length - 1, k + 3), ang = Math.atan2(-(ln[kb][1] - ln[ka][1]), ln[kb][0] - ln[ka][0]) * 180 / Math.PI;
+            if (ang > 90) ang -= 180; else if (ang < -90) ang += 180;
+            usados.push([lo, la]); cortes.push([s0 - meia, s0 + meia]);
+            rotulos.push({ lon: lo, lat: la, texto: txt, angulo: +ang.toFixed(1), tamanho: ISO.rotTam, cor: ISO.rotCor, opacidade: ISO.rotOpac, halo: false });
+          }
+        }
+        // corta a linha embaixo dos rótulos
+        var trecho = [], ci = 0;
+        for (q = 0; q < ln.length; q++) {
+          var dist = acum[q];
+          while (ci < cortes.length && dist > cortes[ci][1]) ci++;
+          if (ci < cortes.length && dist >= cortes[ci][0] && dist <= cortes[ci][1]) { if (trecho.length > 1) linhas.push(trecho); trecho = []; continue; }
+          trecho.push(ln[q]);
+        }
+        if (trecho.length > 1) linhas.push(trecho);
+      }
+    });
+    return (S.iso[chave] = { linhas: linhas, rotulos: rotulos });
+  }
   function cidades() {
     var fs = (window.CIDADES && window.CIDADES.features) || [];
     return fs.map(function (f) { return { nome: f.properties.NM_LOCAL_1 || f.properties.NM_MUNICIP || '', lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }; }).filter(function (c) { return c.nome; });
   }
-  function opMapa(p) {
-    var P = N.PRODUTOS[p], per = periodoEscolhido(), C = calcular(p), es = escala(p);
+  function opMapa(p, metodo) {
+    metodo = metodo || S.metodo;
+    var P = N.PRODUTOS[p], per = periodoEscolhido(), C = calcular(p), es = escala(p), grade = gradeDe(p, metodo), krig = metodo === 'krig';
     var dias = N.diasNoMes(per.mes, per.ano), mm = ('0' + per.mes).slice(-2);
     var op = {
-      titulo: P.titulo + ' - ' + N.MESES_BR[per.mes - 1] + ' de ' + per.ano,
-      textoValidade: 'PERÍODO: 01/' + mm + '/' + per.ano + ' a ' + dias + '/' + mm + '/' + per.ano,
-      credito: P.credito + ' - SIMGE/IGAM, ' + new Date().getFullYear(),
+      titulo: P.titulo + ' - ' + N.MESES_BR[per.mes - 1] + (P.semAno ? '' : ' de ' + per.ano) + (krig ? ' (Krigagem)' : ''),
+      textoValidade: P.semAno ? 'NORMAL CLIMATOLÓGICA 1991-2020 (INMET)' : 'PERÍODO: 01/' + mm + '/' + per.ano + ' a ' + dias + '/' + mm + '/' + per.ano,
+      credito: P.credito + (krig ? ' · Interpolação: krigagem ordinária (em avaliação)' : '') + ' - SIMGE/IGAM, ' + new Date().getFullYear(),
       fundo: '',
-      areas: areas(C, es),
+      areas: areas(grade, es),
       legenda: es.rotulos.map(function (l, i) { return { fill: es.cores[i], label: l + ' ' + P.unidade }; }),
       cidades: $('mcCidades').checked ? cidades() : []
     };
+    if ($('mcIso').checked) {
+      var I = isolinhas(grade, es.lim, $('mcIsoRot').checked, $('mcCidades').checked, metodo + '|' + p + '|' + es.lim.join(','));
+      op.isolinhas = [{ linhas: I.linhas, stroke: ISO.cor, width: ISO.largura, opacity: ISO.opacidade }];
+      op.rotulosIso = I.rotulos;
+    }
     if ($('mcMostrarEst').checked) op.pontos = C.pts.filter(function (x) { return x.lon > -52 && x.lon < -39 && x.lat > -23.5 && x.lat < -14; }).map(function (x) { return { lon: x.lon, lat: x.lat, rotulo: '', cor: '#111' }; });
     return op;
   }
-  function nomeArquivo(p, ext) { var per = periodoEscolhido(); return N.PRODUTOS[p].sigla + '_' + N.SIGLAS[per.mes - 1] + '_' + per.ano + '.' + ext; }
+  function nomeArquivo(p, ext, metodo) {
+    var per = periodoEscolhido(), P = N.PRODUTOS[p];
+    return P.sigla + '_' + N.SIGLAS[per.mes - 1] + (P.semAno ? '' : '_' + per.ano) + ((metodo || S.metodo) === 'krig' ? '_KRIGAGEM' : '') + '.' + ext;
+  }
+  function linhaValid(nome, v, un) { return v ? '<tr><td>' + nome + '</td><td class="num">' + v.n + '</td><td class="num">' + fmt(v.mae, 2) + '</td><td class="num">' + fmt(v.rmse, 2) + '</td><td class="num">' + fmt(v.vies, 2) + '</td></tr>' : '<tr><td>' + nome + '</td><td colspan="4" class="small">' + un + '</td></tr>'; }
   function mapas() {
-    // botões dos produtos
     $('mcProd').innerHTML = N.ORDEM.map(function (p) { var ok = prontoProduto(p).ok, P = N.PRODUTOS[p]; return '<button type="button" data-p="' + p + '"' + (p === S.prod ? ' class="on"' : '') + ' title="' + esc(P.titulo) + '">' + esc(P.sigla) + (ok ? '' : ' ·') + '</button>'; }).join('');
+    [].forEach.call(document.querySelectorAll('#mcMetodo button'), function (b) { b.classList.toggle('on', b.dataset.m === S.metodo); });
+    var krig = S.metodo === 'krig';
+    $('mcVistaIdw').hidden = krig; $('mcVistaKrig').hidden = !krig; $('mcKrigAviso').hidden = !krig;
+    $('mcIsoRot').disabled = !$('mcIso').checked;
     var p = S.prod, P = N.PRODUTOS[p], el = $('mcMapa'), pr = prontoProduto(p), C = S.arqs[P.arq] ? calcular(p) : null;
-    $('mcMapaTit').textContent = P.titulo;
+    $('mcMapaTit').textContent = P.titulo + (krig ? ' — Krigagem (em avaliação)' : '');
     if (!C) {
       el.innerHTML = '<div class="vazio">' + esc(S.arqs[P.arq] ? 'Nenhuma estação aprovada para este produto.' : 'Falta o arquivo ' + N.TIPOS[P.arq].arquivo + ' (etapa 1).') + '</div>';
-      $('mcProdStatus').className = 'stbox aviso'; $('mcProdStatus').textContent = pr.motivo || 'Sem dados.'; $('mcMesoBody').innerHTML = ''; $('mcValid').textContent = '—';
+      $('mcProdStatus').className = 'stbox aviso'; $('mcProdStatus').textContent = pr.motivo || 'Sem dados.'; $('mcMesoBody').innerHTML = ''; $('mcValid').innerHTML = '—'; $('mcVario').textContent = '';
       $('previewBtn').disabled = true; escalaCampos(p, null); atualizarBotoes(); return;
     }
     var es = escala(p);
     escalaCampos(p, es);
+    if (krig) iniciarKrig(p);
+    var K = calcularKrig(p);
     $('mcProdStatus').className = 'stbox ' + (pr.ok ? 'ok' : 'aviso');
-    $('mcProdStatus').innerHTML = pr.ok ? '<strong>Pronto para salvar.</strong> ' + C.pts.length + ' estações (' + C.pts.filter(function (x) { return x.dentroMG; }).length + ' em MG). Arquivo: ' + esc(nomeArquivo(p, 'png')) + '.'
-      : '<strong>Prévia — ainda não dá para salvar.</strong> ' + esc(pr.motivo) + ' As pendentes estão fora deste mapa até a decisão.';
+    $('mcProdStatus').innerHTML = (pr.ok ? '<strong>Pronto para salvar.</strong> ' + C.pts.length + ' estações (' + C.pts.filter(function (x) { return x.dentroMG; }).length + ' em MG). Arquivo: ' + esc(nomeArquivo(p, 'png')) + '.'
+      : '<strong>Prévia — ainda não dá para salvar.</strong> ' + esc(pr.motivo) + ' As pendentes estão fora deste mapa até a decisão.');
+    // qualidade: IDW e krigagem lado a lado (mesmas estações, mesma validação deixando uma de fora)
+    $('mcValid').innerHTML = '<table class="mtab" style="font-size:13px"><thead><tr><th>Método</th><th class="num">Estações MG</th><th class="num">Erro médio</th><th class="num">RMSE</th><th class="num">Viés</th></tr></thead><tbody>' +
+      linhaValid('IDW (padrão)', C.vc, 'sem estações em MG') + linhaValid('Krigagem', K && K.vc, K ? 'sem estações em MG' : (S.cacheK[p] ? 'calculando…' : 'abra o método Krigagem para calcular')) + '</tbody></table>' +
+      '<p class="small" style="margin-top:6px">Unidade: ' + esc(P.unidade) + '. Quanto menor o erro, melhor; compare os dois sempre com as mesmas estações.</p>';
+    $('mcVario').innerHTML = K ? 'Variograma do mês: pepita ' + fmt(K.vario.pepita, 2) + ' · patamar ' + fmt(K.vario.patamar, 2) + ' · alcance <b>' + K.vario.alcance + ' km</b>' +
+      (K.vario.noLimite ? '<br><span class="g-atencao">O alcance bateu no limite de 1200 km: neste mês os dados não definem bem a distância de influência entre as estações. Use a krigagem só para comparar.</span>' : '') +
+      (!K.vario.ajustado ? '<br><span class="g-forte">Poucos pares de estações: o variograma não pôde ser ajustado (valores padrão).</span>' : '') : '';
     if (!periodoEscolhido()) { el.innerHTML = '<div class="vazio">Escolha o mês e o ano na etapa 1.</div>'; atualizarBotoes(); return; }
     if (!window.LayoutMapa) { el.innerHTML = '<div class="vazio">Não foi possível carregar o layout do mapa. Recarregue a página.</div>'; return; }
+    if (krig && !K) {
+      el.innerHTML = '<div class="vazio">Calculando a krigagem (cerca de 5 segundos)… <b>' + Math.round(((S.cacheK[p] || {}).progresso || 0) * 100) + ' %</b></div>';
+      $('previewBtn').disabled = true; $('mcMesoBody').innerHTML = ''; atualizarBotoes(); return;
+    }
     var op = opMapa(p), img = new Image(); img.alt = op.titulo;
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(LayoutMapa.svg(op));
     el.innerHTML = ''; el.appendChild(img);
     $('previewBtn').disabled = false;
-    $('mcValid').innerHTML = C.vc ? 'Estações de MG: <b>' + C.vc.n + '</b> · erro médio absoluto <b>' + fmt(C.vc.mae, 2) + ' ' + esc(P.unidade) + '</b> · RMSE <b>' + fmt(C.vc.rmse, 2) + '</b> · viés ' + fmt(C.vc.vies, 2) + '.' : 'Sem estações em MG para validar.';
-    var est = N.estatMeso(C.grade, mascara(), MESOS), cont = MESOS.features.map(function (f) { return C.pts.filter(function (x) { return N.dentroGeom(x.lon, x.lat, f.geometry); }).length; });
-    $('mcMesoLede').textContent = P.titulo + ' (' + P.unidade + '): média, mínimo e máximo do mapa dentro de cada mesorregião.';
+    var est = N.estatMeso(gradeDe(p, S.metodo), mascara(), MESOS), cont = MESOS.features.map(function (f) { return C.pts.filter(function (x) { return N.dentroGeom(x.lon, x.lat, f.geometry); }).length; });
+    $('mcMesoLede').textContent = P.titulo + ' (' + P.unidade + ')' + (krig ? ', krigagem' : '') + ': média, mínimo e máximo do mapa dentro de cada mesorregião.';
     $('mcMesoBody').innerHTML = est.map(function (m, i) { return '<tr><td>' + esc(m.nome) + '</td><td class="num">' + fmt(m.media) + '</td><td class="num">' + fmt(m.min) + '</td><td class="num">' + fmt(m.max) + '</td><td class="num">' + cont[i] + '</td></tr>'; }).join('');
     atualizarBotoes();
   }
@@ -357,7 +504,7 @@
     if (!es) { $('mcEscHint').textContent = ''; return; }
     if (fixa) { $('mcEscPrim').value = ''; $('mcEscPasso').value = ''; $('mcEscN').value = es.cores.length; $('mcEscHint').textContent = 'Escala fixa da equipe (' + (es.fonte || '') + '): ' + es.rotulos[0] + ' … ' + es.rotulos[es.rotulos.length - 1] + '.'; return; }
     if (o.auto !== false) { $('mcEscPrim').value = es.primeiro; $('mcEscPasso').value = es.passo; $('mcEscN').value = es.classes; }
-    $('mcEscHint').textContent = 'Valores em Minas: de ' + fmt(es.min) + ' a ' + fmt(es.max) + ' ' + N.PRODUTOS[p].unidade + '. ' + (o.auto !== false ? 'Automática: passo redondo do percentil 2 ao 98.' : 'Ajustada à mão (fica registrada).');
+    $('mcEscHint').textContent = 'Valores em Minas (IDW): de ' + fmt(es.min) + ' a ' + fmt(es.max) + ' ' + N.PRODUTOS[p].unidade + '. ' + (o.auto !== false ? 'Automática: passo redondo do percentil 2 ao 98.' : 'Ajustada à mão (fica registrada).') + ' A krigagem usa a mesma escala.';
   }
   function lerEscalaCampos() {
     var p = S.prod; if (N.PRODUTOS[p].escala.tipo === 'fixa') return;
@@ -372,32 +519,40 @@
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
   }
-  function png(p) {
-    var pr = prontoProduto(p); if (!pr.ok || !calcular(p)) { status('aviso', esc(pr.motivo || 'Sem dados.')); return; }
-    var b = $('mcPng_' + p), txt = b.textContent; b.disabled = true; b.textContent = 'Gerando PNG…';
-    LayoutMapa.png(opMapa(p)).then(function (blob) { baixar(nomeArquivo(p, 'png'), blob); })
+  function png(p, metodo) {
+    var pr = prontoProduto(p);
+    if (!pr.ok || !calcular(p) || (metodo === 'krig' && !calcularKrig(p))) { status('aviso', esc(pr.motivo || 'Sem dados.')); return; }
+    var b = $((metodo === 'krig' ? 'mcPngK_' : 'mcPng_') + p), txt = b.textContent; b.disabled = true; b.textContent = 'Gerando PNG…';
+    LayoutMapa.png(opMapa(p, metodo)).then(function (blob) { baixar(nomeArquivo(p, 'png', metodo), blob); })
       .catch(function (e) { $('mcProdStatus').innerHTML += '<div class="warn">Não foi possível gerar o PNG: ' + esc(e.message) + '</div>'; })
       .then(function () { b.textContent = txt; atualizarBotoes(); });
   }
   function csvMeso() {
-    var p = S.prod, P = N.PRODUTOS[p], C = calcular(p); if (!C || !prontoProduto(p).ok) return;
-    var est = N.estatMeso(C.grade, mascara(), MESOS), per = periodoEscolhido();
-    var L = [['Produto', P.titulo + ' (' + P.unidade + ')'], ['Período', N.MESES_BR[per.mes - 1] + '/' + per.ano], ['Conferido por', N.seguro($('mcConferente').value.trim())], [], ['Mesorregião', 'Média', 'Mínimo', 'Máximo']]
+    var p = S.prod, P = N.PRODUTOS[p], g = gradeDe(p, S.metodo); if (!g || !prontoProduto(p).ok) return;
+    var est = N.estatMeso(g, mascara(), MESOS), per = periodoEscolhido();
+    var L = [['Produto', P.titulo + ' (' + P.unidade + ')'], ['Método', S.metodo === 'krig' ? 'Krigagem ordinária (em avaliação)' : 'IDW (padrão QGIS)'], ['Período', N.MESES_BR[per.mes - 1] + '/' + per.ano], ['Conferido por', N.seguro($('mcConferente').value.trim())], [], ['Mesorregião', 'Média', 'Mínimo', 'Máximo']]
       .concat(est.map(function (m) { return [m.nome, fmt(m.media, 2), fmt(m.min, 2), fmt(m.max, 2)]; }));
     baixar('Mesorregioes_' + nomeArquivo(p, 'csv'), new Blob(['﻿' + L.map(function (l) { return l.join(';'); }).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
   }
   function registro() {
     if (!Object.keys(S.arqs).length) return;
     var per = periodoEscolhido();
-    var prods = N.ORDEM.filter(function (p) { return S.arqs[N.PRODUTOS[p].arq]; }).map(function (p) { var C = calcular(p); return { id: p, n: C ? C.pts.length : 0, escala: C ? escala(p) : null, validacao: C && C.vc }; });
-    var txt = N.registroCSV({ periodo: per, conferente: $('mcConferente').value.trim(), geradoEm: agora(), versaoFerramenta: '0.1',
+    var prods = N.ORDEM.filter(function (p) { return S.arqs[N.PRODUTOS[p].arq]; }).map(function (p) {
+      var C = calcular(p), K = calcularKrig(p);
+      return { id: p, n: C ? C.pts.length : 0, escala: C ? escala(p) : null, validacao: C && C.vc, krig: K ? { vario: K.vario, validacao: K.vc } : null };
+    });
+    var txt = N.registroCSV({ periodo: per, conferente: $('mcConferente').value.trim(), geradoEm: agora(), versaoFerramenta: '0.2',
       arquivos: TIPOS_ORDEM.filter(function (t) { return S.arqs[t]; }).map(function (t) { return { tipo: t, nome: S.meta[t].nome, sha256: S.meta[t].sha256, codificacao: S.arqs[t].codificacao, linhas: S.arqs[t].estacoes.length }; }),
       arqs: S.arqs, decisoes: S.decisoes, produtos: prods, criterios: N.CRITERIOS });
     baixar('Registro_conferencia_MapasClimaticos_' + (per ? N.SIGLAS[per.mes - 1] + '_' + per.ano : 'sem_periodo') + '.csv', new Blob([txt], { type: 'text/csv;charset=utf-8' }));
   }
   function atualizarBotoes() {
-    N.ORDEM.forEach(function (p) { var b = $('mcPng_' + p); if (b && b.textContent.indexOf('Gerando') < 0) b.disabled = !prontoProduto(p).ok; });
-    $('mcMesoCsv').disabled = !prontoProduto(S.prod).ok;
+    N.ORDEM.forEach(function (p) {
+      var ok = prontoProduto(p).ok, b = $('mcPng_' + p), k = $('mcPngK_' + p);
+      if (b && b.textContent.indexOf('Gerando') < 0) b.disabled = !ok;
+      if (k && k.textContent.indexOf('Gerando') < 0) k.disabled = !ok || !calcularKrig(p);
+    });
+    $('mcMesoCsv').disabled = !prontoProduto(S.prod).ok || !gradeDe(S.prod, S.metodo);
     var temPend = TIPOS_ORDEM.some(function (t) { return contagem(t).pendente; });
     $('mcRegistro').disabled = !Object.keys(S.arqs).length || !!bloqueiosGerais().length || temPend;
   }
@@ -441,7 +596,10 @@
     $('mcEscAuto').addEventListener('change', lerEscalaCampos);
     ['mcEscPrim', 'mcEscPasso', 'mcEscN'].forEach(function (id) { $(id).addEventListener('change', lerEscalaCampos); });
     ['mcMostrarEst', 'mcCidades'].forEach(function (id) { $(id).addEventListener('change', mapas); });
-    N.ORDEM.forEach(function (p) { $('mcPng_' + p).addEventListener('click', function () { png(p); }); });
+    N.ORDEM.forEach(function (p) { $('mcPng_' + p).addEventListener('click', function () { png(p, 'idw'); }); $('mcPngK_' + p).addEventListener('click', function () { png(p, 'krig'); }); });
+    $('mcMetodo').addEventListener('click', function (e) { var b = e.target.closest('[data-m]'); if (b && b.dataset.m !== S.metodo) { S.metodo = b.dataset.m; mapas(); } });
+    ['mcIso', 'mcIsoRot'].forEach(function (id) { $(id).addEventListener('change', function () { try { localStorage.setItem(id, $(id).checked ? '1' : '0'); } catch (er) { } mapas(); }); });
+    try { $('mcIso').checked = localStorage.getItem('mcIso') === '1'; $('mcIsoRot').checked = localStorage.getItem('mcIsoRot') === '1'; } catch (er) { }
     $('mcMesoCsv').addEventListener('click', csvMeso);
     $('mcRegistro').addEventListener('click', registro);
     $('previewBtn').addEventListener('click', function () { if (!$('abaMapas').hidden && calcular(S.prod) && periodoEscolhido() && window.LayoutMapa) LayoutMapa.previa(opMapa(S.prod)); });

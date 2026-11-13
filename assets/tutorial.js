@@ -153,7 +153,7 @@
       { s: '#mcConferente', t: 'Conferido por', d: 'Obrigatório: cada decisão e o registro levam este nome.' },
       { s: '#mcEstMapa', t: 'Estações', d: 'Laranja = pendente. Clique numa estação para achá-la na tabela.' },
       { s: '#mcEstBody', t: 'Conferência', d: 'Para cada pendente: Manter (conferida) ou Retirar, com o motivo.' },
-      { s: '#abaMapasBtn', t: 'Mapas', d: 'Os 5 mapas no layout padrão. Só salvam depois da conferência.' },
+      { s: '#abaMapasBtn', t: 'Mapas', d: 'Os 6 mapas (inclui a Climatologia) no layout padrão. Só salvam depois da conferência.' },
       SALVAR
     ]
   };

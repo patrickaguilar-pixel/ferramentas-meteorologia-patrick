@@ -227,11 +227,19 @@
     ],
     // Mapas Climáticos (13/11/2026): os PNG só liberam com a conferência concluída e "Conferido por" preenchido
     'mapas-climaticos': [
-      { id: 'mcPng_prec', nome: 'Acumulado de Precipitação', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#abaMapas', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
-      { id: 'mcPng_aprec', nome: 'Anomalia de Precipitação', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#abaMapas', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
-      { id: 'mcPng_atmed', nome: 'Anomalia de Temperatura Média', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#abaMapas', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
-      { id: 'mcPng_tmax', nome: 'Temperatura Máxima Absoluta', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#abaMapas', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
-      { id: 'mcPng_tmin', nome: 'Temperatura Mínima Absoluta', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#abaMapas', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
+      { id: 'mcPng_prec', nome: 'Acumulado de Precipitação', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#mcVistaIdw', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
+      { id: 'mcPng_aprec', nome: 'Anomalia de Precipitação', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#mcVistaIdw', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
+      { id: 'mcPng_atmed', nome: 'Anomalia de Temperatura Média', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#mcVistaIdw', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
+      { id: 'mcPng_tmax', nome: 'Temperatura Máxima Absoluta', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#mcVistaIdw', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
+      { id: 'mcPng_tmin', nome: 'Temperatura Mínima Absoluta', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#mcVistaIdw', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
+      { id: 'mcPng_clima', nome: 'Climatologia de Precipitação', tipo: 'PNG', desc: 'Normal 1991-2020', vista: '#mcVistaIdw', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
+      // krigagem (em avaliação): só aparece com o método Krigagem aberto; arquivos com "_KRIGAGEM" no nome
+      { id: 'mcPngK_prec', nome: 'Acumulado de Precipitação (krigagem, em avaliação)', tipo: 'PNG', vista: '#mcVistaKrig', precisa: 'Abra o produto com o método Krigagem e espere o cálculo; a conferência precisa estar concluída' },
+      { id: 'mcPngK_aprec', nome: 'Anomalia de Precipitação (krigagem, em avaliação)', tipo: 'PNG', vista: '#mcVistaKrig', precisa: 'Abra o produto com o método Krigagem e espere o cálculo; a conferência precisa estar concluída' },
+      { id: 'mcPngK_clima', nome: 'Climatologia de Precipitação (krigagem, em avaliação)', tipo: 'PNG', vista: '#mcVistaKrig', precisa: 'Abra o produto com o método Krigagem e espere o cálculo; a conferência precisa estar concluída' },
+      { id: 'mcPngK_atmed', nome: 'Anomalia de Temperatura Média (krigagem, em avaliação)', tipo: 'PNG', vista: '#mcVistaKrig', precisa: 'Abra o produto com o método Krigagem e espere o cálculo; a conferência precisa estar concluída' },
+      { id: 'mcPngK_tmax', nome: 'Temperatura Máxima Absoluta (krigagem, em avaliação)', tipo: 'PNG', vista: '#mcVistaKrig', precisa: 'Abra o produto com o método Krigagem e espere o cálculo; a conferência precisa estar concluída' },
+      { id: 'mcPngK_tmin', nome: 'Temperatura Mínima Absoluta (krigagem, em avaliação)', tipo: 'PNG', vista: '#mcVistaKrig', precisa: 'Abra o produto com o método Krigagem e espere o cálculo; a conferência precisa estar concluída' },
       { id: 'mcMesoCsv', nome: 'Tabela das mesorregiões (produto da tela)', tipo: 'CSV', vista: '#abaMapas', precisa: 'Conclua a conferência do produto da tela' },
       { id: 'mcRegistro', nome: 'Registro da conferência', tipo: 'CSV', desc: 'Estações, decisões, motivos e SHA-256 dos arquivos', precisa: 'Conclua a conferência das estações e preencha “Conferido por”' }
     ],

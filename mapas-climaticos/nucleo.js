@@ -285,11 +285,132 @@
     return { n: e.length, mae: mae / e.length, rmse: Math.sqrt(rmse / e.length), vies: vies / e.length, pontos: e };
   }
 
+
+  /* ======================= krigagem ordinária (EM AVALIAÇÃO — não substitui o IDW) ======================= */
+  // Distâncias em km num plano simples centrado em MG: x = R·lon·cos(-18,5°), y = R·lat (radianos). Erro < 3 % na escala de MG.
+  // Variograma exponencial γ(h) = pepita + patamar·(1 − e^(−h/alcance)), ajustado de forma determinística (a referência em
+  // Python faz igual): 18 faixas de distância pelos quantis 5 %…95 % dos pares, só faixas com 30 pares ou mais, peso √(n/nmax);
+  // para cada alcance de 20 a 1200 km (passo 10), pepita e patamar por mínimos quadrados (sem valores negativos); fica o de menor erro.
+  // Krigagem local com as 20 estações mais próximas; o sistema de cada conjunto de vizinhas é invertido uma vez e reaproveitado.
+  var KRIG = { vizinhas: 20, alcanceMin: 20, alcanceMax: 1200, alcancePasso: 10, faixas: 18, minPares: 30, lat0: -18.5, R: 6371.0088 };
+  var KX = KRIG.R * Math.PI / 180 * Math.cos(KRIG.lat0 * Math.PI / 180), KY = KRIG.R * Math.PI / 180;
+  function planoKm(lon, lat) { return [lon * KX, lat * KY]; }
+  function quantilLinear(ord, q) { var p = (ord.length - 1) * q, a = Math.floor(p), b = Math.min(ord.length - 1, a + 1); return ord[a] + (ord[b] - ord[a]) * (p - a); }
+  function ajustarVariograma(pts) {
+    var n = pts.length, xy = pts.map(function (p) { return planoKm(p.lon, p.lat); }), hs = [], gs = [];
+    for (var i = 0; i < n; i++) for (var j = i + 1; j < n; j++) {
+      var dx = xy[i][0] - xy[j][0], dy = xy[i][1] - xy[j][1], d = pts[i].v - pts[j].v;
+      hs.push(Math.sqrt(dx * dx + dy * dy)); gs.push(0.5 * d * d);
+    }
+    var media = 0; pts.forEach(function (p) { media += p.v; }); media /= n;
+    var vari = 0; pts.forEach(function (p) { vari += (p.v - media) * (p.v - media); }); vari = Math.max(vari / n, 1e-6);
+    var ord = hs.slice().sort(function (a, b) { return a - b; }), bordas = [];
+    for (var k = 0; k <= KRIG.faixas; k++) bordas.push(quantilLinear(ord, 0.05 + 0.90 * k / KRIG.faixas));
+    var H = [], Gm = [], Wn = [];
+    for (k = 0; k < KRIG.faixas; k++) {
+      var lo = bordas[k], hi = bordas[k + 1], sel = [], sg = 0;
+      for (var q = 0; q < hs.length; q++) if (hs[q] >= lo && hs[q] < hi) { sel.push(hs[q]); sg += gs[q]; }
+      if (sel.length >= KRIG.minPares) { sel.sort(function (a, b) { return a - b; }); var m = sel.length >> 1; H.push(sel.length % 2 ? sel[m] : (sel[m - 1] + sel[m]) / 2); Gm.push(sg / sel.length); Wn.push(sel.length); }
+    }
+    if (H.length < 3) return { pepita: 0, patamar: vari, alcance: 300, ajustado: false, noLimite: false, faixas: H.length, variancia: vari };
+    var wmax = Math.max.apply(null, Wn), W = Wn.map(function (c) { return c / wmax; });   // peso² = n/nmax (peso = √(n/nmax))
+    var melhor = null;
+    for (var a = KRIG.alcanceMin; a <= KRIG.alcanceMax + 1e-9; a += KRIG.alcancePasso) {
+      var f = H.map(function (h) { return 1 - Math.exp(-h / a); });
+      var S1 = 0, Sf = 0, Sff = 0, Sg = 0, Sfg = 0;
+      for (k = 0; k < H.length; k++) { S1 += W[k]; Sf += W[k] * f[k]; Sff += W[k] * f[k] * f[k]; Sg += W[k] * Gm[k]; Sfg += W[k] * f[k] * Gm[k]; }
+      var det = S1 * Sff - Sf * Sf, pep, pat;
+      if (Math.abs(det) > 1e-12) { pep = (Sff * Sg - Sf * Sfg) / det; pat = (S1 * Sfg - Sf * Sg) / det; } else { pep = -1; pat = -1; }
+      if (!(pep >= 0)) { pep = 0; pat = Sfg / Sff; }
+      if (!(pat > 0)) { pat = 1e-6 * vari; pep = Math.max(0, (Sg - pat * Sf) / S1); }
+      var sse = 0; for (k = 0; k < H.length; k++) { var r = pep + pat * f[k] - Gm[k]; sse += W[k] * r * r; }
+      if (!melhor || sse < melhor.sse - 1e-12 * Math.max(1, melhor.sse)) melhor = { pepita: pep, patamar: pat, alcance: Math.round(a), sse: sse };
+    }
+    return { pepita: melhor.pepita, patamar: melhor.patamar, alcance: melhor.alcance, ajustado: true, noLimite: melhor.alcance >= KRIG.alcanceMax, faixas: H.length, variancia: vari };
+  }
+  function inverter(A) {   // Gauss-Jordan com pivô parcial; devolve null se singular
+    var n = A.length, M = A.map(function (l, i) { var r = l.slice(); for (var j = 0; j < n; j++) r.push(i === j ? 1 : 0); return r; });
+    for (var c = 0; c < n; c++) {
+      var p = c; for (var r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+      if (Math.abs(M[p][c]) < 1e-14) return null;
+      if (p !== c) { var t = M[p]; M[p] = M[c]; M[c] = t; }
+      var piv = M[c][c]; for (var j = 0; j < 2 * n; j++) M[c][j] /= piv;
+      for (r = 0; r < n; r++) if (r !== c) { var f = M[r][c]; if (f) for (j = 0; j < 2 * n; j++) M[r][j] -= f * M[c][j]; }
+    }
+    return M.map(function (l) { return l.slice(n); });
+  }
+  function prepararKrigagem(pts, vario) {
+    var xy = pts.map(function (p) { return planoKm(p.lon, p.lat); });
+    return { pts: pts, xy: xy, v: vario, k: Math.min(KRIG.vizinhas, pts.length), cache: new Map(), sistemas: 0 };
+  }
+  function vizinhas(ctx, x, y) {   // as k mais próximas (empate: menor índice), devolvidas em ordem de índice
+    var k = ctx.k, bd = new Float64Array(k).fill(Infinity), bi = new Int32Array(k).fill(-1), xy = ctx.xy;
+    for (var i = 0; i < xy.length; i++) {
+      var dx = xy[i][0] - x, dy = xy[i][1] - y, d2 = dx * dx + dy * dy;
+      if (d2 >= bd[k - 1]) continue;
+      var p = k - 1; while (p > 0 && bd[p - 1] > d2) { bd[p] = bd[p - 1]; bi[p] = bi[p - 1]; p--; }
+      bd[p] = d2; bi[p] = i;
+    }
+    return Array.prototype.slice.call(bi).sort(function (a, b) { return a - b; });
+  }
+  function krigarPonto(ctx, lon, lat, piso) {
+    var q = planoKm(lon, lat), idx = vizinhas(ctx, q[0], q[1]), n = idx.length, V = ctx.v, xy = ctx.xy;
+    var chave = idx.join(','), inv = ctx.cache.get(chave);
+    if (inv === undefined) {
+      var A = [];
+      for (var i = 0; i < n; i++) {
+        var l = [];
+        for (var j = 0; j < n; j++) {
+          if (i === j) { l.push(V.patamar + V.pepita); continue; }
+          var dx = xy[idx[i]][0] - xy[idx[j]][0], dy = xy[idx[i]][1] - xy[idx[j]][1];
+          l.push(V.patamar * Math.exp(-Math.sqrt(dx * dx + dy * dy) / V.alcance));
+        }
+        l.push(1); A.push(l);
+      }
+      var u = []; for (i = 0; i < n; i++) u.push(1); u.push(0); A.push(u);
+      inv = inverter(A); ctx.cache.set(chave, inv); ctx.sistemas++;
+    }
+    if (!inv) return NaN;
+    var b = [];
+    for (i = 0; i < n; i++) { var ex = xy[idx[i]][0] - q[0], ey = xy[idx[i]][1] - q[1]; b.push(V.patamar * Math.exp(-Math.sqrt(ex * ex + ey * ey) / V.alcance)); }
+    b.push(1);
+    var z = 0;
+    for (i = 0; i < n; i++) { var w = 0; for (j = 0; j <= n; j++) w += inv[i][j] * b[j]; z += w * ctx.pts[idx[i]].v; }
+    return piso != null && z < piso ? piso : z;
+  }
+  // grade por faixas de linhas (a tela chama em pedaços para não travar): ctx.grade é preenchida de j0 a j1-1
+  function krigagemLinhas(ctx, masc, G, j0, j1, piso) {
+    G = G || GRADE; if (!ctx.grade) ctx.grade = new Float64Array(G.nx * G.ny).fill(NaN);
+    for (var j = j0; j < Math.min(j1, G.ny); j++) { var lat = latDe(G, j); for (var i = 0; i < G.nx; i++) { var c = j * G.nx + i; if (masc[c] >= 0) ctx.grade[c] = krigarPonto(ctx, lonDe(G, i), lat, piso); } }
+    return ctx.grade;
+  }
+  function krigagemGrade(pts, masc, G, piso) {
+    G = G || GRADE;
+    var ctx = prepararKrigagem(pts, ajustarVariograma(pts));
+    krigagemLinhas(ctx, masc, G, 0, G.ny, piso);
+    return ctx;
+  }
+  // validação cruzada da krigagem: para cada estação de MG, reajusta o variograma SEM ela e estima o valor dela
+  function validacaoCruzadaKrig(pts, filtro, piso) {
+    var e = [];
+    pts.forEach(function (pt, i) {
+      if (filtro && !filtro(pt)) return;
+      var resto = pts.filter(function (_, k) { return k !== i; });
+      var ctx = prepararKrigagem(resto, ajustarVariograma(resto)), est = krigarPonto(ctx, pt.lon, pt.lat, piso);
+      e.push({ codigo: pt.codigo, obs: pt.v, est: est, erro: est - pt.v });
+    });
+    if (!e.length) return null;
+    var mae = 0, rmse = 0, vies = 0;
+    e.forEach(function (x) { mae += Math.abs(x.erro); rmse += x.erro * x.erro; vies += x.erro; });
+    return { n: e.length, mae: mae / e.length, rmse: Math.sqrt(rmse / e.length), vies: vies / e.length, pontos: e };
+  }
+
   /* ======================= produtos e escalas ======================= */
   // cores: escalas da equipe (pasta ROTINA MAPAS/txt) e rampas do QGIS amostradas nos mapas oficiais de set/2026
   var RAMPA = {
     blues12: ['#f7fbff', '#e6f0f9', '#d4e5f4', '#c2d9ee', '#a6cde4', '#85bcdc', '#63a9d3', '#4695c8', '#2e7ebc', '#1967ad', '#084e98', '#08306b'],
     reds10: ['#fff5f0', '#fee3d6', '#fdc6af', '#fca486', '#fc8161', '#f85d42', '#ea372a', '#cc191d', '#a91016', '#67000d'],
+    greens8: ['#f7fcf5', '#e2f4dd', '#c0e6b9', '#94d390', '#60ba6c', '#329b51', '#0c7835', '#00441b'],   // CLIMA_PREC_ANUAL.txt (climatologia da equipe)
     bluesInv10: ['#08519c', '#1d6cb1', '#3585bf', '#529dcc', '#73b2d8', '#9ac8e0', '#bad6eb', '#d1e2f3', '#e4eff9', '#f7fbff']
   };
   function rgb(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
@@ -319,13 +440,17 @@
   var PRODUTOS = {
     prec: { arq: 'PREC', campo: 'acum', titulo: 'Acumulado de Precipitação', sigla: 'PREC', unidade: 'mm', legenda: 'Precipitação (mm)',
       escala: { tipo: 'variavel', rampa: 'blues12', classes: 12, passos: [1, 2, 2.5, 5, 10, 20, 25, 50, 100], minimo: 0 },
-      credito: 'Dados: INMET' },
+      credito: 'Dados: INMET', piso: 0 },
+    // climatologia (normal 1991-2020 do INMET) do mês, coluna CLIMATOLOGIA do TXT de precipitação; sem ano no título
+    clima: { arq: 'PREC', campo: 'clim', titulo: 'Climatologia de Precipitação', sigla: 'CLIMA_PREC', unidade: 'mm', legenda: 'Precipitação (mm)', semAno: true,
+      escala: { tipo: 'variavel', rampa: 'greens8', classes: 10, passos: [5, 10, 20, 25, 50, 100], minimo: 0 },
+      credito: 'Climatologia: 1991-2020 - INMET', piso: 0 },
     aprec: { arq: 'PREC', campo: 'anomPct', titulo: 'Anomalia de Precipitação Mensal', sigla: 'A_PREC', unidade: '%', legenda: 'Anomalia (%)',
       // ESCALA_APREC_EXTENSA_90_90.txt (igual ao mapa oficial de set/2026)
       escala: { tipo: 'fixa', fonte: 'ESCALA_APREC_EXTENSA_90_90',
         lim: [-90, -80, -70, -60, -50, -40, -30, -20, -10, 10, 20, 30, 40, 50, 60, 70, 80, 90],
         cores: ['#da3c43', '#e15a55', '#e97867', '#f19679', '#f5ad8d', '#f5bca2', '#f6cbb7', '#f6dacd', '#f7e8e2', '#fefefe', '#e5eef3', '#d3e5ee', '#c0dcea', '#aed3e5', '#9bcae1', '#85beda', '#6baed2', '#529fc9', '#0571b0'] },
-      credito: 'Dados: INMET · Climatologia: 1991-2020 - INMET' },
+      credito: 'Dados: INMET · Climatologia: 1991-2020 - INMET', piso: -100 },
     atmed: { arq: 'TMED', campo: 'anom', titulo: 'Anomalia de Temperatura Média Mensal', sigla: 'A_TMED', unidade: '°C', legenda: 'Anomalia (°C)',
       // ESCALA_EXTENSA_ATEMP_CORR_3.txt CORRIGIDA: no arquivo da equipe os limites -3,5 e -4 estavam trocados/repetidos
       // (a legenda do mapa de set/2026 saiu "-3.5 - -3" antes de "-4 - -3.5"). Cores na mesma ordem do arquivo.
@@ -338,7 +463,7 @@
     tmin: { arq: 'TMIN', campo: 'abs', titulo: 'Temperatura Mínima Absoluta', sigla: 'T_MIN_ABS', unidade: '°C', legenda: 'Temperatura (°C)',
       escala: { tipo: 'variavel', rampa: 'bluesInv10', classes: 10, passos: [0.5, 1, 1.5, 2, 2.5, 3, 5] }, credito: 'Dados: INMET' }
   };
-  var ORDEM = ['prec', 'aprec', 'atmed', 'tmax', 'tmin'];
+  var ORDEM = ['prec', 'aprec', 'clima', 'atmed', 'tmax', 'tmin'];
   Object.keys(PRODUTOS).forEach(function (k) { var e = PRODUTOS[k].escala; if (e.tipo === 'fixa') escalaFixa(e.lim, e.cores); });   // confere na carga
 
   function percentil(ord, q) { if (!ord.length) return NaN; var p = (ord.length - 1) * q, a = Math.floor(p), b = Math.ceil(p); return ord[a] + (ord[b] - ord[a]) * (p - a); }
@@ -352,6 +477,8 @@
     var lo = percentil(ord, 0.02), hi = percentil(ord, 0.98), passo = opc.passo, primeiro = opc.primeiro;
     if (!(passo > 0)) { var alvo = (hi - lo) / (n - 2); passo = E.passos.filter(function (s) { return s >= alvo; })[0] || E.passos[E.passos.length - 1]; while (passo < alvo) passo *= 2; }
     if (!isFinite(primeiro)) { primeiro = Math.ceil(lo / passo - 1e-9) * passo; if (E.minimo != null && primeiro <= E.minimo) primeiro = E.minimo + passo; }
+    // automática: não sobram classes vazias no alto da escala (no máximo uma faixa "> último limite" acima do percentil 98)
+    if (!(opc.passo > 0) || !isFinite(opc.primeiro)) n = Math.min(n, Math.max(3, Math.ceil((hi - primeiro) / passo - 1e-9) + 2));
     var lim = []; for (var k = 0; k < n - 1; k++) lim.push(arred(primeiro + k * passo, 6));
     var es = escalaFixa(lim, rampa(RAMPA[E.rampa], n));
     es.auto = !(opc.passo > 0) || !isFinite(opc.primeiro); es.passo = passo; es.primeiro = primeiro; es.classes = n;
@@ -526,12 +653,15 @@
     L.push(['# Gerado em', info.geradoEm || '']);
     L.push(['# Ferramenta', 'Mapas Climáticos v' + (info.versaoFerramenta || VERSAO) + ' · núcleo v' + VERSAO]);
     L.push(['# Método', 'IDW do QGIS: potência 2, todas as estações válidas do arquivo, distância em graus (EPSG:4326); grade de 0,01°; recorte pelas mesorregiões de MG; classes com valor <= limite']);
+    L.push(['# Krigagem', 'EM AVALIAÇÃO (não substitui o IDW): ordinária local, 20 vizinhas, variograma exponencial ajustado no mês (alcance 20 a 1200 km), distância em km; mesma grade, recorte e escala do IDW']);
     L.push(['# Critérios', seguro(JSON.stringify(info.criterios || CRITERIOS))]);
     (info.arquivos || []).forEach(function (a) { L.push(['# Arquivo', a.tipo, a.nome, 'SHA-256 ' + a.sha256, a.codificacao, a.linhas + ' estações']); });
     (info.produtos || []).forEach(function (p) {
       var P = PRODUTOS[p.id];
       L.push(['# Produto', P.sigla, P.titulo, p.n + ' estações usadas', 'escala: ' + (p.escala ? p.escala.rotulos.join(' | ') : ''), p.escala && p.escala.fonte ? 'fonte: ' + p.escala.fonte : (p.escala && p.escala.auto ? 'escala automática' : 'escala ajustada à mão'),
-        p.validacao ? 'validação cruzada em MG (n=' + p.validacao.n + '): MAE ' + numBR(p.validacao.mae, 2) + ' · RMSE ' + numBR(p.validacao.rmse, 2) + ' · viés ' + numBR(p.validacao.vies, 2) : '']);
+        p.validacao ? 'IDW — validação cruzada em MG (n=' + p.validacao.n + '): MAE ' + numBR(p.validacao.mae, 2) + ' · RMSE ' + numBR(p.validacao.rmse, 2) + ' · viés ' + numBR(p.validacao.vies, 2) : '']);
+      if (p.krig) L.push(['# Krigagem (em avaliação)', P.sigla, 'variograma exponencial: pepita ' + numBR(p.krig.vario.pepita, 3) + ' · patamar ' + numBR(p.krig.vario.patamar, 3) + ' · alcance ' + p.krig.vario.alcance + ' km' + (p.krig.vario.noLimite ? ' (no limite: correlação espacial mal definida)' : ''),
+        p.krig.validacao ? 'validação cruzada em MG (n=' + p.krig.validacao.n + ', variograma reajustado a cada estação): MAE ' + numBR(p.krig.validacao.mae, 2) + ' · RMSE ' + numBR(p.krig.validacao.rmse, 2) + ' · viés ' + numBR(p.krig.validacao.vies, 2) : 'validação cruzada não calculada']);
     });
     L.push([]);
     L.push(['Arquivo', 'Linha', 'Código', 'Estação', 'Município', 'UF', 'Latitude', 'Longitude', 'Dentro de MG', 'Distância de MG (km)', 'Valor do mapa', 'Esperado pelas vizinhas', 'Alertas', 'Situação', 'Motivo', 'Observação', 'Decidido por', 'Decidido em']);
@@ -551,6 +681,8 @@
     diasNoMes: diasNoMes, norm: norm, numero: numero, decodificar: decodificar, lerTxt: lerTxt, periodoDoNome: periodoDoNome,
     mascara: mascara, mesoDoPonto: mesoDoPonto, dentroGeom: dentroGeom, lonDe: lonDe, latDe: latDe, km: km,
     idwPonto: idwPonto, idwGrade: idwGrade, validacaoCruzada: validacaoCruzada,
+    KRIG: KRIG, planoKm: planoKm, ajustarVariograma: ajustarVariograma, prepararKrigagem: prepararKrigagem, krigarPonto: krigarPonto,
+    krigagemLinhas: krigagemLinhas, krigagemGrade: krigagemGrade, validacaoCruzadaKrig: validacaoCruzadaKrig,
     escalaDe: escalaDe, escalaAuto: escalaAuto, escalaFixa: escalaFixa, classe: classe, rampa: rampa, rotulos: rotulos,
     conferir: conferir, situacaoEstacao: situacaoEstacao, pontosDoProduto: pontosDoProduto, chave: chave, valorMapa: valorMapa,
     estatMeso: estatMeso, registroCSV: registroCSV, seguro: seguro, fmt: fmt

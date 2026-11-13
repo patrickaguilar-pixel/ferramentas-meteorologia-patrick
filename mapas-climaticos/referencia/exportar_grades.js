@@ -17,6 +17,9 @@ for (const p of N.ORDEM) {
   const g = N.idwGrade(N.pontosDoProduto(A, P.campo, dec), m, 2);
   fs.writeFileSync(path.join(saida, p + '.f64'), Buffer.from(g.buffer));
   const es = N.escalaDe(p, [...g].filter(isFinite));
-  info.produtos[p] = { arquivo: nomes[P.arq], linhas: ok.map(e => e.linha), lim: es.lim };
+  const K = N.krigagemGrade(N.pontosDoProduto(A, P.campo, dec), m, null, P.piso);
+  fs.writeFileSync(path.join(saida, p + '_krig.f64'), Buffer.from(K.grade.buffer));
+  const vk = p === 'atmed' || p === 'prec' ? N.validacaoCruzadaKrig(N.pontosDoProduto(A, P.campo, dec), x => x.dentroMG, P.piso) : null;
+  info.produtos[p] = { arquivo: nomes[P.arq], linhas: ok.map(e => e.linha), lim: es.lim, piso: P.piso == null ? null : P.piso, vario: K.v, loo: vk && { n: vk.n, rmse: vk.rmse, mae: vk.mae } };
 }
 fs.writeFileSync(path.join(saida, 'info.json'), JSON.stringify(info));

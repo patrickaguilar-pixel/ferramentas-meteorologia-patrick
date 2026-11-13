@@ -111,6 +111,97 @@ def idw_grade(lon_e, lat_e, val, masc, p=2.0, G=GRADE):
     return out
 
 
+# ======================= krigagem ordinária (em avaliação) — implementação independente =======================
+KRIG = dict(vizinhas=20, alcances=np.arange(20, 1200 + 1e-9, 10), faixas=18, min_pares=30, lat0=-18.5, R=6371.0088)
+
+
+def plano_km(lon, lat):
+    k = KRIG['R'] * np.pi / 180
+    return np.column_stack([np.asarray(lon) * k * np.cos(np.radians(KRIG['lat0'])), np.asarray(lat) * k])
+
+
+def ajustar_variograma(lon, lat, v):
+    xy = plano_km(lon, lat)
+    i, j = np.triu_indices(len(v), 1)
+    h = np.hypot(*(xy[i] - xy[j]).T)
+    g = 0.5 * (v[i] - v[j]) ** 2
+    vari = max(float(np.mean((v - v.mean()) ** 2)), 1e-6)
+    bordas = np.quantile(h, 0.05 + 0.90 * np.arange(KRIG['faixas'] + 1) / KRIG['faixas'])
+    H, G, Wn = [], [], []
+    for lo, hi in zip(bordas[:-1], bordas[1:]):
+        sel = (h >= lo) & (h < hi)
+        if sel.sum() >= KRIG['min_pares']:
+            H.append(float(np.median(h[sel]))); G.append(float(g[sel].mean())); Wn.append(int(sel.sum()))
+    if len(H) < 3:
+        return dict(pepita=0.0, patamar=vari, alcance=300, ajustado=False)
+    H, G, W = np.array(H), np.array(G), np.array(Wn) / max(Wn)
+    melhor = None
+    for a in KRIG['alcances']:
+        f = 1 - np.exp(-H / a)
+        X = np.column_stack([np.ones_like(f), f]) * np.sqrt(W)[:, None]
+        pep, pat = np.linalg.lstsq(X, G * np.sqrt(W), rcond=None)[0]
+        if not pep >= 0:
+            pep, pat = 0.0, float((W * f * G).sum() / (W * f * f).sum())
+        if not pat > 0:
+            pat = 1e-6 * vari; pep = max(0.0, float((W * (G - pat * f)).sum() / W.sum()))
+        sse = float((W * (pep + pat * f - G) ** 2).sum())
+        if melhor is None or sse < melhor[0] - 1e-12 * max(1, melhor[0]):
+            melhor = (sse, float(pep), float(pat), int(round(a)))
+    return dict(pepita=melhor[1], patamar=melhor[2], alcance=melhor[3], ajustado=True)
+
+
+class Krigagem:
+    def __init__(self, lon, lat, v, vario):
+        self.xy, self.v, self.V = plano_km(lon, lat), np.asarray(v, float), vario
+        self.k = min(KRIG['vizinhas'], len(v)); self.cache = {}
+
+    def _inv(self, idx):
+        chave = idx.tobytes()
+        if chave not in self.cache:
+            V, P = self.V, self.xy[idx]
+            D = np.hypot(*(P[:, None, :] - P[None, :, :]).transpose(2, 0, 1))
+            C = V['patamar'] * np.exp(-D / V['alcance']); np.fill_diagonal(C, V['patamar'] + V['pepita'])
+            n = len(idx); A = np.ones((n + 1, n + 1)); A[:n, :n] = C; A[n, n] = 0
+            self.cache[chave] = np.linalg.inv(A)
+        return self.cache[chave]
+
+    def estimar(self, q, piso=None):
+        """q: pontos (m, 2) em km. Vizinhas = as k de menor distância (empate: menor índice)."""
+        d2 = ((self.xy[None, :, :] - q[:, None, :]) ** 2).sum(-1)
+        viz = np.sort(np.argsort(d2, axis=1, kind='stable')[:, :self.k], axis=1)
+        out = np.empty(len(q))
+        for c in range(len(q)):
+            idx = viz[c]; inv = self._inv(idx)
+            b = np.append(self.V['patamar'] * np.exp(-np.hypot(*(self.xy[idx] - q[c]).T) / self.V['alcance']), 1.0)
+            out[c] = (inv[:-1] @ b) @ self.v[idx]
+        return np.maximum(out, piso) if piso is not None else out
+
+
+def krigagem_grade(lon_e, lat_e, val, masc, piso=None, G=GRADE):
+    K = Krigagem(lon_e, lat_e, val, ajustar_variograma(lon_e, lat_e, val))
+    lon = G['lon0'] + np.arange(G['nx']) * G['d']
+    lat = G['lat0'] - np.arange(G['ny']) * G['d']
+    out = np.full((G['ny'], G['nx']), np.nan)
+    for j in range(G['ny']):
+        cols = np.where(masc[j] >= 0)[0]
+        if cols.size:
+            out[j, cols] = K.estimar(plano_km(lon[cols], np.full(cols.size, lat[j])), piso)
+    return out, K.V
+
+
+def dentro_mg(mesos, lon, lat):
+    """Estação dentro de alguma mesorregião (par-ímpar por anéis), como o nucleo.js faz para "estação de MG"."""
+    from matplotlib.path import Path as MPath
+    for f in mesos['features']:
+        g = f['geometry']
+        dentro = False
+        for poly in ([g['coordinates']] if g['type'] == 'Polygon' else g['coordinates']):
+            for ring in poly:
+                dentro ^= bool(MPath(np.asarray(ring)).contains_point((lon, lat)))
+        if dentro:
+            return True
+    return False
+
 def classe(v, lim):
     return np.searchsorted(np.asarray(lim), v, side='left')   # v <= lim[i] -> i
 

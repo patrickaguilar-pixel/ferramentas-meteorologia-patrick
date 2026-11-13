@@ -15,7 +15,7 @@ import referencia as R
 
 AQUI = Path(__file__).resolve().parent
 MC = AQUI.parent
-CAMPO_PY = {'prec': 'acum', 'aprec': 'anomPct', 'atmed': 'anom_med', 'tmax': 'abs_max', 'tmin': 'abs_min'}
+CAMPO_PY = {'prec': 'acum', 'aprec': 'anomPct', 'clima': 'clim', 'atmed': 'anom_med', 'tmax': 'abs_max', 'tmin': 'abs_min'}
 
 with tempfile.TemporaryDirectory() as tmp:
     js = subprocess.run(['node', str(AQUI / 'exportar_grades.js'), str(MC / 'exemplo'), tmp], capture_output=True, text=True)
@@ -42,5 +42,29 @@ with tempfile.TemporaryDirectory() as tmp:
         st = 'OK' if dmax < 1e-9 and igual == 100 and nan_dif == 0 else 'FALHOU'
         falhou |= st != 'OK'
         print(f'{prod:6} {len(est):3} estações · diferença máx. {dmax:.2e} · classes iguais {igual:.4f} % · células sem valor diferentes {nan_dif} · {st}')
+        # krigagem (em avaliação): variograma e grade
+        lon_e, lat_e = np.array([e['lon'] for e in est]), np.array([e['lat'] for e in est])
+        gk_py, V = R.krigagem_grade(lon_e, lat_e, val, m_js, d['piso'])
+        gk_js = np.fromfile(Path(tmp) / f'{prod}_krig.f64', dtype=np.float64).reshape(g_py.shape)
+        vj = d['vario']
+        dv = max(abs(V['pepita'] - vj['pepita']) / max(1, abs(vj['pepita'])), abs(V['patamar'] - vj['patamar']) / max(1, abs(vj['patamar'])), abs(V['alcance'] - vj['alcance']))
+        okk = np.isfinite(gk_py) & np.isfinite(gk_js)
+        dk = float(np.max(np.abs(gk_py[okk] - gk_js[okk])))
+        igk = float((R.classe(gk_py[okk], d['lim']) == R.classe(gk_js[okk], d['lim'])).mean() * 100)
+        stk = 'OK' if dv < 1e-6 and dk < 1e-6 and igk >= 99.999 and int((np.isfinite(gk_py) != np.isfinite(gk_js)).sum()) == 0 else 'FALHOU'
+        falhou |= stk != 'OK'
+        extra = ''
+        if d.get('loo'):
+            # validação cruzada da krigagem refeita no Python (variograma reajustado sem a estação)
+            mg = [i for i, e in enumerate(est) if R.dentro_mg(mesos, e['lon'], e['lat'])]
+            errs = []
+            for i in mg:
+                k = np.arange(len(est)) != i
+                K = R.Krigagem(lon_e[k], lat_e[k], val[k], R.ajustar_variograma(lon_e[k], lat_e[k], val[k]))
+                errs.append(K.estimar(R.plano_km([lon_e[i]], [lat_e[i]]), d['piso'])[0] - val[i])
+            rm = float(np.sqrt(np.mean(np.square(errs))))
+            extra = f' · validação cruzada RMSE {rm:.4f} (Python) x {d["loo"]["rmse"]:.4f} (navegador)'
+            if abs(rm - d['loo']['rmse']) > 1e-6 or len(mg) != d['loo']['n']: falhou = True; extra += ' FALHOU'
+        print(f'       krigagem: alcance {vj["alcance"]} km · diferença máx. {dk:.2e} · classes iguais {igk:.4f} % · {stk}{extra}')
     print('RESULTADO:', 'FALHOU' if falhou else 'OK — navegador e referência em Python batem')
     sys.exit(1 if falhou else 0)

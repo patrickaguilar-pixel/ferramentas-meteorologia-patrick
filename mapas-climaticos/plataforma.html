@@ -9,9 +9,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../assets/ferramenta-base.css?v=teste-20261113a">
+<link rel="stylesheet" href="../assets/ferramenta-base.css?v=teste-20261113b">
 <style>
 /* próprios dos Mapas Climáticos */
+[hidden]{display:none!important}
 .slots{display:grid;gap:8px}
 .slot{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--card)}
 .slot b{font-size:14px}
@@ -74,6 +75,14 @@ tr.sel td{outline:2px solid var(--azure);outline-offset:-2px}
     <button class="btn" id="mcPng_atmed" type="button" disabled>PNG Anomalia de Tméd</button>
     <button class="btn" id="mcPng_tmax" type="button" disabled>PNG Máxima absoluta</button>
     <button class="btn" id="mcPng_tmin" type="button" disabled>PNG Mínima absoluta</button>
+    <button class="btn" id="mcPng_clima" type="button" disabled>PNG Climatologia</button>
+    <!-- krigagem (em avaliação): botões separados, só aparecem no painel com o método Krigagem aberto -->
+    <button class="btn" id="mcPngK_prec" type="button" disabled>PNG Acumulado (krigagem)</button>
+    <button class="btn" id="mcPngK_aprec" type="button" disabled>PNG Anomalia de chuva (krigagem)</button>
+    <button class="btn" id="mcPngK_clima" type="button" disabled>PNG Climatologia (krigagem)</button>
+    <button class="btn" id="mcPngK_atmed" type="button" disabled>PNG Anomalia de Tméd (krigagem)</button>
+    <button class="btn" id="mcPngK_tmax" type="button" disabled>PNG Máxima absoluta (krigagem)</button>
+    <button class="btn" id="mcPngK_tmin" type="button" disabled>PNG Mínima absoluta (krigagem)</button>
     <button class="btn" id="mcMesoCsv" type="button" disabled>CSV mesorregiões</button>
     <button class="btn" id="mcRegistro" type="button" disabled>Registro da conferência</button>
   </div>
@@ -109,8 +118,8 @@ tr.sel td{outline:2px solid var(--azure);outline-offset:-2px}
       </div>
     </details>
     <details class="sec">
-      <summary>Sobre esta versão <small>v0.1</small></summary>
-      <div class="secbody"><p>Fase 1: mesmo método do QGIS do Anexo M (IDW potência 2, todas as estações, recorte por mesorregião). Conferida contra a referência em Python e contra os mapas oficiais de setembro/2026.</p></div>
+      <summary>Sobre esta versão <small>v0.2</small></summary>
+      <div class="secbody"><p>v0.2: mapa da Climatologia de Precipitação, krigagem separada (em avaliação) e isolinhas opcionais. Fase 1: mesmo método do QGIS do Anexo M (IDW potência 2, todas as estações, recorte por mesorregião). Conferida contra a referência em Python e contra os mapas oficiais de setembro/2026.</p></div>
     </details>
   </section>
 
@@ -137,6 +146,11 @@ tr.sel td{outline:2px solid var(--azure);outline-offset:-2px}
     <header><h2>Mapa</h2><p class="lede">Escolha o produto. O mapa usa só as estações aprovadas na conferência.</p></header>
     <div class="secbody">
       <div><p class="sublbl">Produto</p><span class="grupo prods" id="mcProd" role="group" aria-label="Produto"></span></div>
+      <div><p class="sublbl">Método</p>
+        <span class="grupo" id="mcMetodo" role="group" aria-label="Método de interpolação"><button type="button" data-m="idw">IDW (padrão QGIS)</button><button type="button" data-m="krig">Krigagem (em avaliação)</button></span>
+        <span id="mcVistaIdw" class="chip st-usada" style="margin-left:6px">Mapa oficial</span><span id="mcVistaKrig" class="chip st-pendente" style="margin-left:6px" hidden>Em avaliação</span>
+        <div id="mcKrigAviso" class="stbox aviso" style="margin-top:8px" hidden><strong>Krigagem em avaliação.</strong> Fica separada do IDW: título com "(Krigagem)", arquivo com "_KRIGAGEM" e botões próprios no OPÇÕES DE SALVAMENTO. Use para comparar; o mapa oficial continua sendo o IDW até a equipe aprovar.<div id="mcVario" style="margin-top:6px"></div></div>
+      </div>
       <div id="mcProdStatus" class="stbox">—</div>
       <div id="mcEscalaBox">
         <p class="sublbl">Escala</p>
@@ -148,17 +162,20 @@ tr.sel td{outline:2px solid var(--azure);outline-offset:-2px}
         </div>
         <p class="hint" id="mcEscHint" style="margin-top:6px"></p>
       </div>
-      <div class="checks"><label><input id="mcMostrarEst" type="checkbox"> Mostrar as estações usadas</label><label><input id="mcCidades" type="checkbox"> Cidades de referência</label></div>
+      <div class="checks"><label><input id="mcIso" type="checkbox"> Isolinhas (nos limites das classes)</label><label style="margin-left:26px"><input id="mcIsoRot" type="checkbox"> Valores nas isolinhas</label><label><input id="mcMostrarEst" type="checkbox"> Mostrar as estações usadas</label><label><input id="mcCidades" type="checkbox"> Cidades de referência</label></div>
     </div>
     <details class="sec">
-      <summary>Qualidade da interpolação</summary>
-      <div class="secbody"><p id="mcValid">—</p><p class="hint">Validação cruzada: tira uma estação de Minas por vez, estima o valor dela pelas outras e mede o erro. Quanto menor, melhor. Uma estação ruim que ficou no mapa costuma aumentar muito o erro.</p></div>
+      <summary>Qualidade da interpolação <small>IDW × krigagem</small></summary>
+      <div class="secbody"><div id="mcValid">—</div><p class="hint">Validação cruzada: tira uma estação de Minas por vez, estima o valor dela pelas outras e mede o erro (na krigagem, o variograma é reajustado sem a estação). Uma estação ruim que ficou no mapa costuma aumentar muito o erro.</p></div>
     </details>
     <details class="sec">
       <summary>Como é calculado</summary>
       <div class="secbody">
         <p>Igual ao QGIS do Anexo M: <b>IDW com potência 2</b>, com todas as estações aprovadas do arquivo (Minas e entorno), distância em graus; recorte pelas mesorregiões; classe de cada ponto = primeira faixa com valor menor ou igual ao limite.</p>
         <p>Grade de 0,01° (cerca de 1 km). Em setembro/2026 a ferramenta repetiu a classe do mapa oficial em 98 a 99,7 % de Minas (anomalia de Tméd: 92 %, sempre a 1 classe).</p>
+        <p><b>Krigagem (em avaliação)</b>: krigagem ordinária com as 20 estações mais próximas e variograma exponencial ajustado com os dados do mês (alcance de 20 a 1200 km). Mesma grade, recorte e escala do IDW. Conferida contra a referência em Python.</p>
+        <p><b>Climatologia de Precipitação</b>: coluna CLIMATOLOGIA do TXT de precipitação (normal 1991-2020 do INMET), com as mesmas estações aprovadas do mês.</p>
+        <p>Isolinhas: linhas finas nos limites das classes da escala, calculadas na grade do método escolhido.</p>
         <p>Escalas fixas da equipe: anomalia de chuva (−90 a 90 %) e anomalia de Tméd (−4,5 a 8 °C, com o erro de ordem do arquivo original corrigido). Acumulado e temperaturas absolutas: escala automática (passo redondo do percentil 2 ao 98 de Minas), que pode ser ajustada à mão.</p>
       </div>
     </details>
@@ -175,15 +192,15 @@ tr.sel td{outline:2px solid var(--azure);outline-offset:-2px}
   </section>
 </main>
 
-<script>window.BASE_DADOS='../';window.FERRAMENTA='mapas-climaticos';window.VERSAO_APP='teste-20261113a';</script>
-<script src="../previsao/data/geo.js?v=teste-20261113a"></script>
-<script src="../chuva/data/cidades.js?v=teste-20261113a"></script>
-<script src="../tempo-severo/data/brasil_estados.js?v=teste-20261113a"></script>
-<script src="../assets/layout-mapa.js?v=teste-20261113a"></script>
-<script src="../mapas-climaticos/meso.js?v=teste-20261113a"></script>
-<script src="../mapas-climaticos/nucleo.js?v=teste-20261113a"></script>
-<script src="../mapas-climaticos/app.js?v=teste-20261113a"></script>
-<script src="../assets/ponte-drive.js?v=teste-20261113a"></script>   <!-- OPÇÕES DE SALVAMENTO, faixa de teste, tutorial e cabeçalho padrão -->
-<script src="../assets/planner-teste.js?v=teste-20261113a"></script>   <!-- Planner da semana + Sugestões -->
+<script>window.BASE_DADOS='../';window.FERRAMENTA='mapas-climaticos';window.VERSAO_APP='teste-20261113b';</script>
+<script src="../previsao/data/geo.js?v=teste-20261113b"></script>
+<script src="../chuva/data/cidades.js?v=teste-20261113b"></script>
+<script src="../tempo-severo/data/brasil_estados.js?v=teste-20261113b"></script>
+<script src="../assets/layout-mapa.js?v=teste-20261113b"></script>
+<script src="../mapas-climaticos/meso.js?v=teste-20261113b"></script>
+<script src="../mapas-climaticos/nucleo.js?v=teste-20261113b"></script>
+<script src="../mapas-climaticos/app.js?v=teste-20261113b"></script>
+<script src="../assets/ponte-drive.js?v=teste-20261113b"></script>   <!-- OPÇÕES DE SALVAMENTO, faixa de teste, tutorial e cabeçalho padrão -->
+<script src="../assets/planner-teste.js?v=teste-20261113b"></script>   <!-- Planner da semana + Sugestões -->
 </body>
 </html>
