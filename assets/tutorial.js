@@ -147,6 +147,14 @@
       { s: '#urMesoBody', t: 'Mesorregiões', d: 'Menor UR de cada dia e da média, com o estado do Manual (Observação, Atenção, Alerta, Emergência).' },
       { s: '#abaRelBtn', t: 'Relatório (PDF)', d: 'Aviso Meteorológico no modelo da equipe: texto automático (editável), mapa e OBS.' },
       SALVAR
+    ],
+    'mapas-climaticos': [
+      { s: '#mcDrop', t: 'Arquivos do mês', d: 'Os 4 TXT da planilha (PREC, TEMP_MAX, TEMP_MIN, TEMP_MED). São lidos só neste computador.' },
+      { s: '#mcConferente', t: 'Conferido por', d: 'Obrigatório: cada decisão e o registro levam este nome.' },
+      { s: '#mcEstMapa', t: 'Estações', d: 'Laranja = pendente. Clique numa estação para achá-la na tabela.' },
+      { s: '#mcEstBody', t: 'Conferência', d: 'Para cada pendente: Manter (conferida) ou Retirar, com o motivo.' },
+      { s: '#abaMapasBtn', t: 'Mapas', d: 'Os 5 mapas no layout padrão. Só salvam depois da conferência.' },
+      SALVAR
     ]
   };
 

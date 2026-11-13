@@ -1,0 +1,189 @@
+<!-- MAPAS CLIMÁTICOS (painel de testes). Ferramenta nova (13/11/2026): ainda não existe na plataforma oficial (Apps Script).
+     Mesmo visual e organização das outras ferramentas (barra do topo, painéis, OPÇÕES DE SALVAMENTO). -->
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mapas Climáticos — Minas Gerais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/ferramenta-base.css?v=teste-20261113a">
+<style>
+/* próprios dos Mapas Climáticos */
+.slots{display:grid;gap:8px}
+.slot{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--card)}
+.slot b{font-size:14px}
+.slot .small{grid-column:1/2}
+.slot.ok{border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+.slot.falta{border-style:dashed;opacity:.85}
+.slot .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:2px 6px;border-radius:6px}
+.slot .x:hover{background:var(--line-2);color:var(--err)}
+.drop{border:2px dashed var(--line);border-radius:10px;padding:14px;text-align:center;color:var(--muted);font-size:14px;cursor:pointer;background:var(--paper)}
+.drop.on{border-color:var(--azure);background:color-mix(in srgb,var(--azure) 8%,var(--paper));color:var(--ink)}
+.drop input{display:none}
+.lin2{display:grid;grid-template-columns:1fr 110px;gap:8px}
+.req::after{content:" *";color:var(--err)}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.st-pendente{background:#fff1d6;color:#8a4b00}
+.st-retirada{background:#fde2e0;color:#a3221b}
+.st-invalida{background:#e7e9ee;color:#4b5565}
+.st-mantida{background:#dcf3e6;color:#16663a}
+.st-usada{background:#e3eefb;color:#0b4f96}
+.g-forte{color:#b3261e;font-weight:700}
+.g-atencao{color:#a1580b;font-weight:600}
+.g-invalida{color:#4b5565;font-weight:700}
+.g-info{color:var(--muted)}
+.resumoArq{display:flex;flex-wrap:wrap;gap:6px}
+.alertas{margin:0;padding-left:16px;font-size:12.5px;line-height:1.35}
+.alertas li{margin:1px 0}
+tr.pend td{background:color-mix(in srgb,#ffb703 9%,transparent)}
+tr.sel td{outline:2px solid var(--azure);outline-offset:-2px}
+.dec{display:grid;gap:5px;min-width:220px}
+.dec select,.dec input{font-size:13px;min-height:30px;padding:3px 7px}
+.est-mapa{margin:0 18px 14px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#f3f7fb}
+.est-mapa svg{display:block;width:100%;height:auto}
+.est-mapa circle{cursor:pointer}
+.leg-est{display:flex;flex-wrap:wrap;gap:10px;padding:0 18px 14px;font-size:12.5px;color:var(--muted)}
+.leg-est i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px;border:1px solid #fff;box-shadow:0 0 0 1px #8896a6}
+.trava{display:flex;gap:8px;align-items:flex-start}
+.mtab{font-variant-numeric:tabular-nums}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.esc3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.esc3 label{font-size:13px}
+.prods{display:flex;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="bar">
+  <svg class="stripes" viewBox="0 0 218 64" preserveAspectRatio="none" aria-hidden="true"><path d="M42 0H218V64H0Z" fill="#006cbf"/><path d="M42 0H83L40 64H0Z" fill="#a9e0f4"/><path d="M83 0H121L78 64H40Z" fill="#078fd2"/></svg>
+  <h1>Mapas Climáticos <small>Minas Gerais · mapas mensais com as estações do INMET</small></h1>
+  <nav class="tabs" role="tablist" aria-label="Etapas">
+    <button role="tab" id="abaConfBtn" aria-selected="true" type="button">1 · Dados e conferência</button>
+    <button role="tab" id="abaMapasBtn" aria-selected="false" type="button">2 · Mapas</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="actions">
+    <button class="btn" id="previewBtn" type="button" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+      Prévia do mapa</button>
+    <!-- arquivos: saem pelo botão OPÇÕES DE SALVAMENTO (assets/ponte-drive.js), que esconde estes botões -->
+    <button class="btn primary" id="mcPng_prec" type="button" disabled>PNG Acumulado</button>
+    <button class="btn" id="mcPng_aprec" type="button" disabled>PNG Anomalia de chuva</button>
+    <button class="btn" id="mcPng_atmed" type="button" disabled>PNG Anomalia de Tméd</button>
+    <button class="btn" id="mcPng_tmax" type="button" disabled>PNG Máxima absoluta</button>
+    <button class="btn" id="mcPng_tmin" type="button" disabled>PNG Mínima absoluta</button>
+    <button class="btn" id="mcMesoCsv" type="button" disabled>CSV mesorregiões</button>
+    <button class="btn" id="mcRegistro" type="button" disabled>Registro da conferência</button>
+  </div>
+</div>
+
+<!-- ===== aba 1: dados e conferência ===== -->
+<main class="tool" id="abaConf">
+  <section class="panel">
+    <header><h2>Arquivos do mês</h2><p class="lede">Os TXT exportados da planilha (PREC, TEMP_MAX, TEMP_MIN e TEMP_MED). Os arquivos são lidos só neste computador.</p></header>
+    <div class="secbody">
+      <label class="drop" id="mcDrop" tabindex="0">
+        <input id="mcArquivos" type="file" accept=".txt,text/plain" multiple>
+        <b>Clique para escolher</b> ou arraste os TXT aqui<br><span class="small">Pode mandar os 4 de uma vez. Um arquivo novo do mesmo tipo substitui o anterior.</span>
+      </label>
+      <div class="slots" id="mcSlots"></div>
+      <div>
+        <p class="sublbl">Período</p>
+        <div class="lin2"><select id="mcMes" class="field" aria-label="Mês"></select><select id="mcAno" class="field" aria-label="Ano"></select></div>
+        <p class="hint" id="mcPerHint" style="margin-top:5px">Vem do nome dos arquivos (ex.: PREC_SET_2026.txt).</p>
+      </div>
+      <label><span class="req">Conferido por</span><input id="mcConferente" class="field" type="text" maxlength="80" autocomplete="name" placeholder="Nome de quem confere"></label>
+      <div id="mcStatus" class="stbox">Carregue os arquivos do mês.</div>
+      <div class="r"><button id="mcExemplo" class="btn small" type="button">Carregar exemplo (setembro/2026)</button></div>
+    </div>
+    <details class="sec">
+      <summary>Como a conferência funciona</summary>
+      <div class="secbody">
+        <p><b>Linha inválida</b> (sai sozinha): coordenada ou valor vazio, não numérico, fora da região ou fisicamente impossível.</p>
+        <p><b>Alerta forte</b>: 0 mm com as vizinhas chovendo; valor muito diferente das vizinhas (até 150 km); conta da planilha que não confere (anomalia, % da climatologia); 20 % ou mais de falhas no mês; mínima maior que a máxima na mesma estação; código repetido.</p>
+        <p><b>Atenção</b>: diferença moderada das vizinhas; 10 a 20 % de falhas; UF diferente da posição.</p>
+        <p>Estações com alerta em Minas ou a até 150 km da divisa ficam <b>pendentes</b>: só dá para salvar os mapas depois de decidir cada uma (manter ou retirar, com o motivo). Tudo vai para o <b>Registro da conferência</b>.</p>
+        <p>A comparação com as vizinhas não conhece a altitude: em serra (ex.: Pico do Couto, Campos do Jordão) a temperatura é mesmo diferente. Nesses casos, mantenha.</p>
+      </div>
+    </details>
+    <details class="sec">
+      <summary>Sobre esta versão <small>v0.1</small></summary>
+      <div class="secbody"><p>Fase 1: mesmo método do QGIS do Anexo M (IDW potência 2, todas as estações, recorte por mesorregião). Conferida contra a referência em Python e contra os mapas oficiais de setembro/2026.</p></div>
+    </details>
+  </section>
+
+  <section class="panel">
+    <header class="row"><div><h2>Estações</h2><p class="lede" id="mcEstLede">Posição de cada estação e o que foi decidido.</p></div>
+      <span class="grupo" id="mcArqTab" role="group" aria-label="Arquivo"></span></header>
+    <div class="secbody" style="padding-bottom:8px"><div class="resumoArq" id="mcResumo"></div></div>
+    <div class="est-mapa" id="mcEstMapa"><div class="vazio">Carregue os arquivos para ver as estações.</div></div>
+    <div class="leg-est"><span><i style="background:#f59e0b"></i>pendente</span><span><i style="background:#2563eb"></i>usada</span><span><i style="background:#16a34a"></i>mantida após conferência</span><span><i style="background:#dc2626"></i>retirada</span><span><i style="background:#9aa3af"></i>inválida</span><span>— contorno: Minas e 150 km de entorno</span></div>
+  </section>
+
+  <section class="panel full">
+    <header class="row"><div><h2>Conferência das estações</h2><p class="lede">Decida as pendentes. Clique numa estação do mapa para achá-la aqui.</p></div>
+      <div class="r"><span class="grupo" id="mcFiltro" role="group" aria-label="Filtro">
+        <button type="button" data-f="pendentes">Pendentes</button><button type="button" data-f="alertas">Com alerta</button><button type="button" data-f="retiradas">Retiradas</button><button type="button" data-f="todas">Todas</button></span>
+        <button id="mcRetirarFortes" class="btn small" type="button" disabled>Retirar as pendentes com alerta forte</button></div></header>
+    <div class="scroll"><table class="mtab"><thead><tr><th>Situação</th><th>Estação</th><th class="num">Dist. de MG</th><th class="num" id="mcColValor">Valor</th><th class="num">Esperado pelas vizinhas</th><th>Alertas</th><th>Decisão</th></tr></thead><tbody id="mcEstBody"></tbody></table></div>
+  </section>
+</main>
+
+<!-- ===== aba 2: mapas ===== -->
+<main class="tool" id="abaMapas" hidden>
+  <section class="panel">
+    <header><h2>Mapa</h2><p class="lede">Escolha o produto. O mapa usa só as estações aprovadas na conferência.</p></header>
+    <div class="secbody">
+      <div><p class="sublbl">Produto</p><span class="grupo prods" id="mcProd" role="group" aria-label="Produto"></span></div>
+      <div id="mcProdStatus" class="stbox">—</div>
+      <div id="mcEscalaBox">
+        <p class="sublbl">Escala</p>
+        <div class="checks"><label><input id="mcEscAuto" type="checkbox" checked> Automática</label></div>
+        <div class="esc3" style="margin-top:8px">
+          <label>1º limite <input id="mcEscPrim" class="field" type="number" step="any"></label>
+          <label>Passo <input id="mcEscPasso" class="field" type="number" step="any" min="0"></label>
+          <label>Classes <input id="mcEscN" class="field" type="number" min="3" max="20" step="1"></label>
+        </div>
+        <p class="hint" id="mcEscHint" style="margin-top:6px"></p>
+      </div>
+      <div class="checks"><label><input id="mcMostrarEst" type="checkbox"> Mostrar as estações usadas</label><label><input id="mcCidades" type="checkbox"> Cidades de referência</label></div>
+    </div>
+    <details class="sec">
+      <summary>Qualidade da interpolação</summary>
+      <div class="secbody"><p id="mcValid">—</p><p class="hint">Validação cruzada: tira uma estação de Minas por vez, estima o valor dela pelas outras e mede o erro. Quanto menor, melhor. Uma estação ruim que ficou no mapa costuma aumentar muito o erro.</p></div>
+    </details>
+    <details class="sec">
+      <summary>Como é calculado</summary>
+      <div class="secbody">
+        <p>Igual ao QGIS do Anexo M: <b>IDW com potência 2</b>, com todas as estações aprovadas do arquivo (Minas e entorno), distância em graus; recorte pelas mesorregiões; classe de cada ponto = primeira faixa com valor menor ou igual ao limite.</p>
+        <p>Grade de 0,01° (cerca de 1 km). Em setembro/2026 a ferramenta repetiu a classe do mapa oficial em 98 a 99,7 % de Minas (anomalia de Tméd: 92 %, sempre a 1 classe).</p>
+        <p>Escalas fixas da equipe: anomalia de chuva (−90 a 90 %) e anomalia de Tméd (−4,5 a 8 °C, com o erro de ordem do arquivo original corrigido). Acumulado e temperaturas absolutas: escala automática (passo redondo do percentil 2 ao 98 de Minas), que pode ser ajustada à mão.</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="panel">
+    <header><h2 id="mcMapaTit">Mapa</h2><p class="lede">Layout de impressão (297 × 210 mm), igual ao das outras ferramentas. O PNG sai assim.</p></header>
+    <div class="stage"><div id="mcMapa" class="folha-mapa"><div class="vazio">Carregue e confira os arquivos na etapa 1.</div></div></div>
+  </section>
+
+  <section class="panel full">
+    <header><h2>Mesorregiões</h2><p class="lede" id="mcMesoLede">Média, mínimo e máximo do mapa dentro de cada mesorregião.</p></header>
+    <div class="scroll"><table class="mtab"><thead><tr><th>Mesorregião</th><th class="num">Média</th><th class="num">Mínimo</th><th class="num">Máximo</th><th class="num">Estações usadas</th></tr></thead><tbody id="mcMesoBody"></tbody></table></div>
+  </section>
+</main>
+
+<script>window.BASE_DADOS='../';window.FERRAMENTA='mapas-climaticos';window.VERSAO_APP='teste-20261113a';</script>
+<script src="../previsao/data/geo.js?v=teste-20261113a"></script>
+<script src="../chuva/data/cidades.js?v=teste-20261113a"></script>
+<script src="../tempo-severo/data/brasil_estados.js?v=teste-20261113a"></script>
+<script src="../assets/layout-mapa.js?v=teste-20261113a"></script>
+<script src="../mapas-climaticos/meso.js?v=teste-20261113a"></script>
+<script src="../mapas-climaticos/nucleo.js?v=teste-20261113a"></script>
+<script src="../mapas-climaticos/app.js?v=teste-20261113a"></script>
+<script src="../assets/ponte-drive.js?v=teste-20261113a"></script>   <!-- OPÇÕES DE SALVAMENTO, faixa de teste, tutorial e cabeçalho padrão -->
+<script src="../assets/planner-teste.js?v=teste-20261113a"></script>   <!-- Planner da semana + Sugestões -->
+</body>
+</html>

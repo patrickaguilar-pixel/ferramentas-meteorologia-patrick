@@ -225,6 +225,16 @@
       { id: 'urCsv', nome: 'Tabela das mesorregiões', tipo: 'CSV', vista: '#abaMapa', precisa: 'Clique em “Carregar dados”' },
       { id: 'relPdf', nome: 'Relatório (Aviso Meteorológico)', tipo: 'PDF', desc: 'A4, igual à prévia', vista: '#abaRel', onde: 'Relatório (PDF)', aba: '#abaRelBtn', precisa: 'Carregue os dados na aba Mapa e tabela' }
     ],
+    // Mapas Climáticos (13/11/2026): os PNG só liberam com a conferência concluída e "Conferido por" preenchido
+    'mapas-climaticos': [
+      { id: 'mcPng_prec', nome: 'Acumulado de Precipitação', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#abaMapas', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
+      { id: 'mcPng_aprec', nome: 'Anomalia de Precipitação', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#abaMapas', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
+      { id: 'mcPng_atmed', nome: 'Anomalia de Temperatura Média', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#abaMapas', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
+      { id: 'mcPng_tmax', nome: 'Temperatura Máxima Absoluta', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#abaMapas', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
+      { id: 'mcPng_tmin', nome: 'Temperatura Mínima Absoluta', tipo: 'PNG', desc: 'Imagem 300 dpi', vista: '#abaMapas', precisa: 'Conclua a conferência das estações (etapa 1) e preencha “Conferido por”' },
+      { id: 'mcMesoCsv', nome: 'Tabela das mesorregiões (produto da tela)', tipo: 'CSV', vista: '#abaMapas', precisa: 'Conclua a conferência do produto da tela' },
+      { id: 'mcRegistro', nome: 'Registro da conferência', tipo: 'CSV', desc: 'Estações, decisões, motivos e SHA-256 dos arquivos', precisa: 'Conclua a conferência das estações e preencha “Conferido por”' }
+    ],
     'reservatorios': [
       { id: 'resPng', nome: 'Reservatórios', tipo: 'PNG', desc: 'Mapa Week 1', onde: 'Reservatórios · Week 1', aba: '.tab[data-tab=reserv]', precisa: 'Clique em “Gerar mapa” na aba Reservatórios' },
       { id: 'resCsv', nome: 'Reservatórios', tipo: 'CSV', desc: 'Tabela de precipitação', onde: 'Reservatórios · Week 1', aba: '.tab[data-tab=reserv]', precisa: 'Clique em “Gerar mapa” na aba Reservatórios' },
@@ -270,6 +280,7 @@
     'alertas': [['#mapSvg', 'Mapa de alertas'], ['#relPages .a4 svg', 'Relatório (página 1)']],
     'curto-prazo': [['#cpMapaA img', 'Mapa'], ['#cpMapaB img', 'WRF']],
     'umidade-minima': [['#urMapa img', 'Mapa de umidade mínima'], ['#relCanvas', 'Relatório (página 1)']],
+    'mapas-climaticos': [['#mcMapa img', 'Mapa'], ['#mcEstSvg', 'Estações']],
     'reservatorios': [['#resCanvas', 'Reservatórios'], ['#wk1Canvas', 'Week 1'], ['#wk2Canvas', 'Week 2'],
       ['#a24Canvas', '24 h'], ['#a72Canvas', '3 dias'], ['#a120Canvas', '5 dias']]
   };
@@ -374,7 +385,7 @@
   function fechar() { fundo.classList.remove('on'); if (botao) botao.focus(); }
   function aberto() { return !!(fundo && fundo.classList.contains('on')); }
 
-  var NOMES = { 'previsao': 'Previsão diária', 'tempo-severo': 'Tempo Severo', 'chuva': 'Chuva e Tendência', 'alertas': 'Alertas', 'reservatorios': 'Reservatórios e Tendência', 'curto-prazo': 'Curto Prazo', 'umidade-minima': 'Umidade Mínima' };
+  var NOMES = { 'previsao': 'Previsão diária', 'tempo-severo': 'Tempo Severo', 'chuva': 'Chuva e Tendência', 'alertas': 'Alertas', 'reservatorios': 'Reservatórios e Tendência', 'curto-prazo': 'Curto Prazo', 'umidade-minima': 'Umidade Mínima', 'mapas-climaticos': 'Mapas Climáticos' };
   function nomeDoMapa() {   // ferramenta · aba aberta (ex.: "Previsão diária · Boletim em PDF")
     var aba = document.querySelector('[role=tab][aria-selected=true], .tab.active');
     var t = aba ? aba.textContent.replace(/\s+/g, ' ').trim() : '';

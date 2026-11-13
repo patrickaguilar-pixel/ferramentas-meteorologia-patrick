@@ -34,6 +34,7 @@
     if (t.indexOf('reservat') >= 0) return 'Reservatórios';
     if (t.indexOf('curto prazo') >= 0) return 'Curto Prazo';
     if (t.indexOf('umidade') >= 0) return 'Umidade Mínima';
+    if (t.indexOf('climátic') >= 0 || t.indexOf('climatic') >= 0) return 'Mapas Climáticos';
     return 'Geral';
   }
   var FERRAMENTA_PAGINA = ferramentaAtual();
