@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../assets/ferramenta-base.css?v=teste-20261113n">
+<link rel="stylesheet" href="../assets/ferramenta-base.css?v=teste-20261113q">
 <style>
 /* próprios dos Mapas Climáticos */
 [hidden]{display:none!important}
@@ -170,7 +170,7 @@ tr.sel td{outline:2px solid var(--azure);outline-offset:-2px}
         </div>
         <p class="hint" id="mcEscHint" style="margin-top:6px"></p>
       </div>
-      <div class="checks"><label><input id="mcIso" type="checkbox"> Isolinhas (nos limites das classes)</label><label style="margin-left:26px"><input id="mcIsoRot" type="checkbox"> Valores nas isolinhas</label><label><input id="mcMostrarEst" type="checkbox"> Mostrar as estações usadas</label><label><input id="mcCidades" type="checkbox"> Cidades de referência</label></div>
+      <div class="checks"><label><input id="mcIso" type="checkbox"> Isolinhas (nos limites das classes)</label><label style="margin-left:26px">Onde passam <select id="mcIsoTipo" class="field" style="width:auto;display:inline-block;padding:2px 6px"><option value="faixas">nas faixas</option><option value="50">a cada 50</option><option value="100">a cada 100</option></select></label><label style="margin-left:26px"><input id="mcIsoRot" type="checkbox"> Valores nas isolinhas</label><span id="mcIsoTipoHint" class="hint" style="margin-left:26px"></span><label><input id="mcMostrarEst" type="checkbox"> Mostrar as estações usadas</label><label><input id="mcCidades" type="checkbox"> Cidades de referência</label></div>
     </div>
     <details class="sec">
       <summary>Qualidade da interpolação <small>IDW × krigagem × recomendado</small></summary>
@@ -184,7 +184,7 @@ tr.sel td{outline:2px solid var(--azure);outline-offset:-2px}
         <p><b>Krigagem (em avaliação)</b>: krigagem ordinária com as 20 estações mais próximas e variograma exponencial ajustado com os dados do mês (alcance de 20 a 1200 km). Mesma grade, recorte e escala do IDW. Conferida contra a referência em Python.</p>
         <p><b>Método recomendado (em avaliação)</b>, um por produto: <b>IDW local</b> (Acumulado e Anomalia de chuva: as 12 estações mais próximas, distância em km, potência 2 — evita o puxão para a média regional do IDW com todas as estações; em volta de uma estação isolada ainda pode aparecer um pequeno círculo); <b>krigagem</b> (Climatologia); <b>regressão com altitude e latitude + krigagem dos resíduos</b> (Máxima, Mínima e Anomalia de Tméd: valor = tendência do relevo e da latitude, ajustada nas estações do mês, + resíduo krigado). A altitude vem do modelo de elevação Copernicus GLO-90 (ESA, 90 m), pela média de cada célula; a tendência não é estendida além da altitude das estações. Em setembro/2026, a validação cruzada em Minas deu: Máxima 2,04 °C no IDW × 1,46 °C; Mínima 2,00 × 1,36 °C; Anomalia de Tméd 1,38 × 0,94 °C; Acumulado 32,0 × 25,6 mm. É um mês: a escolha segue em avaliação, e a tabela de qualidade mostra os erros de cada mês.</p>
         <p><b>Climatologia de Precipitação</b>: coluna CLIMATOLOGIA do TXT de precipitação (normal 1991-2020 do INMET), com as mesmas estações aprovadas do mês.</p>
-        <p>Isolinhas: linhas finas nos limites das classes da escala, calculadas na grade do método escolhido. Na regressão-krigagem (com relevo), as linhas saem de uma cópia suavizada em cerca de 7 km e laços menores que 0,3° não são desenhados, para não virarem dezenas de laços em cada morro; as cores do mapa não são suavizadas.</p>
+        <p>Isolinhas: linhas finas nos limites das classes da escala (padrão) ou, nos mapas de chuva (mm) e de anomalia de chuva (%), a cada 50 ou a cada 100 — essas em branco, com o número em cinza, como na Umidade Mínima. Calculadas na grade do método escolhido. Na regressão-krigagem (com relevo), as linhas saem de uma cópia suavizada em cerca de 7 km e laços menores que 0,3° não são desenhados, para não virarem dezenas de laços em cada morro; as cores do mapa não são suavizadas.</p>
         <p>Escalas fixas da equipe: anomalia de chuva (−90 a 90 %) e anomalia de Tméd (−4,5 a 8 °C, com o erro de ordem do arquivo original corrigido). Acumulado e temperaturas absolutas: escala automática (passo redondo do percentil 2 ao 98 de Minas), que pode ser ajustada à mão.</p>
       </div>
     </details>
@@ -201,16 +201,16 @@ tr.sel td{outline:2px solid var(--azure);outline-offset:-2px}
   </section>
 </main>
 
-<script>window.BASE_DADOS='../';window.FERRAMENTA='mapas-climaticos';window.VERSAO_APP='teste-20261113n';</script>
-<script src="../previsao/data/geo.js?v=teste-20261113n"></script>
-<script src="../chuva/data/cidades.js?v=teste-20261113n"></script>
-<script src="../tempo-severo/data/brasil_estados.js?v=teste-20261113n"></script>
-<script src="../assets/layout-mapa.js?v=teste-20261113n"></script>
-<script src="../mapas-climaticos/meso.js?v=teste-20261113n"></script>
-<script src="../mapas-climaticos/nucleo.js?v=teste-20261113n"></script>
-<script src="../mapas-climaticos/mde.js?v=teste-20261113n"></script>
-<script src="../mapas-climaticos/app.js?v=teste-20261113n"></script>
-<script src="../assets/ponte-drive.js?v=teste-20261113n"></script>   <!-- OPÇÕES DE SALVAMENTO, faixa de teste, tutorial e cabeçalho padrão -->
-<script src="../assets/planner-teste.js?v=teste-20261113n"></script>   <!-- Planner da semana + Sugestões -->
+<script>window.BASE_DADOS='../';window.FERRAMENTA='mapas-climaticos';window.VERSAO_APP='teste-20261113q';</script>
+<script src="../previsao/data/geo.js?v=teste-20261113q"></script>
+<script src="../chuva/data/cidades.js?v=teste-20261113q"></script>
+<script src="../tempo-severo/data/brasil_estados.js?v=teste-20261113q"></script>
+<script src="../assets/layout-mapa.js?v=teste-20261113q"></script>
+<script src="../mapas-climaticos/meso.js?v=teste-20261113q"></script>
+<script src="../mapas-climaticos/nucleo.js?v=teste-20261113q"></script>
+<script src="../mapas-climaticos/mde.js?v=teste-20261113q"></script>
+<script src="../mapas-climaticos/app.js?v=teste-20261113q"></script>
+<script src="../assets/ponte-drive.js?v=teste-20261113q"></script>   <!-- OPÇÕES DE SALVAMENTO, faixa de teste, tutorial e cabeçalho padrão -->
+<script src="../assets/planner-teste.js?v=teste-20261113q"></script>   <!-- Planner da semana + Sugestões -->
 </body>
 </html>

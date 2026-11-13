@@ -428,9 +428,11 @@
     }
     return a;
   }
-  function isolinhas(grade, lim, comRotulos, comCidades, chave, minComp) {
+  // est (opcional): estilo dos rótulos {rotTam, rotCor, rotOpac}; sem ele, o estilo de sempre (ISO)
+  function isolinhas(grade, lim, comRotulos, comCidades, chave, minComp, est) {
     chave = chave + '|' + (comRotulos ? 1 : 0) + (comCidades ? 1 : 0);
     minComp = minComp || 0;
+    var RT = est && est.rotTam || ISO.rotTam, RC = est && est.rotCor || ISO.rotCor, RO = est && est.rotOpac || ISO.rotOpac;
     if (S.iso[chave]) return S.iso[chave];
     var G = N.GRADE, nx = G.nx, ny = G.ny, ll = function (x, y) { return [G.lon0 + G.d * x, G.lat0 - G.d * y]; };
     var linhas = [], rotulos = [], usados = [], cids = comCidades ? cidades() : [];
@@ -476,7 +478,7 @@
         var comp = acum[acum.length - 1], cortes = [];
         if (minComp && comp < minComp) continue;   // laço pequeno (só no método com relevo)
         if (comRotulos && comp >= ISO.compMin) {
-          var txt = N.fmt(nv), meia = (txt.length * 0.556 * ISO.rotTam / 2 + ISO.folga) / ISO.mmGrau;
+          var txt = N.fmt(nv), meia = (txt.length * 0.556 * RT / 2 + ISO.folga) / ISO.mmGrau;
           for (var s0 = comp / 2 % ISO.passoRot || comp / 2; s0 < comp - meia; s0 += ISO.passoRot) {
             if (s0 < meia) continue;
             var k = 0; while (k < acum.length - 1 && acum[k + 1] < s0) k++;
@@ -488,7 +490,7 @@
             var ka = Math.max(0, k - 2), kb = Math.min(ln.length - 1, k + 3), ang = Math.atan2(-(ln[kb][1] - ln[ka][1]), ln[kb][0] - ln[ka][0]) * 180 / Math.PI;
             if (ang > 90) ang -= 180; else if (ang < -90) ang += 180;
             usados.push([lo, la]); cortes.push([s0 - meia, s0 + meia]);
-            rotulos.push({ lon: lo, lat: la, texto: txt, angulo: +ang.toFixed(1), tamanho: ISO.rotTam, cor: ISO.rotCor, opacidade: ISO.rotOpac, halo: false });
+            rotulos.push({ lon: lo, lat: la, texto: txt, angulo: +ang.toFixed(1), tamanho: RT, cor: RC, opacidade: RO, halo: false });
           }
         }
         // corta a linha embaixo dos rótulos
@@ -503,6 +505,17 @@
       }
     });
     return (S.iso[chave] = { linhas: linhas, rotulos: rotulos });
+  }
+  /* ---- isolinhas em intervalos fixos (13/11/2026): a cada 50 ou 100, só nos mapas em mm ou % ---- */
+  var ISO_INT = { linha: '#ffffff', largura: 0.22, opacLinha: 0.8, rotCor: '#3a3a3a', rotOpac: 0.7, rotTam: 3.6 };   // igual à Umidade Mínima
+  function isoTipo() { var v = $('mcIsoTipo') ? $('mcIsoTipo').value : 'faixas'; return v === '50' || v === '100' ? v : 'faixas'; }
+  function aceitaIntervalo(p) { var u = N.PRODUTOS[p].unidade; return u === 'mm' || u === '%'; }
+  function isoPasso(p) { var t = isoTipo(); return t !== 'faixas' && aceitaIntervalo(p) ? +t : 0; }
+  function niveisIntervalo(grade, passo, chave) {   // múltiplos do passo entre o menor e o maior valor do mapa
+    var k = 'niv|' + chave + '|' + passo; if (S.iso[k]) return S.iso[k];
+    var mn = Infinity, mx = -Infinity; for (var i = 0; i < grade.length; i++) { var v = grade[i]; if (isFinite(v)) { if (v < mn) mn = v; if (v > mx) mx = v; } }
+    var l = []; if (isFinite(mn)) for (var n = Math.ceil(mn / passo) * passo; n <= mx && l.length < 60; n += passo) l.push(n);
+    return (S.iso[k] = l);
   }
   function cidades() {
     var fs = (window.CIDADES && window.CIDADES.features) || [];
@@ -523,10 +536,12 @@
       cidades: $('mcCidades').checked ? cidades() : []
     };
     if ($('mcIso').checked) {
-      var comRelevo = metodo === 'rec' && N.RECOMENDADO[p].metodo === 'rk', chIso = metodo + '|' + p + '|' + es.lim.join(',');
-      var I = comRelevo ? (S.iso[chIso + '|' + ($('mcIsoRot').checked ? 1 : 0) + ($('mcCidades').checked ? 1 : 0)] || isolinhas(suavizarParaIso(grade, 3), es.lim, $('mcIsoRot').checked, $('mcCidades').checked, chIso, 0.3))
-        : isolinhas(grade, es.lim, $('mcIsoRot').checked, $('mcCidades').checked, chIso);
-      op.isolinhas = [{ linhas: I.linhas, stroke: ISO.cor, width: ISO.largura, opacity: ISO.opacidade }];
+      // tipo: nas faixas (como sempre) ou a cada 50/100 (mm ou %), no estilo da Umidade Mínima (linha branca, rótulo cinza)
+      var passoIso = isoPasso(p), niveisIso = passoIso ? niveisIntervalo(grade, passoIso, metodo + '|' + p) : es.lim, estIso = passoIso ? ISO_INT : null;
+      var comRelevo = metodo === 'rec' && N.RECOMENDADO[p].metodo === 'rk', chIso = metodo + '|' + p + '|' + niveisIso.join(',') + (passoIso ? '|i' : '');
+      var I = comRelevo ? (S.iso[chIso + '|' + ($('mcIsoRot').checked ? 1 : 0) + ($('mcCidades').checked ? 1 : 0)] || isolinhas(suavizarParaIso(grade, 3), niveisIso, $('mcIsoRot').checked, $('mcCidades').checked, chIso, 0.3, estIso))
+        : isolinhas(grade, niveisIso, $('mcIsoRot').checked, $('mcCidades').checked, chIso, 0, estIso);
+      op.isolinhas = [passoIso ? { linhas: I.linhas, stroke: ISO_INT.linha, width: ISO_INT.largura, opacity: ISO_INT.opacLinha } : { linhas: I.linhas, stroke: ISO.cor, width: ISO.largura, opacity: ISO.opacidade }];
       op.rotulosIso = I.rotulos;
     }
     if ($('mcMostrarEst').checked) op.pontos = C.pts.filter(function (x) { return x.lon > -52 && x.lon < -39 && x.lat > -23.5 && x.lat < -14; }).map(function (x) { return { lon: x.lon, lat: x.lat, rotulo: '', cor: '#111' }; });
@@ -544,6 +559,8 @@
     var krig = S.metodo === 'krig', recM = S.metodo === 'rec';
     $('mcVistaIdw').hidden = krig || recM; $('mcVistaKrig').hidden = !krig; $('mcKrigAviso').hidden = !krig; $('mcVistaRec').hidden = !recM; $('mcRecAviso').hidden = !recM;
     $('mcIsoRot').disabled = !$('mcIso').checked;
+    $('mcIsoTipo').disabled = !$('mcIso').checked;
+    $('mcIsoTipoHint').textContent = $('mcIso').checked && isoTipo() !== 'faixas' && !aceitaIntervalo(S.prod) ? 'Nas temperaturas as isolinhas ficam nas faixas (50/100 vale para chuva em mm e anomalia em %).' : '';
     var p = S.prod, P = N.PRODUTOS[p], el = $('mcMapa'), pr = prontoProduto(p), C = S.arqs[P.arq] ? calcular(p) : null;
     $('mcMapaTit').textContent = P.titulo + (krig ? ' — Krigagem (em avaliação)' : recM ? ' — ' + N.RECOMENDADO[p].nome + ' (em avaliação)' : '');
     $('mcRecMetodo').textContent = N.RECOMENDADO[p].nome;
@@ -713,7 +730,8 @@
     N.ORDEM.forEach(function (p) { $('mcPng_' + p).addEventListener('click', function () { png(p, 'idw'); }); $('mcPngK_' + p).addEventListener('click', function () { png(p, 'krig'); }); $('mcPngR_' + p).addEventListener('click', function () { png(p, 'rec'); }); });
     $('mcMetodo').addEventListener('click', function (e) { var b = e.target.closest('[data-m]'); if (b && b.dataset.m !== S.metodo) { S.metodo = b.dataset.m; mapas(); } });
     ['mcIso', 'mcIsoRot'].forEach(function (id) { $(id).addEventListener('change', function () { try { localStorage.setItem(id, $(id).checked ? '1' : '0'); } catch (er) { } mapas(); }); });
-    try { $('mcIso').checked = localStorage.getItem('mcIso') === '1'; $('mcIsoRot').checked = localStorage.getItem('mcIsoRot') === '1'; } catch (er) { }
+    try { $('mcIso').checked = localStorage.getItem('mcIso') === '1'; $('mcIsoRot').checked = localStorage.getItem('mcIsoRot') === '1'; var tv = localStorage.getItem('mcIsoTipo'); if (tv === '50' || tv === '100') $('mcIsoTipo').value = tv; } catch (er) { }
+    $('mcIsoTipo').addEventListener('change', function () { try { localStorage.setItem('mcIsoTipo', $('mcIsoTipo').value); } catch (er) { } mapas(); });
     $('mcMesoCsv').addEventListener('click', csvMeso);
     $('mcRegistro').addEventListener('click', registro);
     $('previewBtn').addEventListener('click', function () { if (!$('abaMapas').hidden && calcular(S.prod) && periodoEscolhido() && window.LayoutMapa && gradeDe(S.prod, S.metodo)) LayoutMapa.previa(opMapa(S.prod)); });

@@ -201,7 +201,7 @@
       { s: '#mcMetodo', t: 'Método', d: 'IDW = mapa oficial (igual ao QGIS). Krigagem e Método recomendado ficam em avaliação, cada um com título, arquivo e botões próprios.' },
       { s: '#mcRecAviso', t: 'Método recomendado', d: 'Qual método foi usado neste produto e, nas temperaturas, o efeito da altitude no mês. Em vermelho: o PNG fica bloqueado.' },
       { s: '#mcEscalaBox', t: 'Escala', d: 'Automática ou ajustada à mão. Os três métodos usam a mesma escala para comparar.' },
-      { s: '#mcIso', t: 'Isolinhas e opções', d: 'Isolinhas nos limites das classes, valores nas linhas, estações usadas e cidades de referência.' },
+      { s: '#mcIso', t: 'Isolinhas e opções', d: 'Isolinhas nas faixas ou, na chuva e na anomalia de chuva, a cada 50 ou 100 (linhas brancas). Valores nas linhas, estações usadas e cidades de referência.' },
       { s: '#mcValid', t: 'Qualidade', d: 'Erro da validação cruzada de cada método (tira uma estação por vez). Quanto menor, melhor.' },
       { s: '#mcMapa', t: 'Mapa', d: 'Layout de impressão, igual ao PNG. A Prévia do mapa mostra em tamanho grande.' },
       { s: '#mcMesoBody', t: 'Mesorregiões', d: 'Média, mínimo e máximo do mapa em cada mesorregião. Sai no CSV.' },
