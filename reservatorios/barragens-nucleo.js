@@ -127,6 +127,37 @@
     return a + ' - ' + b + ' mm';
   }
 
+  /* ---------------- gatilho do manual (4.6: Aviso de Chuva Intensa / Acumulado Significativo; Previsão 72h · Barragens) ----------------
+   * Dispara se, na região da barragem: chuva >= 100 mm em um dia OU >= 100 mm somados em 72 h (e/ou 40-50 mm/h).
+   * mm/h não dá para avaliar com o GFS (passos de 6 h): fica a critério do meteorologista.
+   * Região: o maior valor num raio (km) em volta do ponto; raio 0 = só o ponto. Interpolação bilinear do GFS. */
+  var LIMIAR_DIA = 100, LIMIAR_72H = 100;
+  function amostrasRaio(lon, lat, km) {
+    if (!(km > 0)) return [[lon, lat]];
+    var pts = [[lon, lat]], d = 0.01, dla = km / 111.32, dlo = km / (111.32 * Math.cos(lat * Math.PI / 180));
+    for (var y = -dla; y <= dla + 1e-9; y += d) for (var x = -dlo; x <= dlo + 1e-9; x += d)
+      if ((x / dlo) * (x / dlo) + (y / dla) * (y / dla) <= 1) pts.push([lon + x, lat + y]);
+    return pts;
+  }
+  function gatilho(j, lon, lat, km, dias) {
+    dias = dias || ['dia1', 'dia2', 'dia3', 'dia4'];
+    var pts = amostrasRaio(lon, lat, km), g = j.grade;
+    var porDia = dias.map(function (k) { var m = j.produtos[k].mm, mx = -Infinity; pts.forEach(function (p) { var v = bilinear(g, m, p[0], p[1]); if (v > mx) mx = v; }); return mx; });
+    // soma de 72 h em cada janela (dias 1-3, 2-4…), pegando o maior valor da soma dentro da região (não a soma dos máximos)
+    var janelas = [];
+    for (var a = 0; a + 3 <= dias.length; a++) {
+      var mx = -Infinity;
+      pts.forEach(function (p) { var s = 0; for (var k = a; k < a + 3; k++) s += bilinear(g, j.produtos[dias[k]].mm, p[0], p[1]); if (s > mx) mx = s; });
+      janelas.push({ ini: a, fim: a + 2, mm: mx });
+    }
+    var diaMax = Math.max.apply(null, porDia), iDia = porDia.indexOf(diaMax);
+    var j72 = janelas.reduce(function (b, x) { return !b || x.mm > b.mm ? x : b; }, null);
+    var motivos = [];
+    if (diaMax >= LIMIAR_DIA) motivos.push('dia');
+    if (j72 && j72.mm >= LIMIAR_72H) motivos.push('72h');
+    return { porDia: porDia, diaMax: diaMax, iDia: iDia, janelas: janelas, max72: j72, dispara: motivos.length > 0, motivos: motivos, pontos: pts.length };
+  }
+
   /* ---------------- datas ---------------- */
   function soma(dataISO, dias) { var p = dataISO.split('-').map(Number), d = new Date(Date.UTC(p[0], p[1] - 1, p[2] + dias)); return d.toISOString().slice(0, 10); }
   function br(dataISO) { var p = dataISO.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
@@ -142,5 +173,5 @@
   }
 
   return { VERSAO: VERSAO, ESCALAS: ESCALAS, HORIZONTES: HORIZONTES, classe: classe, validar: validar, celula: celula, bilinear: bilinear,
-    dentro: dentro, caixa: caixa, amostras: amostras, estatMunicipio: estatMunicipio, faixa: faixa, janelas: janelas, br: br, soma: soma, fmt: fmt };
+    dentro: dentro, caixa: caixa, amostras: amostras, gatilho: gatilho, amostrasRaio: amostrasRaio, LIMIAR_DIA: LIMIAR_DIA, LIMIAR_72H: LIMIAR_72H, estatMunicipio: estatMunicipio, faixa: faixa, janelas: janelas, br: br, soma: soma, fmt: fmt };
 });

@@ -58,4 +58,21 @@ t('janelas dos dias (00Z e 06Z)', () => {
   const w6 = N.janelas(Object.assign({}, J, { ciclo: '06' }), 72);
   assert.strictEqual(w6.length, 3); assert.strictEqual(w6[0].local, '03h de 28/01/2025 a 03h de 29/01/2025 (hora local)');
 });
+t('gatilho: 100 mm/dia, 100 mm em 72 h, raio', () => {
+  const K = JSON.parse(JSON.stringify(J));
+  const fill = (v) => lat.map(() => lon.map(() => v));
+  K.produtos.dia1 = { mm: fill(30) }; K.produtos.dia2 = { mm: fill(40) }; K.produtos.dia3 = { mm: fill(29) }; K.produtos.dia4 = { mm: fill(5) };
+  let g = N.gatilho(K, -44, -20, 0);
+  assert.strictEqual(g.dispara, false); assert.ok(Math.abs(g.max72.mm - 99) < 1e-9);
+  K.produtos.dia3 = { mm: fill(30) };
+  g = N.gatilho(K, -44, -20, 0); assert.deepStrictEqual(g.motivos, ['72h']); assert.strictEqual(g.max72.ini, 0);
+  K.produtos.dia4 = { mm: fill(100) };
+  g = N.gatilho(K, -44, -20, 0); assert.deepStrictEqual(g.motivos, ['dia', '72h']); assert.strictEqual(g.iDia, 3); assert.strictEqual(g.max72.ini, 1);
+  // pico de 150 mm num ponto a ~15 km: raio 0 não vê, raio 20 km vê
+  const P = JSON.parse(JSON.stringify(J)); ['dia1','dia2','dia3','dia4'].forEach(k => P.produtos[k] = { mm: fill(0) });
+  const y = lat.indexOf(-20), x = lon.indexOf(-43.75); P.produtos.dia2.mm[y][x] = 150;
+  assert.strictEqual(N.gatilho(P, -44, -20, 0).dispara, false);
+  assert.strictEqual(N.gatilho(P, -44, -20, 30).dispara, true);
+  assert.ok(N.gatilho(P, -44, -20, 10).diaMax < 100);
+});
 console.log(n + ' testes ok');
