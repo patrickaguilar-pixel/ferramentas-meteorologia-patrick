@@ -7,7 +7,6 @@
  * A aba é criada por este arquivo (botão + painel), para a página oficial só precisar de 2 linhas <script>.
  * Independente do app.js (que roda fechado numa função): só usa reservatorios/barragens-nucleo.js e window.CIDADES
  * (chuva/data/cidades.js, já carregado na página). Quando a aba abre, carrega: municípios (alertas/data/municipios.js),
- * mesorregiões (mapas-climaticos/meso.js — mesma geometria do app.js; reserva: tempo-severo/data/meso.js),
  * logos (assets/logo_simge.png e logo_igam.png) e, só para o PDF, o jsPDF (previsao/lib/jspdf.umd.min.js).
  *
  * Representações:
@@ -43,22 +42,16 @@
     '-22.2271\t-45.9394\tPouso Alegre\tPouso Alegre\tPouso Alegre'
   ].join('\n');
 
-  // extensões dos layouts do QGIS (layout_chuva_72horas_barragens*.qpt): moldura 282,504 × 196,344 mm
-  var EXT_QGIS_ESTADO = { x0: -52.52044426363767, x1: -39.24051185085229, y0: -23.317320677034964, y1: -14.087572929732508 };
-  var EXT_QGIS_ZOOM = { x0: -48.66398481946848, x1: -42.85731362208365, y0: -22.990239751065534, y1: -18.954518127076692 };
-  var COR_BARRAGEM = '#db1e2a';   // losango vermelho do boletim de jan/2025
   // cor do losango por nível de emergência (N2 = vermelho do boletim; N3 mais escuro; N1 laranja; sem nível = cinza)
   var COR_NIVEL = { 3: '#7f0010', 2: '#db1e2a', 1: '#f28c28', 0: '#8c8c8c' };
-  function corB(b) { return COR_NIVEL[b && b.nv != null ? b.nv : 0] || COR_BARRAGEM; }
+  function corB(b) { return COR_NIVEL[b && b.nv != null ? b.nv : 0]; }
   function nivelInt(t) { var m = /n[ií]vel\s*([0-3])|\bN\s*([0-3])\b/i.exec(String(t || '')); return m ? +(m[1] || m[2]) : null; }
 
-  var REPRES = [
-    { id: 'padrao', nome: 'Padrão das ferramentas', grupo: 'Padrão', desc: 'Mesmo layout dos outros mapas da plataforma (Reservatórios, Acumulados, Previsão): chuva do GFS interpolada em grade de 0,05°, como na aba Acumulados.' },
-    { id: 'orig', nome: 'Original · Estado (blocos)', grupo: 'Original', desc: 'Como o boletim de hoje: Minas inteira, chuva nos blocos de 0,25° do GFS.' },
-    { id: 'origzoom', nome: 'Original · Zoom (blocos)', grupo: 'Original', desc: 'Como o layout “com zoom” do QGIS (centro-sul de Minas), com o nome das barragens.' },
-    { id: 'regiao', nome: 'Região detalhada', grupo: 'Proposta', desc: 'Zoom automático na região, chuva suavizada, limites municipais, barragens numeradas e localização no estado.' },
-    { id: 'municipio', nome: 'Por município', grupo: 'Proposta', desc: 'Cada município com a chuva média na área dele: é a mesma unidade usada no texto do boletim.' },
-    { id: 'diario', nome: 'Dia a dia', grupo: 'Proposta', desc: 'Um mapa por dia e o total, com o gráfico da chuva de cada dia nos municípios monitorados.' }
+  var REPRES = [   // 13/11/2026 (v0.2): todas no layout padrão da plataforma
+    { id: 'estado', nome: 'Minas Gerais', desc: 'Mapa de Minas inteiro, igual aos outros mapas da plataforma, com a chuva suavizada.' },
+    { id: 'regiao', nome: 'Zoom na região', desc: 'Recorte automático na região (barragens ou município e entorno): limites municipais, nomes e cidades.' },
+    { id: 'municipio', nome: 'Média por município', desc: 'No mesmo recorte, cada município pintado pela chuva média na área dele (o número que vai no texto).' },
+    { id: 'diario', nome: 'Dia a dia', desc: 'Um mapa para cada dia, o total e o gráfico da chuva de cada dia nos municípios monitorados.' }
   ];
 
   /* ---------------- utilidades ---------------- */
@@ -77,7 +70,7 @@
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
 
   /* ---------------- estado ---------------- */
-  var S = { figOp: null, anm: null, anmStatus: null, anmErro: null, fonte: 'anm', listaEquipe: [], meso: null, logos: {}, J: null, ciclo: null, mun: null, munIdx: null, barragens: [], avisosLista: [], origemLista: 'padrão', repr: 'padrao', fig: null, calc: null, carregando: null };
+  var S = { figOp: null, anm: null, anmStatus: null, anmErro: null, fonte: 'anm', listaEquipe: [], meso: null, logos: {}, J: null, ciclo: null, mun: null, munIdx: null, barragens: [], avisosLista: [], origemLista: 'padrão', repr: 'estado', fig: null, calc: null, carregando: null };
 
   /* ---------------- lista de barragens ---------------- */
   function lerBarragensTxt(txt) {
@@ -116,15 +109,14 @@
 
   /* ---------------- dados ---------------- */
   async function garantirMunicipios() {
-    if (S.mun && S.meso) return;
+    if (S.mun) return;
     var q = QV ? '?' + QV : '';
     var tarefas = [];
     if (!window.MUNICIPIOS_MG) tarefas.push(carregarScript(BASE + 'alertas/data/municipios.js' + q));
-    if (!window.MESO_MC && !window.MESO) tarefas.push(carregarScript(BASE + 'mapas-climaticos/meso.js' + q).catch(function () { return carregarScript(BASE + 'tempo-severo/data/meso.js' + q); }));
     tarefas.push(carregarLogo('simge', 'assets/logo_simge.png'), carregarLogo('igam', 'assets/logo_igam.png'));
     await Promise.all(tarefas);
-    S.meso = window.MESO_MC || window.MESO;
-    if (!S.meso || !S.meso.features || !window.MUNICIPIOS_MG) throw new Error('limites de municípios ou mesorregiões indisponíveis');
+    if (!window.MUNICIPIOS_MG) throw new Error('limites municipais indisponíveis');
+    if (typeof GEO === 'undefined' || !window.LayoutMapa) throw new Error('layout dos mapas indisponível (previsao/data/geo.js e assets/layout-mapa.js)');
     S.mun = window.MUNICIPIOS_MG; S.munIdx = {};
     S.mun.features.forEach(function (f) { S.munIdx[norm(f.properties.nome)] = f; });
   }
@@ -177,7 +169,7 @@
     var munNome = produto === 'brumadinho' ? 'Brumadinho' : $('brMunicipio').value;
     if (produto === 'brumadinho') produto = 'municipio';
     return { produto: produto, horas: h, escala: N.ESCALAS[$('brEscala').value] || N.ESCALAS.boletim, escalaId: $('brEscala').value, munNome: munNome,
-      cidades: $('brCidades').checked, rotulosBarr: $('brRotulos').checked, niveis: niveisEscolhidos(), raio: +$('brRaio').value };
+      cidades: $('brCidades').checked, niveis: niveisEscolhidos(), raio: +$('brRaio').value };
   }
   // municípios monitorados: os das barragens (cadastro) ou o município escolhido
   function monitorados(o) {
@@ -221,474 +213,377 @@
       var meds = linhas.map(function (l) { return l.dias[k].media; }), maxs = linhas.map(function (l) { return l.dias[k].max; });
       return { w: w, faixa: linhas.length ? N.faixa(Math.min.apply(null, meds), Math.max.apply(null, meds)) : '—', maxMun: linhas.length ? Math.max.apply(null, maxs) : NaN };
     });
+    // produto município: barragens da ANM (nível ≥ 1) dentro do município, só para localizar no mapa
+    var barrMun = [];
+    if (o.produto !== 'barragens' && S.anm && mons[0]) S.anm.barragens.forEach(function (b) {
+      if (!(b.nivel >= 1) || b.pendencia || !N.dentro(b.lon, b.lat, mons[0].geometry)) return;
+      barrMun.push({ lat: b.lat, lon: b.lon, nome: b.nome, municipio: b.municipio, nivel: 'Nível ' + b.nivel, nv: b.nivel, fonte: 'ANM' });
+    });
     var dispara = o.produto === 'barragens' ? pontos.some(function (p) { return p.gat.dispara; }) : !!(gatMun && gatMun.dispara);
-    return { o: o, H: H, mons: mons, linhas: linhas, pontos: pontos, jan: jan, diasTxt: diasTxt, gatMun: gatMun, dispara: dispara,
+    return { o: o, H: H, mons: mons, linhas: linhas, pontos: pontos, jan: jan, diasTxt: diasTxt, gatMun: gatMun, dispara: dispara, barrMun: barrMun,
       periodo: N.br(jan[0].data) + ' a ' + N.br(jan[jan.length - 1].data) };
   }
 
   /* =====================================================================================
-   * DESENHO (SVG em milímetros, folha A4 deitada 297 × 210, igual ao layout do QGIS)
+   * DESENHO — 13/11/2026 (v0.2): TODAS as figuras no layout padrão da plataforma (assets/layout-mapa.js):
+   * cabeçalho, coluna de legenda, "VÁLIDO", créditos e rodapé iguais aos outros mapas. Nada de blocos do GFS:
+   * a chuva é sempre a interpolação bilinear desenhada como imagem fina (sem degraus).
+   *   estado    — Minas inteira (o mapa de Minas do LayoutMapa + chuva suavizada)
+   *   regiao    — recorte automático (barragens ou município e entorno), limites municipais, nomes
+   *   municipio — recorte com cada município pintado pela chuva média (a unidade do texto)
+   *   diario    — no mesmo layout: um mapa por dia, o total e o gráfico por município
    * ===================================================================================== */
   var PAG = { w: 297, h: 210 };
-  var FONTE = 'Arial, Helvetica, sans-serif';
+  var NAVY = '#092b6a', FONTE = "Arial, 'Liberation Sans', Helvetica, sans-serif";
   var uid = 0;
-  function projecao(ext, r, igualGraus) {
-    // igualGraus = true: 1° de longitude = 1° de latitude (como o QGIS em EPSG:4674); senão corrige pelo cosseno da latitude
-    var cy = (ext.y0 + ext.y1) / 2, fx = igualGraus ? 1 : Math.cos(cy * Math.PI / 180);
-    var k = Math.min(r.w / ((ext.x1 - ext.x0) * fx), r.h / (ext.y1 - ext.y0));
-    var cx = (ext.x0 + ext.x1) / 2, hw = r.w / (k * fx) / 2, hh = r.h / k / 2;
-    var e = { x0: cx - hw, x1: cx + hw, y0: cy - hh, y1: cy + hh };
-    return { e: e, k: k, fx: fx, r: r, X: function (lon) { return r.x + (lon - e.x0) * k * fx; }, Y: function (lat) { return r.y + (e.y1 - lat) * k; } };
-  }
+  var medidor = document.createElement('canvas').getContext('2d');
+  function larguraTexto(t, tam, peso) { medidor.font = (peso || 400) + ' 100px ' + FONTE; return medidor.measureText(String(t)).width * tam / 100; }
+  function LM() { return window.LayoutMapa; }
   function bbGeom(f) { return f._bb || (f._bb = N.caixa(f.geometry)); }
   function cruza(bb, e) { return !(bb[2] < e.x0 || bb[0] > e.x1 || bb[3] < e.y0 || bb[1] > e.y1); }
   function caminho(geom, P) {
     var s = '', pol = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
     pol.forEach(function (p) { p.forEach(function (ring) {
       var ult = null;
-      ring.forEach(function (c, i) {
-        var x = P.X(c[0]).toFixed(2), y = P.Y(c[1]).toFixed(2), t = x + ' ' + y;
-        if (i && t === ult) return; s += (i ? 'L' : 'M') + t; ult = t;
-      });
+      ring.forEach(function (c, i) { var t = P.X(c[0]).toFixed(2) + ' ' + P.Y(c[1]).toFixed(2); if (i && t === ult) return; s += (i ? 'L' : 'M') + t; ult = t; });
       s += 'Z';
     }); });
     return s;
   }
-  function clipMG(P, id) {
-    return '<clipPath id="' + id + '">' + S.meso.features.map(function (f) { return '<path d="' + caminho(f.geometry, P) + '"/>'; }).join('') + '</clipPath>';
-  }
-  function corClasse(v, esc) { return esc.cores[N.classe(v, esc.lim)]; }
   function hexRgbArr(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
-  // chuva em blocos (cada célula de 0,25° do GFS)
-  function camadaBlocos(J, m, P, esc) {
-    var g = J.grade, s = '';
-    for (var y = 0; y < g.lat.length; y++) for (var x = 0; x < g.lon.length; x++) {
-      var lo = g.lon[x], la = g.lat[y];
-      if (lo + 0.125 < P.e.x0 || lo - 0.125 > P.e.x1 || la + 0.125 < P.e.y0 || la - 0.125 > P.e.y1) continue;
-      var x0 = P.X(lo - 0.125), x1 = P.X(lo + 0.125), y0 = P.Y(la + 0.125), y1 = P.Y(la - 0.125);
-      s += '<rect x="' + x0.toFixed(2) + '" y="' + y0.toFixed(2) + '" width="' + (x1 - x0 + 0.03).toFixed(2) + '" height="' + (y1 - y0 + 0.03).toFixed(2) + '" fill="' + corClasse(m[y][x], esc) + '"/>';
-    }
-    return s;
-  }
-  // chuva suavizada (interpolação bilinear entre os pontos do GFS), desenhada como imagem
-  function camadaSuave(J, m, P, esc, pxmm) {
-    var W = Math.max(50, Math.min(2400, Math.round(P.r.w * pxmm))), H = Math.max(50, Math.min(2000, Math.round(P.r.h * pxmm)));
-    var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-    var c = cv.getContext('2d'), img = c.createImageData(W, H), d = img.data, cores = esc.cores.map(hexRgbArr);
-    for (var j = 0; j < H; j++) {
-      var lat = P.e.y1 - (j + 0.5) / H * (P.e.y1 - P.e.y0);
-      for (var i = 0; i < W; i++) {
-        var lon = P.e.x0 + (i + 0.5) / W * (P.e.x1 - P.e.x0), v = N.bilinear(J.grade, m, lon, lat), o = (j * W + i) * 4;
-        if (!isFinite(v)) { d[o + 3] = 0; continue; }
-        var cc = cores[N.classe(v, esc.lim)]; d[o] = cc[0]; d[o + 1] = cc[1]; d[o + 2] = cc[2]; d[o + 3] = 255;
-      }
-    }
-    c.putImageData(img, 0, 0);
-    return '<image x="' + P.r.x + '" y="' + P.r.y + '" width="' + P.r.w + '" height="' + P.r.h + '" preserveAspectRatio="none" href="' + cv.toDataURL('image/png') + '"/>';
-  }
-  function linhasMeso(P, cor, larg) {
-    return S.meso.features.map(function (f) { return '<path d="' + caminho(f.geometry, P) + '" fill="none" stroke="' + cor + '" stroke-width="' + larg + '" stroke-linejoin="round"/>'; }).join('');
-  }
-  function linhasMunicipios(P, cor, larg) {
-    return S.mun.features.filter(function (f) { return cruza(bbGeom(f), P.e); }).map(function (f) { return '<path d="' + caminho(f.geometry, P) + '" fill="none" stroke="' + cor + '" stroke-width="' + larg + '" stroke-linejoin="round"/>'; }).join('');
-  }
+  function hexRgb(h) { return 'rgb(' + hexRgbArr(h).join(',') + ')'; }
+  function corClasse(v, esc) { return esc.cores[N.classe(v, esc.lim)]; }
   function texto(x, y, t, tam, op) {
     op = op || {};
-    var a = ' font-family="' + FONTE + '" font-size="' + tam + '"' + (op.peso ? ' font-weight="' + op.peso + '"' : '') + (op.anc ? ' text-anchor="' + op.anc + '"' : '') + (op.cor ? ' fill="' + op.cor + '"' : '') + (op.it ? ' font-style="italic"' : '');
-    if (op.halo) a += ' stroke="#fff" stroke-width="' + (op.halo === true ? tam * 0.22 : op.halo) + '" stroke-linejoin="round" paint-order="stroke"';
+    var a = ' font-family="' + FONTE + '" font-size="' + mm(tam) + '"' + (op.peso ? ' font-weight="' + op.peso + '"' : '') + (op.anc ? ' text-anchor="' + op.anc + '"' : '') + ' fill="' + (op.cor || '#000') + '"';
+    if (op.halo) a += ' stroke="#fff" stroke-width="' + mm(op.halo === true ? tam * 0.25 : op.halo) + '" stroke-linejoin="round" paint-order="stroke"';
     return '<text x="' + mm(x) + '" y="' + mm(y) + '"' + a + '>' + esc(t) + '</text>';
   }
-  function losango(x, y, r, cor) { return '<path d="M' + mm(x) + ' ' + mm(y - r) + 'L' + mm(x + r) + ' ' + mm(y) + 'L' + mm(x) + ' ' + mm(y + r) + 'L' + mm(x - r) + ' ' + mm(y) + 'Z" fill="' + cor + '" stroke="#5a0b10" stroke-width="0.25"/>'; }
-  function moldura(r, larg) { return '<rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '" fill="none" stroke="#000" stroke-width="' + (larg || 0.3) + '"/>'; }
-  // coordenadas na borda da moldura (como a grade do QGIS)
-  function gradeBorda(P, passo) {
-    var s = '', e = P.e, r = P.r;
-    function rot(v, lat) { var a = Math.abs(v), g = Math.floor(a + 1e-9), mi = Math.round((a - g) * 60); return g + '°' + (mi ? ('0' + mi).slice(-2) + '\'' : '') + (lat ? 'S' : 'W'); }
-    for (var lo = Math.ceil(e.x0 / passo) * passo; lo <= e.x1; lo += passo) {
-      var x = P.X(lo); if (x < r.x + 4 || x > r.x + r.w - 4) continue;
-      s += '<path d="M' + mm(x) + ' ' + r.y + 'v1.4M' + mm(x) + ' ' + (r.y + r.h) + 'v-1.4" stroke="#000" stroke-width="0.2"/>' + texto(x, r.y + r.h + 2.6, rot(lo, false), 1.9, { anc: 'middle', cor: '#333' });
-    }
-    for (var la = Math.ceil(e.y0 / passo) * passo; la <= e.y1; la += passo) {
-      var y = P.Y(la); if (y < r.y + 4 || y > r.y + r.h - 4) continue;
-      s += '<path d="M' + r.x + ' ' + mm(y) + 'h1.4M' + (r.x + r.w) + ' ' + mm(y) + 'h-1.4" stroke="#000" stroke-width="0.2"/>' +
-        '<text transform="translate(' + mm(r.x - 1) + ' ' + mm(y) + ') rotate(-90)" font-family="' + FONTE + '" font-size="1.9" text-anchor="middle" fill="#333">' + rot(la, true) + '</text>';
-    }
-    return s;
-  }
-  function barraEscala(P, x, y, kmMax) {
-    var kmGrau = 111.32 * Math.cos(((P.e.y0 + P.e.y1) / 2) * Math.PI / 180), mmKm = P.k * P.fx / kmGrau;
-    var passo = kmMax / 3, s = '';
-    for (var i = 0; i < 3; i++) s += '<rect x="' + mm(x + i * passo * mmKm) + '" y="' + y + '" width="' + mm(passo * mmKm) + '" height="1.1" fill="' + (i % 2 ? '#fff' : '#000') + '" stroke="#000" stroke-width="0.15"/>';
-    for (i = 0; i <= 3; i++) s += texto(x + i * passo * mmKm, y - 0.8, String(Math.round(i * passo)), 2.1, { anc: 'middle' });
-    s += texto(x + 3 * passo * mmKm + 1.5, y + 1.1, 'km', 2.1);
-    return s;
-  }
-  function cidadesMapa(P, tam) {
-    var l = cidadesRef().filter(function (c) { return c[1] > P.e.x0 && c[1] < P.e.x1 && c[2] > P.e.y0 && c[2] < P.e.y1; });
-    return l.map(function (c) {
-      var x = P.X(c[1]), y = P.Y(c[2]);
-      return '<circle cx="' + mm(x) + '" cy="' + mm(y) + '" r="' + (tam * 0.28) + '" fill="#fff" stroke="#222" stroke-width="0.25"/>' + texto(x + tam * 0.45, y - tam * 0.35, c[0], tam, { halo: true, cor: '#111' });
-    }).join('');
-  }
-  function logos(x, y, h) {   // SIMGE à esquerda, IGAM à direita (como no boletim)
-    var s = '', xx = x;
-    ['simge', 'igam'].forEach(function (k) {
-      var L = S.logos[k]; if (!L) return;
-      var w = h * L.w / L.h;
-      s += '<image x="' + mm(xx) + '" y="' + y + '" width="' + mm(w) + '" height="' + h + '" href="' + L.url + '"/>'; xx += w + h * 0.25;
-    });
-    return s;
-  }
-  function svgFolha(miolo) {
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + PAG.w + ' ' + PAG.h + '" width="' + PAG.w + 'mm" height="' + PAG.h + 'mm"><rect width="' + PAG.w + '" height="' + PAG.h + '" fill="#fff"/>' + miolo + '</svg>';
-  }
+  function losango(x, y, r, cor) { return '<path d="M' + mm(x) + ' ' + mm(y - r) + 'L' + mm(x + r) + ' ' + mm(y) + 'L' + mm(x) + ' ' + mm(y + r) + 'L' + mm(x - r) + ' ' + mm(y) + 'Z" fill="' + cor + '" stroke="#fff" stroke-width="0.35"/>'; }
   function tituloProduto(o) {
     if (o.produto !== 'barragens') return o.munNome + ' - MG';
     var nv = (o.niveis || [2, 3]).slice().sort();
     return 'Barragens ' + (nv.length > 1 ? 'níveis ' + lista(nv.map(String)) : 'nível ' + nv[0]) + ' - MG';
   }
+  function tituloCurto(o) { return o.produto === 'barragens' ? tituloProduto(o).replace(' - MG', '') : o.munNome; }
 
-  /* ---------- Original (estado e zoom): o layout do QGIS ---------- */
-  function figOriginal(C, zoom) {
-    var o = C.o, J = S.J, m = J.produtos[C.H.total].mm, esc = o.escala, id = 'b' + (++uid);
-    var R = { x: 7.24821, y: 6.82794, w: 282.504, h: 196.344 };
-    var P = projecao(zoom ? EXT_QGIS_ZOOM : EXT_QGIS_ESTADO, R, true);
-    var s = '<defs><clipPath id="' + id + 'r"><rect x="' + R.x + '" y="' + R.y + '" width="' + R.w + '" height="' + R.h + '"/></clipPath>' + clipMG(P, id + 'mg') + '</defs>';
-    s += '<g clip-path="url(#' + id + 'r)"><g clip-path="url(#' + id + 'mg)">' + camadaBlocos(J, m, P, esc) + '</g>';
-    if (o.produto !== 'barragens') C.mons.forEach(function (f) { s += '<path d="' + caminho(f.geometry, P) + '" fill="#8c8c8c" fill-opacity="0.9" stroke="#232323" stroke-width="0.26"/>'; });
-    s += linhasMeso(P, '#3c3c3c', 0.25);
-    if (o.cidades) s += cidadesMapa(P, zoom ? 2.6 : 2.3);
-    if (o.produto === 'barragens') S.barragens.forEach(function (b) {
-      var x = P.X(b.lon), y = P.Y(b.lat);
-      s += losango(x, y, zoom ? 1.3 : 1.05, corB(b));
-      if (zoom && o.rotulosBarr) s += texto(x + 1.8, y + 1.1, b.nomeBda, 3.0, { halo: true });   // BARRAGENS_zoom.qml: rótulo NOME_BDA
-    });
-    s += '</g>' + moldura(R) + gradeBorda(P, zoom ? 1 : 2);
-    // cabeçalho (caixas do .qpt)
-    s += texto(71.8, 16, 'Total Previsto de Precipitação', 6.2, { anc: 'middle', peso: 700, halo: 1.2 });
-    s += texto(71.8, 24, tituloProduto(o), 6.2, { anc: 'middle', peso: 700, halo: 1.2 });
-    s += texto(68.5, 39.6, 'Modelo GFS', 4.2, { anc: 'middle', halo: 1 });
-    s += texto(68.5, 51, C.periodo, 4.2, { anc: 'middle', halo: 1 });
-    // legenda (3 colunas, como no boletim)
-    var lx = 12.5, ly = 143.5;
-    s += '<rect x="' + (lx - 1.5) + '" y="' + (ly - 4) + '" width="58" height="31" fill="#fff" fill-opacity="0.85"/>';
-    s += '<path d="M' + lx + ' ' + (ly - 1) + 'h4" stroke="#3c3c3c" stroke-width="0.35"/>' + texto(lx + 5.5, ly, 'Mesorregiões', 2.4);
-    s += texto(lx, ly + 4, 'Precipitação Prevista (mm)', 2.4);
-    esc.rotulos.forEach(function (rt, i) {
-      var cx = lx + Math.floor(i / 5) * 18.5, cy = ly + 6 + (i % 5) * 4.1;
-      s += '<rect x="' + cx + '" y="' + cy + '" width="4" height="3" fill="' + esc.cores[i] + '" stroke="#777" stroke-width="0.12"/>' + texto(cx + 5.2, cy + 2.4, rt, 2.3);
-    });
-    if (o.produto === 'barragens') {
-      var nvs = (o.niveis || [2, 3]).slice().sort(function (a, b) { return b - a; });
-      nvs.forEach(function (n, i) { s += losango(lx + 2 + i * 17, ly + 28.6, 1.05, COR_NIVEL[n]) + texto(lx + 5 + i * 17, ly + 29.4, 'Nível ' + n, 2.3); });
-    }
-    else { s += '<rect x="' + lx + '" y="' + (ly + 27.2) + '" width="4" height="3" fill="#8c8c8c" stroke="#232323" stroke-width="0.2"/>' + texto(lx + 5.5, ly + 29.6, o.munNome, 2.3); }
-    // créditos, escala e logos
-    var cx2 = 257.4, cyy = 166;
-    s += '<rect x="226" y="161.5" width="63" height="22" fill="#fff" fill-opacity="0.85"/>';
-    ['Sistema de Coordenadas Geográficas', 'Datum SIRGAS 2000', 'Fonte de Dados: GFS/NCEP/NOAA', 'Rodada ' + J.ciclo + 'Z de ' + N.br(J.data_ciclo), 'Elaboração: SIMGE/GMHEC/IGAM - ' + J.data_ciclo.slice(0, 4)]
-      .forEach(function (t, i) { s += texto(cx2, cyy + i * 3.4, t, 2.3, { anc: 'middle' }); });
-    s += '<rect x="160" y="185" width="129" height="17.5" fill="#fff" fill-opacity="0.85"/>';
-    s += barraEscala(P, 163, 194, zoom ? 60 : 150);
-    s += logos(215.5, 186.5, 15);
-    return svgFolha(s);
-  }
-
-  /* ---------- extensão regional automática ---------- */
-  // separa os municípios monitorados em: grupo principal (perto uns dos outros) e afastados (viram quadro à parte),
-  // para um município distante (ex.: Pouso Alegre) não obrigar o mapa a mostrar meio estado
-  function separarRegiao(C) {
-    var M = C.mons.slice(); if (M.length <= 1) return { principal: M, afastados: [] };
-    var cen = function (f) { var bb = bbGeom(f); return [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2]; };
-    var nb = function (f) { return S.barragens.filter(function (b) { return b.munCad === f; }).length; };
-    var semente = M.slice().sort(function (a, b) { return nb(b) - nb(a); })[0], grupo = [semente], mudou = true;
-    while (mudou) {
-      mudou = false;
-      M.forEach(function (f) { if (grupo.indexOf(f) >= 0) return; var c = cen(f);
-        if (grupo.some(function (g) { var d = cen(g); return Math.hypot(c[0] - d[0], c[1] - d[1]) < 0.9; })) { grupo.push(f); mudou = true; } });
-    }
-    return { principal: grupo, afastados: M.filter(function (f) { return grupo.indexOf(f) < 0; }) };
-  }
-  function barragensDe(feats) {   // barragens do município (cadastro) ou a menos de 0,3° de um deles
-    return S.barragens.map(function (b, i) { return { b: b, n: i + 1 }; }).filter(function (x) {
-      return feats.some(function (f) { if (x.b.munCad === f) return true; var bb = bbGeom(f); return x.b.lon > bb[0] - 0.3 && x.b.lon < bb[2] + 0.3 && x.b.lat > bb[1] - 0.3 && x.b.lat < bb[3] + 0.3; }); });
-  }
-  function extRegiao(C, margem, feats, barrs) {
-    var b = [Infinity, Infinity, -Infinity, -Infinity];
-    function add(lo, la) { b[0] = Math.min(b[0], lo); b[1] = Math.min(b[1], la); b[2] = Math.max(b[2], lo); b[3] = Math.max(b[3], la); }
-    (feats || C.mons).forEach(function (f) { var bb = bbGeom(f); add(bb[0], bb[1]); add(bb[2], bb[3]); });
-    (barrs || []).forEach(function (x) { add(x.b.lon, x.b.lat); });
-    if (!isFinite(b[0])) return EXT_QGIS_ZOOM;
-    var mg = margem || 0.18, w = Math.max(0.5, b[2] - b[0] + 2 * mg), h = Math.max(0.4, b[3] - b[1] + 2 * mg), cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2;
-    return { x0: cx - w / 2, x1: cx + w / 2, y0: cy - h / 2, y1: cy + h / 2 };
-  }
-  // barragens muito próximas viram um marcador só (ex.: Forquilha I, II, III e Dique de Pedra, a menos de 2 km)
-  function agruparBarragens(P, distMm, lst) {
-    var grupos = [];
-    (lst || S.barragens.map(function (b, i) { return { b: b, n: i + 1 }; })).forEach(function (it) {
-      var x = P.X(it.b.lon), y = P.Y(it.b.lat), g = null;
-      for (var k = 0; k < grupos.length; k++) if (Math.hypot(grupos[k].x - x, grupos[k].y - y) < distMm) { g = grupos[k]; break; }
-      if (!g) { g = { x: x, y: y, itens: [] }; grupos.push(g); }
-      g.itens.push(it.n);
-    });
-    return grupos;
-  }
-  function numeros(it) { // [2,3,4,5] -> "2–5"; [1,3] -> "1,3"
-    var s = [], i = 0;
-    while (i < it.length) { var j = i; while (j + 1 < it.length && it[j + 1] === it[j] + 1) j++; s.push(j > i + 1 ? it[i] + '–' + it[j] : (j === i + 1 ? it[i] + ',' + it[j] : String(it[i]))); i = j + 1; }
-    return s.join(',');
-  }
-  function localizacao(r, ext) { // mapa pequeno de Minas com o retângulo da região
-    var P = projecao({ x0: -51.1, x1: -39.8, y0: -23.0, y1: -14.2 }, r, false);
-    var s = '<rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '" fill="#fff" stroke="#9aa5b1" stroke-width="0.2"/>';
-    s += S.meso.features.map(function (f) { return '<path d="' + caminho(f.geometry, P) + '" fill="#eef2f6" stroke="#9aa5b1" stroke-width="0.15"/>'; }).join('');
-    s += '<rect x="' + mm(P.X(ext.x0)) + '" y="' + mm(P.Y(ext.y1)) + '" width="' + mm(P.X(ext.x1) - P.X(ext.x0)) + '" height="' + mm(P.Y(ext.y0) - P.Y(ext.y1)) + '" fill="none" stroke="#c0392b" stroke-width="0.45"/>';
-    return s;
-  }
-  function legendaVertical(x, y, esc, titulo, alt) {
-    var s = texto(x, y, titulo, 2.7, { peso: 700 });
-    var n = esc.rotulos.length; alt = alt || 3.2;
-    esc.rotulos.forEach(function (rt, i) {
-      var yy = y + 2.2 + (n - 1 - i) * alt;   // maior em cima
-      s += '<rect x="' + x + '" y="' + mm(yy) + '" width="6" height="' + alt + '" fill="' + esc.cores[i] + '" stroke="#fff" stroke-width="0.1"/>' + texto(x + 7.5, yy + alt * 0.75, rt + ' mm', Math.min(2.3, alt * 0.75));
-    });
-    return { svg: s + '<rect x="' + x + '" y="' + (y + 2.2) + '" width="6" height="' + mm(n * alt) + '" fill="none" stroke="#8795a1" stroke-width="0.15"/>', fim: y + 2.2 + n * alt };
-  }
-  function cabecalhoProposta(C, titulo) {
-    var J = S.J, s = '<rect x="0" y="0" width="' + PAG.w + '" height="17" fill="#0d668f"/>';
-    s += texto(8, 8.2, titulo, 5.2, { peso: 700, cor: '#fff' });
-    s += texto(8, 13.6, tituloProduto(C.o) + '  ·  Modelo GFS 0,25° (rodada ' + J.ciclo + 'Z de ' + N.br(J.data_ciclo) + ')  ·  ' + C.periodo, 3.1, { cor: '#dbeefa' });
-    return s;
-  }
-  function rodapeProposta(extra) {
-    var s = '<path d="M8 197.6H289" stroke="#d8e1eb" stroke-width="0.3"/>';
-    s += texto(8, 201.6, 'Fonte de dados: GFS/NCEP/NOAA (chuva acumulada, grade de 0,25°). Municípios: IBGE. Coordenadas geográficas, SIRGAS 2000. Elaboração: SIMGE/GMHEC/IGAM.', 2.2, { cor: '#4a5868' });
-    if (extra) s += texto(8, 205.2, extra, 2.2, { cor: '#4a5868' });
-    return s + logos(231, 198.4, 10.2);
-  }
-
-  /* ---------- Proposta: região detalhada / por município ---------- */
-  // conteúdo de um quadro de mapa (principal ou quadro à parte): chuva, limites, municípios monitorados e barragens
-  function quadroRegiao(C, P, porMunicipio, id, op) {
-    var o = C.o, J = S.J, m = J.produtos[C.H.total].mm, esc = o.escala, R = P.r, s = '';
-    s += '<defs><clipPath id="' + id + 'r"><rect x="' + R.x + '" y="' + R.y + '" width="' + R.w + '" height="' + R.h + '"/></clipPath>' + clipMG(P, id + 'mg') + '</defs>';
-    s += '<g clip-path="url(#' + id + 'r)"><rect x="' + R.x + '" y="' + R.y + '" width="' + R.w + '" height="' + R.h + '" fill="#f3f5f7"/>';
-    var visiveis = S.mun.features.filter(function (f) { return cruza(bbGeom(f), P.e); });
-    if (porMunicipio) {
-      visiveis.forEach(function (f) {
-        var e = N.estatMunicipio(J, f, [C.H.total], 'suave')[C.H.total];
-        s += '<path d="' + caminho(f.geometry, P) + '" fill="' + corClasse(e.media, esc) + '" stroke="#fff" stroke-width="0.25"/>';
-      });
-    } else {
-      s += '<g clip-path="url(#' + id + 'mg)">' + camadaSuave(J, m, P, esc, op.pxmm || 7) + '</g>';
-      s += linhasMunicipios(P, 'rgba(255,255,255,0.75)', 0.22);
-    }
-    // sem as linhas das mesorregiões no zoom: a geometria delas é de outra fonte e não casa com a dos municípios (linha dupla)
-    var mons = C.mons.filter(function (f) { return cruza(bbGeom(f), P.e); });
-    mons.forEach(function (f) { s += '<path d="' + caminho(f.geometry, P) + '" fill="none" stroke="#111" stroke-width="0.7" stroke-linejoin="round"/>'; });
-    var nomesCid = {};
-    if (o.cidades && !op.inset) cidadesRef().forEach(function (c) { nomesCid[norm(c[0])] = 1; });
-    // outros municípios (só no mapa por município): nome pequeno, quando cabe e não repete uma cidade de referência
-    var rotMon = mons.map(function (f) { var bb = bbGeom(f); return [P.X((bb[0] + bb[2]) / 2), P.Y(bb[1]) + 3.4]; });
-    if ((porMunicipio || o.produto !== 'barragens') && !op.inset) visiveis.forEach(function (f) {
-      if (mons.indexOf(f) >= 0 || nomesCid[norm(f.properties.nome)]) return; var p = f.properties, x = P.X(p.label_lon), y = P.Y(p.label_lat), bb = bbGeom(f);
-      if (rotMon.some(function (r) { return Math.abs(r[0] - x) < 22 && Math.abs(r[1] - y) < 5; })) return;
-      if ((bb[2] - bb[0]) * P.k * P.fx < 14 || x < R.x + 8 || x > R.x + R.w - 8 || y < R.y + 4 || y > R.y + R.h - 3) return;
-      s += texto(x, y, p.nome, 1.9, { anc: 'middle', cor: '#33414f', halo: 0.6 });
-    });
-    if (o.cidades && !op.inset) s += cidadesMapa(P, 2.6);
-    // barragens: losango + número (barragens a menos de ~4 mm viram um marcador só)
-    if (o.produto === 'barragens') agruparBarragens(P, op.inset ? 3 : 4.2, op.barrs).forEach(function (g) {
-      var nvg = Math.max.apply(null, g.itens.map(function (n) { var b = S.barragens[n - 1]; return b && b.nv != null ? b.nv : 0; }));
-      s += losango(g.x, g.y, op.inset ? 1.2 : 1.6, COR_NIVEL[nvg]);
-      s += texto(g.x + 2.2, g.y + 3.6, numeros(g.itens), op.inset ? 2.4 : 2.8, { peso: 700, halo: 0.8, cor: '#7a0d14' });
-    });
-    // nome dos municípios monitorados embaixo do limite (não cobre as barragens); valor médio no mapa por município
-    C.linhas.forEach(function (l) {
-      if (mons.indexOf(l.f) < 0) return;
-      var bb = bbGeom(l.f), x = P.X((bb[0] + bb[2]) / 2), y = P.Y(bb[1]) + 3.4;
-      if (y > R.y + R.h - 2) y = P.Y(bb[3]) - 1.4;
-      s += texto(x, y, l.nome + (porMunicipio ? ' · ' + f0(l.total.media) + ' mm' : ''), op.inset ? 2.6 : 3.1, { anc: 'middle', peso: 700, halo: 0.9 });
-    });
-    return s + '</g>' + moldura(R, op.inset ? 0.3 : 0.35);
-  }
-  function figRegiao(C, porMunicipio) {
-    var o = C.o, esc = o.escala, id = 'b' + (++uid);
-    var R = { x: 8, y: 21, w: 196, h: 172 };
-    var sep = separarRegiao(C), bPrin = o.produto === 'barragens' ? barragensDe(sep.principal) : [];
-    var P = projecao(extRegiao(C, o.produto === 'barragens' ? 0.12 : 0.3, sep.principal, bPrin), R, false);
-    var s = cabecalhoProposta(C, 'Chuva prevista para ' + o.horas + ' horas' + (porMunicipio ? ' — média por município' : ''));
-    s += quadroRegiao(C, P, porMunicipio, id, { barrs: bPrin }) + gradeBorda(P, (P.e.x1 - P.e.x0) > 2.5 ? 0.5 : 0.25);
-    s += '<rect x="' + (R.x + R.w - 45) + '" y="' + (R.y + R.h - 9) + '" width="43" height="7" fill="#fff" fill-opacity="0.85"/>' + barraEscala(P, R.x + R.w - 42, R.y + R.h - 4.6, (P.e.x1 - P.e.x0) > 2 ? 30 : (P.e.x1 - P.e.x0) > 1 ? 15 : 6);
-    // municípios afastados: quadro à parte no canto inferior esquerdo
-    sep.afastados.slice(0, 2).forEach(function (f, i) {
-      var r = { x: R.x + 3 + i * 53, y: R.y + R.h - 50, w: 50, h: 40 };
-      var bA = o.produto === 'barragens' ? barragensDe([f]).filter(function (x) { return bPrin.indexOf(x) < 0 && !bPrin.some(function (y) { return y.n === x.n; }); }) : [];
-      var Pi = projecao(extRegiao(C, 0.1, [f], bA), r, false);
-      s += '<rect x="' + (r.x - 1) + '" y="' + (r.y - 5) + '" width="' + (r.w + 2) + '" height="' + (r.h + 6) + '" fill="#fff"/>' + texto(r.x, r.y - 1.4, 'Fora do recorte: ' + f.properties.nome, 2.4, { peso: 700 });
-      s += quadroRegiao(C, Pi, porMunicipio, id + 'i' + i, { inset: true, barrs: bA, pxmm: 6 });
-    });
-    if (sep.afastados.length > 2) s += texto(R.x + 3, R.y + R.h - 57, '+ ' + (sep.afastados.length - 2) + ' município(s) fora do recorte: ver a tabela', 2.3, { peso: 700, halo: true });
-    // coluna da direita
-    var X = 211, y = 22;
-    s += localizacao({ x: X, y: y, w: 78, h: 44 }, P.e);
-    y += 51;
-    var lg = legendaVertical(X, y, esc, porMunicipio ? 'Chuva média no município' : 'Chuva prevista (' + o.horas + ' h)', 2.75);
-    s += lg.svg; y = lg.fim + 6;
-    s += texto(X, y, 'Município', 2.5, { peso: 700 }) + texto(X + 50, y, 'média', 2.5, { peso: 700, anc: 'end' }) + texto(X + 66, y, 'mín–máx', 2.5, { peso: 700, anc: 'end' }) + texto(X + 78, y, 'mm', 2.3, { anc: 'end', cor: '#4a5868' });
-    C.linhas.slice().sort(function (a, b) { return b.total.media - a.total.media; }).forEach(function (l, i) {
-      var yy = y + 4 + i * 3.5;
-      s += texto(X, yy, l.nome, 2.5) + texto(X + 50, yy, f0(l.total.media), 2.5, { anc: 'end', peso: 700 }) + texto(X + 66, yy, f0(l.total.min) + '–' + f0(l.total.max), 2.5, { anc: 'end' });
-    });
-    y += 4 + C.linhas.length * 3.5 + 3;
-    if (o.produto === 'barragens') {
-      var n = S.barragens.length, dy = Math.min(3, (195 - y) / (n + 1)), fz = Math.min(2.15, dy * 0.75);
-      s += texto(X, y, 'Barragens (nº no mapa)', 2.5, { peso: 700 }); y += dy + 0.6;
-      S.barragens.forEach(function (b, i) {
-        var niv = b.nv != null ? [0, b.nv] : null;
-        s += losango(X + 1, y - fz * 0.38, fz * 0.42, corB(b)) + texto(X + 3, y, (i + 1) + '. ' + b.nome + ' — ' + (b.munCad ? b.munCad.properties.nome : b.municipio) + (niv ? ' (N' + niv[1] + ')' : ' (sem nível)') + ((b.avisos || []).length ? ' ⚠' : ''), fz);
-        y += dy;
-      });
-    }
-    var av = S.barragens.filter(function (b) { return (b.avisos || []).length; }).length;
-    s += rodapeProposta((porMunicipio ? 'Cor de cada município = média da chuva prevista nos pontos dentro dele (grade de ~1 km sobre a interpolação bilinear do GFS).' : 'Chuva suavizada: interpolação bilinear entre os pontos de 0,25° do GFS (a mesma chuva dos blocos do mapa original, sem os degraus).') +
-      (o.produto === 'barragens' && av ? ' ⚠ = conferir o cadastro da barragem.' : ''));
-    return svgFolha(s);
-  }
-
-  /* ---------- Proposta: dia a dia ---------- */
-  var CORES_DIAS = ['#9ecae1', '#4292c6', '#08519c', '#08306b'];
-  function figDiario(C) {
-    var o = C.o, J = S.J, esc = o.escala, id = 'b' + (++uid);
-    var s = cabecalhoProposta(C, 'Chuva prevista dia a dia');
-    var sep = separarRegiao(C), bPrin = o.produto === 'barragens' ? barragensDe(sep.principal) : [];
-    var ext = extRegiao(C, o.produto === 'barragens' ? 0.12 : 0.3, sep.principal, bPrin);
-    var paineis = C.H.dias.map(function (d, k) { return { m: J.produtos[d].mm, t: 'Dia ' + (k + 1) + ' — ' + C.jan[k].rotulo, sub: C.jan[k].local }; });
-    paineis.push({ m: J.produtos[C.H.total].mm, t: 'Total de ' + o.horas + ' h', sub: C.periodo, total: true });
-    var col = 3, pw = 91, ph = 66, gx = 8, gy = 22;
-    paineis.forEach(function (pn, i) {
-      var r = { x: gx + (i % col) * (pw + 4), y: gy + Math.floor(i / col) * (ph + 12) + 6, w: pw, h: ph };
-      var P = projecao(ext, r, false), pid = id + 'p' + i;
-      s += texto(r.x, r.y - 2.6, pn.t, 3.0, { peso: 700, cor: pn.total ? '#0d668f' : '#172033' }) + texto(r.x + r.w, r.y - 2.6, pn.sub, 2.0, { anc: 'end', cor: '#4a5868' });
-      s += '<defs><clipPath id="' + pid + 'r"><rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '"/></clipPath>' + clipMG(P, pid + 'mg') + '</defs>';
-      s += '<g clip-path="url(#' + pid + 'r)"><rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '" fill="#f3f5f7"/>';
-      s += '<g clip-path="url(#' + pid + 'mg)">' + camadaSuave(J, pn.m, P, esc, 5) + '</g>';
-      s += linhasMunicipios(P, 'rgba(255,255,255,0.6)', 0.15);
-      C.mons.forEach(function (f) { s += '<path d="' + caminho(f.geometry, P) + '" fill="none" stroke="#111" stroke-width="0.45"/>'; });
-      if (o.produto === 'barragens') agruparBarragens(P, 2.5, bPrin).forEach(function (g) { var nvg = Math.max.apply(null, g.itens.map(function (n) { var b = S.barragens[n - 1]; return b && b.nv != null ? b.nv : 0; })); s += losango(g.x, g.y, 0.95, COR_NIVEL[nvg]); });
-      // valor máximo do painel nos municípios monitorados
-      var mx = -Infinity; C.linhas.forEach(function (l) { if (sep.principal.indexOf(l.f) < 0) return; var v = pn.total ? l.total.max : l.dias[i].max; if (v > mx) mx = v; });
-      s += '</g>' + moldura(r, 0.25);
-      s += '<rect x="' + (r.x + 1) + '" y="' + (r.y + r.h - 5.2) + '" width="' + 46 + '" height="4.2" fill="#fff" fill-opacity="0.88"/>' + texto(r.x + 2, r.y + r.h - 2.1, 'máx. nos municípios do recorte: ' + f0(mx) + ' mm', 2.0);
-    });
-    // gráfico de barras empilhadas (média de cada dia em cada município)
-    var gi = paineis.length, gr = { x: gx + (gi % col) * (pw + 4), y: gy + Math.floor(gi / col) * (ph + 12) + 6, w: pw, h: ph };
-    if (gi < 6) {
-      s += texto(gr.x, gr.y - 2.6, 'Média de cada dia por município (mm)', 3.0, { peso: 700 });
-      var ls = C.linhas.slice().sort(function (a, b) { return b.total.media - a.total.media; }).slice(0, 10);
-      var maxT = Math.max.apply(null, ls.map(function (l) { return l.total.media; }).concat([1]));
-      var esc10 = maxT <= 20 ? 5 : maxT <= 50 ? 10 : maxT <= 120 ? 20 : maxT <= 250 ? 50 : 100, topo = Math.ceil(maxT / esc10) * esc10;
-      var nomeW = 27, bx = gr.x + nomeW, bw = gr.w - nomeW - 9, bh = Math.min(6, (gr.h - 14) / Math.max(1, ls.length) - 1.2);
-      for (var t = 0; t <= topo + 1e-9; t += esc10) { var xx = bx + t / topo * bw; s += '<path d="M' + mm(xx) + ' ' + gr.y + 'V' + (gr.y + gr.h - 9) + '" stroke="#e3e8ee" stroke-width="0.2"/>' + texto(xx, gr.y + gr.h - 6, String(t), 2.0, { anc: 'middle', cor: '#4a5868' }); }
-      ls.forEach(function (l, i) {
-        var yy = gr.y + 1 + i * (bh + 1.2), acc = 0;
-        s += texto(bx - 1.2, yy + bh * 0.7, l.nome, 2.2, { anc: 'end' });
-        l.dias.forEach(function (d, k) { var w = d.media / topo * bw; s += '<rect x="' + mm(bx + acc) + '" y="' + mm(yy) + '" width="' + mm(Math.max(0, w)) + '" height="' + mm(bh) + '" fill="' + CORES_DIAS[k] + '" stroke="#fff" stroke-width="0.15"/>'; acc += w; });
-        s += texto(bx + acc + 1, yy + bh * 0.72, f0(l.total.media), 2.2, { peso: 700 });
-      });
-      C.H.dias.forEach(function (d, k) { var lx = gr.x + nomeW + k * 15; s += '<rect x="' + lx + '" y="' + (gr.y + gr.h - 3.6) + '" width="3" height="2.4" fill="' + CORES_DIAS[k] + '"/>' + texto(lx + 3.8, gr.y + gr.h - 1.6, 'Dia ' + (k + 1), 2.1); });
-    }
-    // legenda horizontal embaixo
-    var ly = 186.5, lw = 11.5, lx0 = 8;
-    s += texto(lx0, ly - 1.2, 'Chuva (mm)', 2.4, { peso: 700 });
-    esc.rotulos.forEach(function (rt, i) { var x = lx0 + 17 + i * lw; s += '<rect x="' + mm(x) + '" y="' + (ly - 3.6) + '" width="' + lw + '" height="2.8" fill="' + esc.cores[i] + '" stroke="#fff" stroke-width="0.1"/>' + texto(x + lw / 2, ly + 1.6, rt.replace(' - ', '–'), 1.8, { anc: 'middle' }); });
-    s += rodapeProposta('Mesma escala em todos os mapas. Dia = 24 h a partir da rodada (dia 1: ' + C.jan[0].local.replace(/ \(hora local\)/, '') + ', hora local).' + (sep.afastados.length ? ' Fora do recorte dos mapas (só no gráfico): ' + lista(sep.afastados.map(function (f) { return f.properties.nome; })) + '.' : ''));
-    return svgFolha(s);
-  }
-
-  /* ---------- Padrão das ferramentas: o mesmo LayoutMapa dos outros mapas da plataforma ----------
-   * Chuva: interpolação bilinear do GFS numa grade de 0,05° (igual à aba Acumulados), agrupada em faixas por linha. */
-  function areasGfs(m, esc) {
-    var g = S.J.grade, A = 0.05, C0 = -52.0, F0 = -13.5, W = Math.round((-38.9 - C0) / A) + 1, H = Math.round((F0 + 24.0) / A) + 1;
-    var polys = esc.cores.map(function () { return []; });
-    for (var y = 0; y < H; y++) {
-      var lat = F0 - A * y, top = lat + A / 2, bot = lat - A / 2, x = 0, cl = [];
-      for (var i = 0; i < W; i++) { var v = N.bilinear(g, m, C0 + A * i, lat); cl.push(isFinite(v) ? N.classe(v, esc.lim) : -1); }
-      while (x < W) {
-        var c = cl[x], xe = x; while (xe + 1 < W && cl[xe + 1] === c) xe++;
-        if (c >= 0) { var l = C0 + A * (x - 0.5), r = C0 + A * (xe + 0.5); polys[c].push([[[l, top], [r, top], [r, bot], [l, bot], [l, top]]]); }
-        x = xe + 1;
+  // chuva interpolada (bilinear) como imagem: e = extensão em graus, W × H pixels; fora da grade fica transparente
+  function rasterChuva(m, e, W, H, esc) {
+    W = Math.max(40, Math.min(2600, Math.round(W))); H = Math.max(40, Math.min(2000, Math.round(H)));
+    var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    var c = cv.getContext('2d'), img = c.createImageData(W, H), d = img.data, cores = esc.cores.map(hexRgbArr), g = S.J.grade;
+    for (var j = 0; j < H; j++) {
+      var lat = e.y1 - (j + 0.5) / H * (e.y1 - e.y0);
+      for (var i = 0; i < W; i++) {
+        var v = N.bilinear(g, m, e.x0 + (i + 0.5) / W * (e.x1 - e.x0), lat), o = (j * W + i) * 4;
+        if (!isFinite(v)) continue;
+        var cc = cores[N.classe(v, esc.lim)]; d[o] = cc[0]; d[o + 1] = cc[1]; d[o + 2] = cc[2]; d[o + 3] = 255;
       }
     }
-    return polys.map(function (pp, i) { return pp.length ? { geometry: { type: 'MultiPolygon', coordinates: pp }, fill: hexRgb(esc.cores[i]), strokeWidth: 0.15 } : null; }).filter(Boolean);
+    c.putImageData(img, 0, 0);
+    return cv.toDataURL('image/png');
   }
-  function hexRgb(h) { var a = hexRgbArr(h); return 'rgb(' + a.join(',') + ')'; }
+  // projeção do recorte: graus iguais nos dois eixos (igual ao LayoutMapa), preenchendo a área w × h (mm) a partir de (ox, oy)
+  function projRecorte(ext, w, h, ox, oy) {
+    var k = Math.min(w / (ext.x1 - ext.x0), h / (ext.y1 - ext.y0)), cx = (ext.x0 + ext.x1) / 2, cy = (ext.y0 + ext.y1) / 2;
+    var e = { x0: cx - w / k / 2, x1: cx + w / k / 2, y0: cy - h / k / 2, y1: cy + h / k / 2 };
+    ox = ox || 0; oy = oy || 0;
+    return { e: e, k: k, r: { x: ox, y: oy, w: w, h: h }, X: function (lon) { return ox + (lon - e.x0) * k; }, Y: function (lat) { return oy + (e.y1 - lat) * k; } };
+  }
+  // extensão que envolve os municípios monitorados e as barragens, com margem
+  function extRegiao(C, margem, minW) {
+    var b = [Infinity, Infinity, -Infinity, -Infinity];
+    function add(lo, la) { b[0] = Math.min(b[0], lo); b[1] = Math.min(b[1], la); b[2] = Math.max(b[2], lo); b[3] = Math.max(b[3], la); }
+    C.mons.forEach(function (f) { var bb = bbGeom(f); add(bb[0], bb[1]); add(bb[2], bb[3]); });
+    barrMapa(C).forEach(function (x) { add(x.lon, x.lat); });
+    if (!isFinite(b[0])) return { x0: -44.6, x1: -43.2, y0: -20.6, y1: -19.6 };
+    var w = Math.max(minW || 0.8, b[2] - b[0] + 2 * margem), h = Math.max((minW || 0.8) * 0.75, b[3] - b[1] + 2 * margem), cx = (b[0] + b[2]) / 2, cy = (b[1] + b[3]) / 2;
+    return { x0: cx - w / 2, x1: cx + w / 2, y0: cy - h / 2, y1: cy + h / 2 };
+  }
+  function dms(v, lat) { var a = Math.abs(v), g = Math.floor(a + 1e-9), mi = Math.round((a - g) * 60); if (mi === 60) { g++; mi = 0; } return g + '°' + ('0' + mi).slice(-2) + '\'00"' + (lat ? 'S' : 'W'); }
+  function gradeRecorte(P) {
+    var dx = P.e.x1 - P.e.x0, passo = dx > 6 ? 1.5 : dx > 3 ? 1 : dx > 1.6 ? 0.5 : 0.25, out = { lat: [], lon: [] };
+    for (var lo = Math.ceil(P.e.x0 / passo) * passo; lo <= P.e.x1; lo += passo) { var x = P.X(lo); if (x > 12 && x < P.r.w - 12) out.lon.push([x, dms(lo, false)]); }
+    for (var la = Math.ceil(P.e.y0 / passo) * passo; la <= P.e.y1; la += passo) { var y = P.Y(la); if (y > 12 && y < P.r.h - 12) out.lat.push([y, dms(la, true)]); }
+    return out;
+  }
+  function escalaRecorte(P) {
+    var kmMm = 111.32 * Math.cos(((P.e.y0 + P.e.y1) / 2) * Math.PI / 180) / P.k;   // km por mm
+    var passo = [1, 2, 5, 10, 20, 25, 50, 100].filter(function (p) { return p / kmMm <= 14; }).pop() || 1;
+    return { seg: passo / kmMm, rotulos: ['0', String(passo), String(2 * passo)] };
+  }
+  function cidadesNoRecorte(P) {
+    return cidadesRef().filter(function (c) { return c[1] > P.e.x0 && c[1] < P.e.x1 && c[2] > P.e.y0 && c[2] < P.e.y1; });
+  }
+
+  /* ---------- rótulos sem sobreposição (mm) ---------- */
+  function Rotulador() { this.caixas = []; }
+  Rotulador.prototype.livre = function (b) { return !this.caixas.some(function (o) { return !(b[2] < o[0] || b[0] > o[2] || b[3] < o[1] || b[1] > o[3]); }); };
+  Rotulador.prototype.ocupar = function (b) { this.caixas.push(b); };
+  // tenta as posições na ordem; devolve {x, y, anc} ou null
+  Rotulador.prototype.colocar = function (x, y, t, tam, peso, folga, lados) {
+    var w = larguraTexto(t, tam, peso), h = tam * 1.05, self = this, res = null;
+    (lados || ['direita', 'esquerda', 'acima', 'abaixo']).some(function (l) {
+      var bx, tx, ty, anc;
+      if (l === 'direita') { tx = x + folga; ty = y + tam * 0.35; anc = 'start'; bx = [tx, y - h / 2, tx + w, y + h / 2]; }
+      else if (l === 'esquerda') { tx = x - folga; ty = y + tam * 0.35; anc = 'end'; bx = [tx - w, y - h / 2, tx, y + h / 2]; }
+      else if (l === 'acima') { tx = x; ty = y - folga - tam * 0.2; anc = 'middle'; bx = [x - w / 2, ty - h + tam * 0.2, x + w / 2, ty + tam * 0.2]; }
+      else if (l === 'abaixo') { tx = x; ty = y + folga + tam * 0.85; anc = 'middle'; bx = [x - w / 2, ty - tam * 0.85, x + w / 2, ty + tam * 0.25]; }
+      else { tx = x; ty = y + tam * 0.35; anc = 'middle'; bx = [x - w / 2, y - h / 2, x + w / 2, y + h / 2]; }
+      if (self.livre(bx)) { self.ocupar(bx); res = { x: tx, y: ty, anc: anc }; return true; }
+      return false;
+    });
+    return res;
+  };
+
+  // barragens próximas (no desenho) viram um marcador só, com os nomes juntos
+  // barragens desenhadas: as escolhidas (produto Barragens) ou, no produto município, as da ANM com nível ≥ 1 dentro dele
+  function barrMapa(C) { return C.o.produto === 'barragens' ? S.barragens : (C.barrMun || []); }
+  function gruposBarragens(P, distMm, lista) {
+    var gr = [];
+    lista.forEach(function (b) {
+      var x = P.X(b.lon), y = P.Y(b.lat), g = null;
+      for (var k = 0; k < gr.length; k++) if (Math.hypot(gr[k].x - x, gr[k].y - y) < distMm) { g = gr[k]; break; }
+      if (!g) { g = { x: x, y: y, lon: b.lon, lat: b.lat, itens: [] }; gr.push(g); }
+      g.itens.push(b);
+    });
+    gr.forEach(function (g) { g.nv = Math.max.apply(null, g.itens.map(function (b) { return b.nv || 0; })); g.nome = juntarNomes(g.itens.map(function (b) { return b.nome.replace(/^Barragem\s+(de\s+)?/i, ''); })); });
+    return gr;
+  }
   // "Forquilha II", "Forquilha III" -> "Forquilha II e III"; mais de 3 nomes -> "Nome +N"
   function juntarNomes(n) {
     if (n.length === 1) return n[0];
     var p = n.map(function (x) { return x.split(/\s+/); }), w = p[0][0];
-    if (p.every(function (x) { return x[0] === w && x.length > 1; }) && n.length <= 3) return w + ' ' + lista(p.map(function (x) { return x.slice(1).join(' '); }));
+    if (n.length <= 3 && p.every(function (x) { return x[0] === w && x.length > 1; })) return w + ' ' + lista(p.map(function (x) { return x.slice(1).join(' '); }));
+    var curtos = n.map(function (x) { return x.replace(/^(Barragem|Dique)\s+(de\s+)?/i, ''); }), junto = lista(curtos);
+    if (n.length <= 4 && junto.length <= 28) return junto;   // ex.: "B1A, Quéias, B3 e B4"
     return n.length > 2 ? n[0] + ' +' + (n.length - 1) : n.join(' / ');
   }
-  // caixas aproximadas (em graus) no mapa do LayoutMapa (~18,6 mm por grau): ponto 3,2 mm; cidade 3,5 mm embaixo do ponto
-  function arrumarRotulos(pontos, cidades) {
-    var GX = 0.097, GC = 0.105, H = 0.19;
-    function caixaCidade(c) { var w = c.nome.length * GC; return [c.lon - w / 2, c.lat - 0.26, c.lon + w / 2, c.lat - 0.05]; }
-    function caixaPonto(p, lado) {
-      var w = p.rotulo.length * GX;
-      if (lado === 'esquerda') return [p.lon - 0.07 - w, p.lat - H / 2, p.lon - 0.07, p.lat + H / 2];
-      if (lado === 'acima') return [p.lon - w / 2, p.lat + 0.06, p.lon + w / 2, p.lat + 0.06 + H];
-      return [p.lon + 0.07, p.lat - H / 2, p.lon + 0.07 + w, p.lat + H / 2];
+
+  /* ---------- miolo de um recorte (zoom): chuva, limites, municípios, cidades, barragens ---------- */
+  function mioloRecorte(C, P, m, op) {
+    var o = C.o, esc = o.escala, id = 'b' + (++uid), R = P.r, s = '';
+    var rot = op.rot || new Rotulador();
+    // limites (estado, mesorregiões, municípios) = os mesmos do mapa de Minas (geo.js do LayoutMapa), só reescalados para o recorte:
+    // linhas únicas e coerentes com os outros mapas (sem linha dupla entre municípios vizinhos)
+    var A = LM().MAPA, Kf = A.wTotal / (A.xmax - A.xmin), sc = P.k / Kf;
+    var tr = 'matrix(' + sc + ' 0 0 ' + sc + ' ' + (R.x + (A.xmin - P.e.x0) * P.k) + ' ' + (R.y + (P.e.y1 - A.ymax) * P.k) + ')';
+    var linha = function (d, cor, larg, opac) { return '<path transform="' + tr + '" d="' + d + '" fill="none" stroke="' + cor + '" stroke-width="' + (larg / sc) + '"' + (opac ? ' stroke-opacity="' + opac + '"' : '') + ' stroke-linejoin="round"/>'; };
+    s += '<defs><clipPath id="' + id + 'r"><rect x="' + mm(R.x) + '" y="' + mm(R.y) + '" width="' + mm(R.w) + '" height="' + mm(R.h) + '"/></clipPath><clipPath id="' + id + 'mg"><path transform="' + tr + '" d="' + GEO.mg + '" clip-rule="evenodd"/></clipPath></defs>';
+    s += '<g clip-path="url(#' + id + 'r)"><rect x="' + mm(R.x) + '" y="' + mm(R.y) + '" width="' + mm(R.w) + '" height="' + mm(R.h) + '" fill="#ffffff"/>';
+    var vis = S.mun.features.filter(function (f) { return cruza(bbGeom(f), P.e); });
+    if (op.porMunicipio) {
+      s += '<g clip-path="url(#' + id + 'mg)">' + vis.map(function (f) { var e = N.estatMunicipio(S.J, f, [op.produto], 'suave')[op.produto], c = corClasse(e.media, esc); return '<path d="' + caminho(f.geometry, P) + '" fill="' + c + '" stroke="' + c + '" stroke-width="0.4" stroke-linejoin="round"/>'; }).join('') + '</g>';
+    } else {
+      s += '<g clip-path="url(#' + id + 'mg)"><image x="' + mm(R.x) + '" y="' + mm(R.y) + '" width="' + mm(R.w) + '" height="' + mm(R.h) + '" preserveAspectRatio="none" href="' + rasterChuva(m, P.e, R.w * (op.pxmm || 7), R.h * (op.pxmm || 7), esc) + '"/></g>';
     }
-    function cruzaB(a, b) { return !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]); }
-    var ocupadas = [];
-    pontos.forEach(function (p) {
-      var cx = cidades.map(caixaCidade), melhor = null;
-      ['direita', 'esquerda', 'acima'].some(function (lado) {
-        var bx = caixaPonto(p, lado);
-        var nCid = cx.filter(function (c) { return cruzaB(bx, c); }).length, nPt = ocupadas.filter(function (o) { return cruzaB(bx, o); }).length;
-        if (!melhor || nCid + 10 * nPt < melhor.custo) melhor = { lado: lado, bx: bx, custo: nCid + 10 * nPt };
-        return melhor.custo === 0;
-      });
-      p.lado = melhor.lado === 'direita' ? undefined : melhor.lado;
-      ocupadas.push(melhor.bx);
-      // nenhuma posição livre: sai o nome da cidade de referência (o rótulo da barragem é o que importa aqui)
-      for (var i = cidades.length - 1; i >= 0; i--) if (cruzaB(melhor.bx, caixaCidade(cidades[i]))) cidades.splice(i, 1);
+    // limites municipais (claros, como os do mapa de Minas) e contorno do estado
+    s += linha(GEO.states, '#000', 0.22) + linha(GEO.munLines, '#ffffff', op.fino ? 0.14 : 0.22, 0.85) + linha(GEO.mesoLines, '#000', op.fino ? 0.3 : 0.5, 0.6) + linha(GEO.mg, '#000', op.fino ? 0.4 : 0.6);
+    // municípios monitorados: contorno forte (branco por baixo para destacar sobre o azul escuro)
+    var mons = C.mons.filter(function (f) { return cruza(bbGeom(f), P.e); });
+    mons.forEach(function (f) { var d = caminho(f.geometry, P); s += '<path d="' + d + '" fill="none" stroke="#fff" stroke-width="' + (op.fino ? 1.0 : 1.6) + '" stroke-linejoin="round"/><path d="' + d + '" fill="none" stroke="#000" stroke-width="' + (op.fino ? 0.5 : 0.8) + '" stroke-linejoin="round"/>'; });
+    s += '</g>';
+    if (op.semRotulos) {
+      if (barrMapa(C).length) gruposBarragens(P, 2.2, barrMapa(C)).forEach(function (g) { s += losango(g.x, g.y, 1.05, COR_NIVEL[g.nv]); });
+      return s;
+    }
+    var marcas = '', nomes = '';
+    // barragens primeiro (reservam o lugar dos rótulos)
+    var grupos = gruposBarragens(P, 3.2, barrMapa(C));
+    grupos.forEach(function (g) { rot.ocupar([g.x - 1.8, g.y - 1.8, g.x + 1.8, g.y + 1.8]); });
+    grupos.forEach(function (g) {
+      marcas += losango(g.x, g.y, 1.7, COR_NIVEL[g.nv]);
+      var t = g.nome, pos = rot.colocar(g.x, g.y, t, 3.0, 700, 2.4);
+      if (pos) nomes += texto(pos.x, pos.y, t, 3.0, { peso: 700, anc: pos.anc, halo: true });
     });
+    // nome (e valor, no mapa por município) dos municípios monitorados
+    C.linhas.forEach(function (l) {
+      if (mons.indexOf(l.f) < 0) return;
+      var p = l.f.properties, x = P.X(p.label_lon), y = P.Y(p.label_lat), t = l.nome.toUpperCase() + (op.porMunicipio ? '  ' + f0(l.total.media) + ' mm' : '');
+      var pos = rot.colocar(x, y, t, 3.4, 700, 0, ['centro', 'abaixo', 'acima']);
+      if (pos) nomes += texto(pos.x, pos.y, t, 3.4, { peso: 700, anc: pos.anc, cor: NAVY, halo: 1.0 });
+    });
+    // cidades de referência (mesma marcação do LayoutMapa: ponto branco e nome embaixo)
+    if (o.cidades) cidadesNoRecorte(P).forEach(function (c) {
+      var x = P.X(c[1]), y = P.Y(c[2]);
+      if (mons.some(function (f) { return norm(f.properties.nome) === norm(c[0]); })) return;
+      var pos = rot.colocar(x, y, c[0], 3.0, 700, 1.2, ['abaixo', 'direita', 'esquerda', 'acima']);
+      if (!pos) return;
+      marcas += '<circle cx="' + mm(x) + '" cy="' + mm(y) + '" r="0.65" fill="#fff" stroke="#1f2328" stroke-width="0.25"/>';
+      nomes += texto(pos.x, pos.y, c[0], 3.0, { peso: 700, anc: pos.anc, cor: NAVY, halo: true });
+    });
+    // vizinhos: nome pequeno, só onde couber (ajuda a localizar)
+    if (op.vizinhos) vis.forEach(function (f) {
+      if (mons.indexOf(f) >= 0) return;
+      var p = f.properties, x = P.X(p.label_lon), y = P.Y(p.label_lat), bb = bbGeom(f);
+      if ((bb[2] - bb[0]) * P.k < 13 || x < R.x + 6 || x > R.x + R.w - 6 || y < R.y + 4 || y > R.y + R.h - 4) return;
+      if (cidadesRef().some(function (c) { return norm(c[0]) === norm(p.nome); }) && o.cidades) return;
+      var pos = rot.colocar(x, y, p.nome, 2.2, 400, 0, ['centro']);
+      if (pos) nomes += texto(pos.x, pos.y, p.nome, 2.2, { anc: 'middle', cor: '#33414f', halo: 0.6 });
+    });
+    return s + marcas + nomes;
   }
-  function opPadrao(C) {
-    var o = C.o, J = S.J, esc = o.escala, m = J.produtos[C.H.total].mm;
-    var areas = areasGfs(m, esc), legenda = esc.rotulos.map(function (l, i) { return { fill: hexRgb(esc.cores[i]), label: l + ' mm' }; });
-    var pontos = [];
+
+  function legendaChuva(esc) { return esc.rotulos.map(function (l, i) { return { fill: hexRgb(esc.cores[i]), label: l + ' mm' }; }); }
+  function legendaExtras(C, semBarragens) {
+    var o = C.o, l = [], niv = o.produto === 'barragens' ? (o.niveis || []) : [];
+    if (o.produto !== 'barragens') {
+      l.push({ forma: 'contorno', fill: 'none', stroke: '#000', strokeWidth: 0.7, label: 'Município de ' + o.munNome });
+      if (!semBarragens) (C.barrMun || []).forEach(function (b) { if (niv.indexOf(b.nv) < 0) niv.push(b.nv); });
+    }
+    niv.slice().sort(function (a, b) { return b - a; }).forEach(function (n) { l.push({ forma: 'losango', fill: COR_NIVEL[n], stroke: '#fff', label: 'Barragem nível ' + n + (o.produto === 'barragens' ? '' : ' (ANM)') }); });
+    return l;
+  }
+  function validade(C) {
+    var j0 = C.jan[0], jn = C.jan[C.jan.length - 1];
+    var ini = j0.local.split(' a ')[0].replace(' de ', ' '), fim = jn.local.split(' a ')[1].replace(' (hora local)', '').replace(' de ', ' ');
+    return 'VÁLIDO: ' + ini + ' às ' + fim + ', hora local (' + C.o.horas + ' h)';
+  }
+  function credito(C) {
+    var J = S.J;
+    return 'Fonte de dados: GFS/NCEP/NOAA (rodada ' + J.ciclo + 'Z de ' + N.br(J.data_ciclo) + ')' + (C.o.produto === 'barragens' ? '; barragens: ' + (S.fonte === 'anm' && S.anm ? 'ANM/SIGBM' : 'lista da equipe') : '') + ' - SIMGE/IGAM, ' + J.data_ciclo.slice(0, 4);
+  }
+
+  /* ---------- 1) Estado: o mapa de Minas do LayoutMapa com a chuva suavizada ---------- */
+  function opEstado(C) {
+    var o = C.o, esc = o.escala, A = LM().MAPA, m = S.J.produtos[C.H.total].mm;
+    var e = { x0: A.xmin, x1: A.xmax, y0: A.ymin, y1: A.ymax };
+    var op = { titulo: 'Total Previsto de Precipitação · ' + tituloCurto(o), textoValidade: validade(C), credito: credito(C), fundo: '',
+      imagem: rasterChuva(m, e, A.wTotal * 6, A.h * 6, esc), areas: [], legenda: legendaChuva(esc).concat(legendaExtras(C, true)), pontos: [] };
+    var cidades = o.cidades ? cidadesRef().map(function (c) { return { nome: c[0], lon: c[1], lat: c[2] }; }) : [];
     if (o.produto === 'barragens') {
-      // barragens a menos de ~5 km viram um ponto só (nomes juntos), para os rótulos não se sobreporem
       var grupos = [];
       S.barragens.forEach(function (b) {
-        var g = null; for (var k = 0; k < grupos.length; k++) if (Math.abs(grupos[k].lon - b.lon) < 0.05 && Math.abs(grupos[k].lat - b.lat) < 0.05) { g = grupos[k]; break; }
+        var g = null; for (var k = 0; k < grupos.length; k++) if (Math.abs(grupos[k].lon - b.lon) < 0.06 && Math.abs(grupos[k].lat - b.lat) < 0.06) { g = grupos[k]; break; }
         if (!g) { g = { lon: b.lon, lat: b.lat, itens: [] }; grupos.push(g); } g.itens.push(b);
       });
       grupos.forEach(function (g) {
         var nv = Math.max.apply(null, g.itens.map(function (b) { return b.nv || 0; }));
-        pontos.push({ lon: g.lon, lat: g.lat, cor: COR_NIVEL[nv], rotulo: juntarNomes(g.itens.map(function (b) { return b.nome.replace(/^Barragem\s+/i, ''); })) });
+        op.pontos.push({ forma: 'losango', lon: g.lon, lat: g.lat, cor: COR_NIVEL[nv], rotulo: juntarNomes(g.itens.map(function (b) { return b.nome.replace(/^Barragem\s+(de\s+)?/i, ''); })) });
       });
-      (o.niveis || []).slice().sort(function (a, b) { return b - a; }).forEach(function (n) { legenda.push({ fill: COR_NIVEL[n], label: 'Barragem nível ' + n }); });
+      arrumarRotulos(op.pontos, cidades);
     } else {
-      C.mons.forEach(function (f) { areas.push({ geometry: f.geometry, fill: 'rgb(140,140,140)', opacity: 0.85, stroke: 'rgb(35,35,35)', strokeWidth: 0.35 }); });
-      legenda.push({ fill: 'rgb(140,140,140)', label: o.munNome });
+      // município: só o contorno (a chuva continua visível dentro dele) e o nome
+      C.mons.forEach(function (f) {
+        op.areas.push({ geometry: f.geometry, fill: 'rgba(0,0,0,0)', stroke: '#ffffff', strokeWidth: 1.1 });
+        op.areas.push({ geometry: f.geometry, fill: 'rgba(0,0,0,0)', stroke: '#000000', strokeWidth: 0.55 });
+        cidades = cidades.filter(function (c) { return norm(c.nome) !== norm(f.properties.nome); });
+        op.pontos.push({ lon: f.properties.label_lon, lat: f.properties.label_lat, cor: '#000', rotulo: f.properties.nome, lado: 'esquerda' });
+      });
+      arrumarRotulos(op.pontos, cidades);
     }
-    // rótulos sem sobreposição: para cada barragem tenta direita, esquerda e acima; se nada couber, tira o nome da cidade que atrapalha
-    var cidades = o.cidades ? cidadesRef().map(function (c) { return { nome: c[0], lon: c[1], lat: c[2] }; }) : [];
-    if (pontos.length) arrumarRotulos(pontos, cidades);
-    var j0 = C.jan[0], jn = C.jan[C.jan.length - 1];
-    var ini = j0.local.split(' a ')[0], fim = jn.local.split(' a ')[1].replace(' (hora local)', '');
-    return {
-      titulo: 'Total Previsto de Precipitação · ' + (o.produto === 'barragens' ? tituloProduto(o).replace(' - MG', '') : o.munNome),
-      textoValidade: 'VÁLIDO: ' + ini.replace(' de ', ' ') + ' às ' + fim.replace(' de ', ' ') + ', hora local (' + o.horas + ' h)',
-      credito: 'Fonte de dados: GFS/NCEP/NOAA (rodada ' + J.ciclo + 'Z de ' + N.br(J.data_ciclo) + ')' + (o.produto === 'barragens' ? ' · barragens: ' + (S.fonte === 'anm' && S.anm ? 'ANM/SIGBM' : 'lista da equipe') : '') + ' - SIMGE/IGAM, ' + J.data_ciclo.slice(0, 4),
-      fundo: '', areas: areas, legenda: legenda,
-      cidades: cidades,
-      pontos: pontos
-    };
+    op.cidades = cidades;
+    return op;
+  }
+  // caixas aproximadas (em graus) no mapa de Minas (~18,6 mm por grau): ponto 3,2 mm; cidade 3,5 mm embaixo do ponto
+  function arrumarRotulos(pontos, cidades) {
+    var K = 18.6, H = 0.17, PADX = 0.05;
+    function peso(c) { return /^Belo Horizonte$/.test(c.nome) ? 5 : 1; }   // a capital só sai em último caso
+    function caixaCidade(c) { var w = larguraTexto(c.nome, 3.5, 700) / K + 2 * PADX; return [c.lon - w / 2, c.lat - 0.28, c.lon + w / 2, c.lat - 0.04]; }
+    function caixaPonto(p, lado) {
+      var w = larguraTexto(p.rotulo, 3.2, 700) / K + PADX, d = 0.11;
+      if (lado === 'esquerda') return [p.lon - d - w, p.lat - H / 2, p.lon - d, p.lat + H / 2];
+      if (lado === 'acima') return [p.lon - w / 2, p.lat + 0.08, p.lon + w / 2, p.lat + 0.08 + H];
+      if (lado === 'abaixo') return [p.lon - w / 2, p.lat - 0.08 - H, p.lon + w / 2, p.lat - 0.08];
+      return [p.lon + d, p.lat - H / 2, p.lon + d + w, p.lat + H / 2];
+    }
+    function cz(a, b) { return !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]); }
+    var ocupadas = [];
+    // marcas das barragens e dos pontos das cidades também contam como obstáculo
+    pontos.forEach(function (p) { ocupadas.push([p.lon - 0.08, p.lat - 0.08, p.lon + 0.08, p.lat + 0.08]); });
+    pontos.forEach(function (p) {
+      var melhor = null;
+      ['direita', 'esquerda', 'acima', 'abaixo'].some(function (lado) {
+        var bx = caixaPonto(p, lado), custo = 0;
+        cidades.forEach(function (c) { if (cz(bx, caixaCidade(c)) || cz(bx, [c.lon - 0.05, c.lat - 0.05, c.lon + 0.05, c.lat + 0.05])) custo += peso(c); });
+        ocupadas.forEach(function (o) { if (cz(bx, o) && !(o[0] === p.lon - 0.08 && o[1] === p.lat - 0.08)) custo += 10; });
+        if (!melhor || custo < melhor.custo) melhor = { lado: lado, bx: bx, custo: custo };
+        return custo === 0;
+      });
+      p.lado = melhor.lado === 'direita' ? undefined : melhor.lado;
+      ocupadas.push(melhor.bx);
+    });
+    // cidade cujo nome bate numa barragem: tenta o nome acima ou à direita do ponto; se não couber, o nome sai
+    function caixaCidadeEm(c, pos) {
+      var w = larguraTexto(c.nome, 3.5, 700) / K + 2 * PADX;
+      if (pos === 'acima') return [c.lon - w / 2, c.lat + 0.055, c.lon + w / 2, c.lat + 0.245];
+      if (pos === 'direita') return [c.lon + 0.05, c.lat - 0.12, c.lon + 0.05 + w, c.lat + 0.12];
+      return caixaCidade(c);
+    }
+    for (var i = cidades.length - 1; i >= 0; i--) {
+      var c = cidades[i], livre = function (pos) { var bx = caixaCidadeEm(c, pos); return !ocupadas.some(function (o) { return cz(bx, o); }); };
+      if (livre('abaixo')) continue;
+      if (livre('acima')) c.posicao = 'acima'; else if (livre('direita')) c.posicao = 'direita'; else cidades.splice(i, 1);
+    }
+  }
+
+  /* ---------- 2) e 3) Recorte regional: chuva suavizada ou média por município ---------- */
+  function opRecorte(C, porMunicipio) {
+    var o = C.o, A = LM().MAPA, m = S.J.produtos[C.H.total].mm;
+    var P = projRecorte(extRegiao(C, o.produto === 'barragens' ? 0.15 : 0.32, o.produto === 'barragens' ? 1.0 : 0.9), A.w, A.h, 0, 0);
+    var svg = mioloRecorte(C, P, m, { porMunicipio: porMunicipio, produto: C.H.total, vizinhos: true });
+    var leg = legendaChuva(o.escala).concat(legendaExtras(C));
+    return { titulo: (porMunicipio ? 'Precipitação Média por Município · ' : 'Total Previsto de Precipitação · ') + tituloCurto(o),
+      regiao: o.produto === 'barragens' ? 'Minas Gerais (recorte)' : o.munNome + ' e entorno',
+      textoValidade: validade(C), credito: credito(C), fundo: '', legenda: leg,
+      mapaPersonalizado: { svg: svg, grade: gradeRecorte(P), escala: escalaRecorte(P) } };
+  }
+
+  /* ---------- 4) Dia a dia: vários mapas pequenos e o gráfico, dentro do mesmo layout ---------- */
+  var CORES_DIAS = ['#c6dbef', '#6baed6', '#2171b5', '#08306b'];
+  function opDiario(C) {
+    var o = C.o, J = S.J, A = LM().MAPA, esc = o.escala, gap = 2.4, tb = 5.2;
+    var paineis = C.H.dias.map(function (d, k) { return { m: J.produtos[d].mm, t: 'Dia ' + (k + 1) + ' · ' + C.jan[k].rotulo.slice(0, 5), sub: C.jan[k].local.replace(' (hora local)', '').replace(/\/\d{4}/g, '') }; });
+    paineis.push({ m: J.produtos[C.H.total].mm, t: 'Total de ' + o.horas + ' h', sub: C.periodo.replace(/\/\d{4}/g, ''), total: true });
+    var cols = 3, pw = (A.w - gap * (cols + 1)) / cols, ph = (A.h - gap * 3) / 2, ext = extRegiao(C, o.produto === 'barragens' ? 0.12 : 0.28, 0.9);
+    var s = '<rect x="0" y="0" width="' + mm(A.w) + '" height="' + mm(A.h) + '" fill="#f7fbff"/>';
+    paineis.forEach(function (pn, i) {
+      var x = gap + (i % cols) * (pw + gap), y = gap + Math.floor(i / cols) * (ph + gap);
+      var P = projRecorte(ext, pw, ph - tb, x, y + tb);
+      s += '<rect x="' + mm(x) + '" y="' + mm(y) + '" width="' + mm(pw) + '" height="' + mm(tb) + '" fill="' + (pn.total ? NAVY : '#e3eef8') + '"/>';
+      s += texto(x + 1.6, y + 3.6, pn.t, 3.0, { peso: 700, cor: pn.total ? '#fff' : NAVY }) + texto(x + pw - 1.4, y + 3.5, pn.sub, 2.0, { anc: 'end', cor: pn.total ? '#dbeefa' : '#33414f' });
+      s += mioloRecorte(C, P, pn.m, { semRotulos: true, fino: true, pxmm: 5 });
+      var mx = -Infinity; C.linhas.forEach(function (l) { var v = pn.total ? l.total.max : l.dias[i].max; if (v > mx) mx = v; });
+      var tx = 'máx. nos municípios: ' + f0(mx) + ' mm';
+      s += '<rect x="' + mm(x + 1) + '" y="' + mm(y + ph - 5.2) + '" width="' + mm(larguraTexto(tx, 2.4, 700) + 2.4) + '" height="4.2" rx="0.8" fill="#fff" fill-opacity="0.9"/>' + texto(x + 2.2, y + ph - 2.2, tx, 2.4, { peso: 700, cor: NAVY });
+      s += '<rect x="' + mm(x) + '" y="' + mm(y) + '" width="' + mm(pw) + '" height="' + mm(ph) + '" fill="none" stroke="rgb(86,123,154)" stroke-width="0.3"/>';
+    });
+    // último quadro: gráfico de barras (média de cada dia em cada município)
+    var gi = paineis.length, gx = gap + (gi % cols) * (pw + gap), gy = gap + Math.floor(gi / cols) * (ph + gap);
+    if (gi < 6) {
+      s += '<rect x="' + mm(gx) + '" y="' + mm(gy) + '" width="' + mm(pw) + '" height="' + mm(tb) + '" fill="#e3eef8"/>' + texto(gx + 1.6, gy + 3.6, 'Média de cada dia (mm)', 3.0, { peso: 700, cor: NAVY });
+      s += '<rect x="' + mm(gx) + '" y="' + mm(gy + tb) + '" width="' + mm(pw) + '" height="' + mm(ph - tb) + '" fill="#fff"/>';
+      var ls = C.linhas.slice().sort(function (a, b) { return b.total.media - a.total.media; }).slice(0, 8);
+      var maxT = Math.max.apply(null, ls.map(function (l) { return l.total.media; }).concat([1]));
+      var st = maxT <= 20 ? 5 : maxT <= 50 ? 10 : maxT <= 120 ? 20 : maxT <= 250 ? 50 : 100, topo = Math.ceil(maxT / st) * st;
+      var nomeW = Math.min(26, Math.max.apply(null, ls.map(function (l) { return larguraTexto(l.nome, 2.4); })) + 2), bx = gx + nomeW + 1, bw = pw - nomeW - 9, by0 = gy + tb + 3, area = ph - tb - 15;
+      var bh = Math.min(6, area / Math.max(1, ls.length) - 1.4);
+      for (var t = 0; t <= topo + 1e-9; t += st) { var xx = bx + t / topo * bw; s += '<path d="M' + mm(xx) + ' ' + mm(by0 - 1) + 'V' + mm(by0 + area) + '" stroke="#e3e8ee" stroke-width="0.2"/>' + texto(xx, by0 + area + 3, String(t), 2.1, { anc: 'middle', cor: '#33414f' }); }
+      ls.forEach(function (l, i) {
+        var yy = by0 + i * (bh + 1.4), acc = 0;
+        s += texto(bx - 1.2, yy + bh * 0.72, l.nome, 2.4, { anc: 'end', cor: NAVY });
+        l.dias.forEach(function (d, k) { var w = Math.max(0, d.media / topo * bw); s += '<rect x="' + mm(bx + acc) + '" y="' + mm(yy) + '" width="' + mm(w) + '" height="' + mm(bh) + '" fill="' + CORES_DIAS[k] + '" stroke="#fff" stroke-width="0.15"/>'; acc += w; });
+        s += texto(bx + acc + 1, yy + bh * 0.72, f0(l.total.media), 2.4, { peso: 700, cor: NAVY });
+      });
+      C.H.dias.forEach(function (d, k) { var lx = gx + 3 + k * 16; s += '<rect x="' + mm(lx) + '" y="' + mm(gy + ph - 4.4) + '" width="3" height="2.4" fill="' + CORES_DIAS[k] + '"/>' + texto(lx + 3.8, gy + ph - 2.4, 'Dia ' + (k + 1), 2.2, { cor: NAVY }); });
+      s += '<rect x="' + mm(gx) + '" y="' + mm(gy) + '" width="' + mm(pw) + '" height="' + mm(ph) + '" fill="none" stroke="rgb(86,123,154)" stroke-width="0.3"/>';
+    }
+    if (gi + 1 < 6) {   // 72 h: sobra um quadro — vai o gatilho de cada município/barragem
+      var qx = gap + ((gi + 1) % cols) * (pw + gap), qy = gap + Math.floor((gi + 1) / cols) * (ph + gap);
+      s += '<rect x="' + mm(qx) + '" y="' + mm(qy) + '" width="' + mm(pw) + '" height="' + mm(tb) + '" fill="#e3eef8"/>' + texto(qx + 1.6, qy + 3.6, 'Gatilho do manual (4.6)', 3.0, { peso: 700, cor: NAVY });
+      s += '<rect x="' + mm(qx) + '" y="' + mm(qy + tb) + '" width="' + mm(pw) + '" height="' + mm(ph - tb) + '" fill="#fff"/>';
+      var linhasG = o.produto === 'barragens' ? C.pontos.map(function (p) { return [p.b.nome, p.gat]; }) : [[o.munNome, C.gatMun]];
+      s += texto(qx + 2, qy + tb + 5, 'Local', 2.3, { peso: 700, cor: NAVY }) + texto(qx + pw - 22, qy + tb + 5, 'maior dia', 2.3, { peso: 700, anc: 'end', cor: NAVY }) + texto(qx + pw - 2, qy + tb + 5, '72 h', 2.3, { peso: 700, anc: 'end', cor: NAVY });
+      linhasG.slice(0, 12).forEach(function (r, i) {
+        var yy = qy + tb + 10 + i * 4.6, g = r[1];
+        s += texto(qx + 2, yy, r[0], 2.3, { cor: g && g.dispara ? '#b10d1c' : '#000', peso: g && g.dispara ? 700 : 400 }) + texto(qx + pw - 22, yy, g ? f0(g.diaMax) + ' mm' : '—', 2.3, { anc: 'end' }) + texto(qx + pw - 2, yy, g && g.max72 ? f0(g.max72.mm) + ' mm' : '—', 2.3, { anc: 'end', peso: 700 });
+      });
+      s += texto(qx + 2, qy + ph - 2.4, 'Dispara com ≥ 100 mm/dia ou ≥ 100 mm/72 h', 2.1, { cor: '#33414f' });
+      s += '<rect x="' + mm(qx) + '" y="' + mm(qy) + '" width="' + mm(pw) + '" height="' + mm(ph) + '" fill="none" stroke="rgb(86,123,154)" stroke-width="0.3"/>';
+    }
+    return { titulo: 'Precipitação Prevista por Dia · ' + tituloCurto(o), regiao: o.produto === 'barragens' ? 'Minas Gerais (recorte)' : o.munNome + ' e entorno',
+      textoValidade: validade(C), credito: credito(C), fundo: '', legenda: legendaChuva(esc).concat(legendaExtras(C)),
+      mapaPersonalizado: { svg: s, grade: { lat: [], lon: [] }, semEscala: true } };
   }
 
   /* =====================================================================================
@@ -711,7 +606,7 @@
       '#barr .reprs button.on{background:var(--accent);border-color:var(--accent);color:#fff}#barr .reprs .g{font-size:11px;font-weight:700;color:var(--muted);align-self:center;margin:0 2px 0 6px}' +
       '#barr .reprs .g.prop{color:#146c56}#barr .reprs .g.pad{color:#0d668f}#barr .rdesc{font-size:12px;color:var(--muted);margin:-4px 0 10px}#barr .lmPrev{min-height:200px}' +
       '#barr .br-ok{border-color:#9fd8c2;background:#effaf5}#barr .br-erro{border-color:#f0b4b4;background:#fff3f3}#barr textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px;font:13px/1.45 Arial,Helvetica,sans-serif;resize:vertical}' +
-      '#barr td.n{text-align:right;font-variant-numeric:tabular-nums}#barr .av{color:#9a5b00;font-size:12px}#barr .selo{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:middle}' +
+      '#barr td.n,#barr th.n{text-align:right;font-variant-numeric:tabular-nums}#barr table th{vertical-align:bottom}#barr .av{color:#9a5b00;font-size:12px}#barr .selo{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:middle}' +
       '#barr .selo.o{background:#edf2f7;color:#25354a}#barr .selo.p{background:#e5f6ef;color:#146c56}#barr details{margin-top:10px;font-size:12px;line-height:1.5}#barr details summary{cursor:pointer;font-weight:700}#barr .diaLin{display:grid;grid-template-columns:86px 1fr;gap:6px;align-items:center;margin:4px 0}' +
       '#barr .diaLin span{font-size:12px;font-weight:700}#barr .diaLin input{padding:6px 8px;font-size:12px}#barr [hidden]{display:none!important}#barr .niv{display:flex;gap:14px}#barr .niv .check{margin:2px 0}#barr .lz{display:inline-block;width:9px;height:9px;transform:rotate(45deg);margin:0 2px 0 1px}' +
       '#barr .gat{font-size:13px;line-height:1.5}#barr .gat .sim{color:#b10d1c;font-weight:700}#barr .gat .nao{color:#146c56;font-weight:700}#barr tr.disp td{background:#fff1f1}';
@@ -727,7 +622,6 @@
       '<div class="row"><div><label for="brHorizonte">Horizonte</label><select id="brHorizonte"><option value="96">96 horas (4 dias)</option><option value="72">72 horas (3 dias)</option></select></div>' +
       '<div><label for="brEscala">Escala</label><select id="brEscala"><option value="boletim">Boletim (0–5 … &gt; 250)</option><option value="reserv15">15 faixas (0–10 … &gt; 300)</option></select></div></div>' +
       '<label class="check"><input type="checkbox" id="brCidades" checked> Cidades de referência</label>' +
-      '<label class="check"><input type="checkbox" id="brRotulos" checked> Nome das barragens (Original · Zoom)</label>' +
       '<div id="brBarrBox"><h3>Barragens <span id="brBarrN" class="small"></span></h3>' +
       '<label for="brFonte" style="margin-top:0">Lista de barragens</label><select id="brFonte"><option value="anm">ANM/SIGBM (automático)</option><option value="equipe">Lista da equipe (BARRAGENS.txt)</option></select>' +
       '<div class="small" id="brAnmInfo" style="margin-top:4px"></div>' +
@@ -745,7 +639,7 @@
       '<p><b>Chuva:</b> acumulado do GFS 0,25° (NOAA) desde a rodada: 72 h = 0 a 72 h; 96 h = 0 a 96 h; cada dia = 24 h (dia 1 = 0–24 h, …). Rodada 00Z começa às 21h do dia anterior (hora local). A soma dos dias é conferida com o acumulado antes de usar.</p>' +
       '<p><b>Município:</b> média, mínimo e máximo nos pontos de uma grade de ~1 km dentro do limite municipal (IBGE), sobre a interpolação bilinear do GFS. É o número que entra no texto e nas tabelas.</p>' +
       '<p><b>Faixas do texto:</b> limites da escala que envolvem 80 % da área do município (do percentil 10 ao 90, sem os extremos de borda; ex.: 42–58 mm → “40 - 60 mm”). Mínimo e máximo ficam na tabela. Por dia: da menor à maior média dos municípios monitorados.</p>' +
-      '<p><b>Mapas “Original”:</b> mesma extensão dos layouts do QGIS (<i>layout_chuva_72horas_barragens*.qpt</i>), chuva em blocos de 0,25°.</p></details>' +
+      '<p><b>Mapas:</b> todos no layout padrão da plataforma. A chuva é a interpolação bilinear do GFS desenhada em alta resolução (sem os blocos de 0,25°). O zoom enquadra sozinho os municípios e as barragens escolhidos.</p></details>' +
       '</aside><div>' +
       '<div class="previewWrap"><div class="reprs" id="brReprs"></div><div class="rdesc" id="brReprDesc"></div><div id="brMapa" class="lmPrev"></div></div>' +
       '<div class="card tableCard" id="brGatCard"><h2>Gatilho do manual (4.6)</h2><div id="brGat" class="gat"></div>' +
@@ -765,14 +659,13 @@
     // controles
     var rp = $('brReprs'), g0 = '';
     REPRES.forEach(function (r) {
-      if (r.grupo !== g0) { g0 = r.grupo; var sp = document.createElement('span'); sp.className = 'g' + (r.grupo === 'Proposta' ? ' prop' : r.grupo === 'Padrão' ? ' pad' : ''); sp.textContent = r.grupo + ':'; rp.appendChild(sp); }
-      var b = document.createElement('button'); b.type = 'button'; b.dataset.r = r.id; b.textContent = r.nome.replace(/^Original · /, ''); b.title = r.desc;
-      b.addEventListener('click', function () { S.repr = r.id; ls('barrRepr2', r.id); desenhar(); });
+      var b = document.createElement('button'); b.type = 'button'; b.dataset.r = r.id; b.textContent = r.nome; b.title = r.desc;
+      b.addEventListener('click', function () { S.repr = r.id; ls('barrRepr3', r.id); desenhar(); });
       rp.appendChild(b);
     });
-    var rs = ls('barrRepr2'); if (rs && REPRES.some(function (r) { return r.id === rs; })) S.repr = rs;
+    var rs = ls('barrRepr3'); if (rs && REPRES.some(function (r) { return r.id === rs; })) S.repr = rs;
     $('brBuscar').addEventListener('click', buscarGfs);
-    ['brProduto', 'brHorizonte', 'brEscala', 'brCidades', 'brRotulos'].forEach(function (k) { $(k).addEventListener('change', function () { if (k === 'brProduto') trocarProduto(); gerar(); }); });
+    ['brProduto', 'brHorizonte', 'brEscala', 'brCidades'].forEach(function (k) { $(k).addEventListener('change', function () { if (k === 'brProduto') trocarProduto(); gerar(); }); });
     $('brMunicipio').addEventListener('change', function () { var f = S.munIdx && S.munIdx[norm(this.value)]; if (!f) { status('Município “' + esc(this.value) + '” não encontrado. Escolha um nome da lista.', 'erro'); return; } this.value = f.properties.nome; gerar(); });
     $('brAtencao').addEventListener('change', function () { $('brAtencaoTxt').hidden = !this.checked; });
     $('brCondicao').addEventListener('change', function () { textoAuto(true); });
@@ -794,7 +687,7 @@
   }
   function trocarProduto() {
     var b = $('brProduto').value === 'barragens';
-    $('brMunBox').hidden = $('brProduto').value !== 'municipio'; $('brBarrBox').hidden = !b; $('brTabBarrCard').hidden = !b; $('brRotulos').parentNode.hidden = !b;
+    $('brMunBox').hidden = $('brProduto').value !== 'municipio'; $('brBarrBox').hidden = !b; $('brTabBarrCard').hidden = !b;
   }
   function usarLista(txt, origem) {
     var r = lerBarragensTxt(txt);
@@ -917,17 +810,14 @@
   }
   function figura(id) {
     var C = S.calc;
-    if (id === 'padrao') { S.figOp = opPadrao(C); return window.LayoutMapa.svg(S.figOp); }
-    if (id === 'orig') return figOriginal(C, false);
-    if (id === 'origzoom') return figOriginal(C, true);
-    if (id === 'regiao') return figRegiao(C, false);
-    if (id === 'municipio') return figRegiao(C, true);
-    return figDiario(C);
+    var op = id === 'regiao' ? opRecorte(C, false) : id === 'municipio' ? opRecorte(C, true) : id === 'diario' ? opDiario(C) : opEstado(C);
+    S.figOp = op;
+    return LM().svg(op);
   }
   function desenhar() {
     document.querySelectorAll('#brReprs button').forEach(function (b) { b.classList.toggle('on', b.dataset.r === S.repr); });
     var r = REPRES.filter(function (x) { return x.id === S.repr; })[0];
-    $('brReprDesc').innerHTML = esc(r.desc) + (r.grupo === 'Original' ? '<span class="selo o">versão de hoje</span>' : r.grupo === 'Padrão' ? '<span class="selo o" style="background:#e3f1fb;color:#0d668f">layout da plataforma</span>' : '<span class="selo p">proposta</span>');
+    $('brReprDesc').textContent = r.desc;
     if (!S.calc) return;
     var el = $('brMapa');
     try {
@@ -994,23 +884,11 @@
     var C = S.calc, o = C.o;
     return (o.produto === 'barragens' ? 'Barragens_Niveis_2e3' : o.munNome.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_')) + '_' + o.horas + 'h_' + S.J.data_ciclo.replace(/-/g, '') + '_' + S.J.ciclo + 'Z';
   }
-  function svgParaPng(svg, larg) {
-    return new Promise(function (ok, erro) {
-      var W = larg || 3508, H = Math.round(W * PAG.h / PAG.w), im = new Image();
-      im.onload = function () {
-        try { var cv = document.createElement('canvas'); cv.width = W; cv.height = H; var c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, W, H); c.drawImage(im, 0, 0, W, H); cv.toBlob(function (b) { b ? ok({ blob: b, canvas: cv }) : erro(new Error('falha ao gerar o PNG')); }, 'image/png'); }
-        catch (e) { erro(e); }
-      };
-      im.onerror = function () { erro(new Error('o navegador não conseguiu desenhar a figura')); };
-      im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-    });
-  }
   function baixar(blob, nome) { var a = document.createElement('a'); a.download = nome; a.href = URL.createObjectURL(blob); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000); }
   async function salvarPng() {
     if (!S.fig) return; var b = $('brPng'); b.disabled = true;
     try {
-      if (S.repr === 'padrao' && S.figOp && window.LayoutMapa) baixar(await window.LayoutMapa.png(S.figOp), baseNome() + '.png');
-      else { var r = await svgParaPng(S.fig); baixar(r.blob, baseNome() + '_' + S.repr + '.png'); }
+      baixar(await LM().png(S.figOp), baseNome() + (S.repr === 'estado' ? '' : '_' + S.repr) + '.png');   // 300 dpi, igual aos outros mapas
     }
     catch (e) { console.error(e); alert('Não foi possível gerar o PNG: ' + e.message); }
     finally { b.disabled = false; }
@@ -1051,18 +929,18 @@
         ls2.forEach(function (l, i) { if (y > 280) { doc.addPage(); cab(); y = 36; } doc.text(l, M, y, i < ls2.length - 1 ? { align: 'justify', maxWidth: W - 2 * M } : {}); y += 5.6; });
       };
       par($('brTexto').value.trim(), true); y += 3;
-      var fig = async function (svg, legenda) {
-        var r = await svgParaPng(svg, 2400), w = W - 2 * M, h = w * PAG.h / PAG.w;
+      var fig = async function (op, legenda) {
+        var cv = await LM().canvas(op, 220), w = W - 2 * M, h = w * PAG.h / PAG.w;
         if (y + h + 10 > 285) { doc.addPage(); cab(); y = 36; }
-        doc.addImage(r.canvas.toDataURL('image/jpeg', 0.92), 'JPEG', M, y, w, h); y += h + 5;
+        doc.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', M, y, w, h); y += h + 5;
         doc.setFont('times', 'bold'); var lb = 'Figura ' + legenda[0] + ':', lw = doc.getTextWidth(lb) + 1.6; doc.text(lb, M, y);
         doc.setFont('times', 'normal'); var ll = doc.splitTextToSize(legenda[1], W - 2 * M - lw);
         ll.forEach(function (l, i) { doc.text(l, i ? M : M + lw, y); y += 5; }); y += 3;
       };
       var leg1 = S.repr === 'diario' ? 'precipitação prevista em cada dia e total das próximas ' + C.o.horas + ' horas.'
-        : (S.repr === 'municipio' ? 'precipitação média prevista em cada município para as próximas ' : 'acumulado previsto de precipitação para as próximas ') + C.o.horas + ' horas' + (C.o.produto !== 'barragens' && /^orig/.test(S.repr) ? '. A área de ' + C.o.munNome + ' está destacada em cinza.' : '.');
-      await fig(S.fig, ['1', leg1]);
-      if ($('brFig2').checked && S.repr !== 'diario') await fig(figura('diario'), ['2', 'precipitação prevista em cada dia e total de ' + C.o.horas + ' horas.']);
+        : (S.repr === 'municipio' ? 'precipitação média prevista em cada município para as próximas ' : 'acumulado previsto de precipitação para as próximas ') + C.o.horas + ' horas' + (C.o.produto !== 'barragens' ? '. O limite de ' + C.o.munNome + ' está destacado em preto.' : '.');
+      await fig(S.figOp, ['1', leg1]);
+      if ($('brFig2').checked && S.repr !== 'diario') await fig(opDiario(C), ['2', 'precipitação prevista em cada dia e total de ' + C.o.horas + ' horas.']);
       if (y > 250) { doc.addPage(); cab(); y = 36; }
       doc.setFont('times', 'bold'); doc.text('Previsão diária:', M, y); y += 7; doc.setFont('times', 'normal');
       var ins = $('brDias').querySelectorAll('input');

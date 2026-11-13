@@ -153,7 +153,7 @@
       { s: '.niv', t: 'Níveis de emergência', d: 'O manual (4.6) pede N2 e N3. Para emitir um nível separado, deixe só ele marcado.' },
       { s: '#brRaio', t: 'Região da barragem', d: 'Onde o gatilho procura a chuva: no ponto da barragem ou no maior valor num raio de 10 ou 20 km.' },
       { s: '#brBarrAvisos', t: 'Avisos da lista', d: 'Barragem sem coordenada, sem nível ou com município que não bate. Confira antes de emitir.' },
-      { s: '#brReprs', t: 'Representação', d: 'Padrão das ferramentas (o oficial), Original (como o boletim antigo, em blocos do GFS) e as propostas: Região detalhada, Por município e Dia a dia.' },
+      { s: '#brReprs', t: 'Visualização', d: 'Todas no layout padrão: Minas Gerais (estado inteiro), Zoom na região (municípios e barragens), Média por município e Dia a dia.' },
       { s: '#brMapa', t: 'Mapa', d: 'Muda na hora com as opções. É o que vai no PNG e na Figura 1 do PDF.' },
       { s: '#brGat', t: 'Gatilho do manual (4.6)', d: '100 mm em um dia ou 100 mm em 72 h na região. DISPARA = pode emitir. 40–50 mm/h o GFS não avalia: fica com o meteorologista.' },
       { s: 'label:has(#brForcar)', t: 'Emitir sem gatilho', d: 'Só por decisão do meteorologista, com justificativa (vai no rodapé do PDF). Sem isso, o PDF fica bloqueado.' },

@@ -335,18 +335,24 @@
     o.push('<svg x="277.515" y="4.10221" width="12.7169" height="10.0504" viewBox="0 0 70 55"><g fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M41 10V3M55 14L60 9M59 28H67M54 40L60 45M27 10L23 5"/><path d="M30 19A14 14 0 0 1 50 36"/><path d="M12 35C12 22 29 18 35 31C47 29 54 43 46 50H12C1 50 0 38 12 35Z"/></g></svg>');
     var title = op.titulo || 'Mapa';
     o.push(textBlock({ lines: [title], x: 11.6913 + 182.343 / 2, yTop: 4.10221, h: 11.2811, size: fitSize([title], 24.4195 * PT, 182.343, 700), weight: 700, fill: navy, anchor: 'middle' }));
-    var region = 'Minas Gerais';
+    var region = op.regiao || 'Minas Gerais';   // 13/11/2026: op.regiao (ex.: recorte regional da aba Barragens)
     o.push(textBlock({ lines: [region], x: 204.905, yTop: 5.33287, h: 9.22997, size: fitSize([region], 16.8611 * PT, 46, 400), fill: navy }));
 
     /* ---- mapa ---- */
     o.push('<g transform="translate(' + MAP.x + ' ' + MAP.y + ')"><g clip-path="url(#mapclip)">');
     o.push('<rect width="' + MAP.w + '" height="' + MAP.h + '" fill="#ffffff"/>');
+    // 13/11/2026 (aditivo): op.mapaPersonalizado = {svg, grade:{lat:[[y,rótulo]], lon:[[x,rótulo]]}, escala:{seg, rotulos}} desenha
+    // um recorte próprio (em mm, origem no canto do mapa) no lugar do mapa de Minas. Sem essa opção, nada muda.
+    var MP = op.mapaPersonalizado || null;
+    if (MP) o.push(MP.svg || ''); else {
     o.push('<path d="' + GEO.states + '" fill="none" stroke="#000" stroke-width="0.22" stroke-linejoin="round"/>');
     if (F) {   // mapa base só dentro de Minas, como na Previsão
       o.push('<g clip-path="url(#mgclip)"><image href="' + F.src + '" xlink:href="' + F.src + '" x="0" y="0" width="' + f2(MAP.w) + '" height="' + f2(MAP.h) + '" preserveAspectRatio="none"/></g>');
     } else o.push('<path d="' + GEO.mg + '" fill="' + MG_FILL + '" stroke="none"/>');
     // áreas desenhadas, recortadas exatamente no contorno de MG usado no mapa
     o.push('<g clip-path="url(#mgclip)">');
+    // 13/11/2026 (aditivo): op.imagem = chuva suavizada como imagem do tamanho da moldura (lon MAP.xmin…xmax, lat MAP.ymax…ymin)
+    if (op.imagem) o.push('<image href="' + op.imagem + '" xlink:href="' + op.imagem + '" x="0" y="0" width="' + f2(MAP.w) + '" height="' + f2(MAP.h) + '" preserveAspectRatio="none"/>');
     (op.areas || []).forEach(function (a) {
       var d = caminho(a.geometry); if (!d) return;
       o.push('<path d="' + d + '" fill="' + a.fill + '"' + (a.opacity != null ? ' fill-opacity="' + a.opacity + '"' : '') + ' fill-rule="evenodd" stroke="' + (a.stroke || a.fill) + '" stroke-width="' + (a.strokeWidth || 0.2) + '" stroke-linejoin="round"/>');
@@ -397,19 +403,28 @@
     (op.pontos || []).forEach(function (pt) {
       if (!isFinite(pt.lon) || !isFinite(pt.lat)) return;
       var p = proj(pt.lon, pt.lat), x = p[0] - MAP.x, y = p[1] - MAP.y, rs = 3.2;
-      o.push('<circle cx="' + f2(x) + '" cy="' + f2(y) + '" r="0.85" fill="' + (pt.cor || '#e60000') + '" stroke="#fff" stroke-width="0.25"/>');
-      var lx = x + 1.3, ly = y + (ASC - DESC) / 2 * rs, la = 'start';
-      if (pt.lado === 'esquerda') { lx = x - 1.3; la = 'end'; }
-      else if (pt.lado === 'acima') { lx = x; ly = y - 1.2 - DESC * rs; la = 'middle'; }
+      // 13/11/2026 (aditivo): pt.forma = 'losango' (barragens) e pt.lado = 'abaixo'; sem eles, nada muda
+      var rr = pt.forma === 'losango' ? 1.45 : 0.85, fo = pt.forma === 'losango' ? 0.6 : 0;
+      if (pt.forma === 'losango') o.push('<path d="M' + f2(x) + ' ' + f2(y - rr) + 'L' + f2(x + rr) + ' ' + f2(y) + 'L' + f2(x) + ' ' + f2(y + rr) + 'L' + f2(x - rr) + ' ' + f2(y) + 'Z" fill="' + (pt.cor || '#e60000') + '" stroke="#fff" stroke-width="0.3"/>');
+      else o.push('<circle cx="' + f2(x) + '" cy="' + f2(y) + '" r="0.85" fill="' + (pt.cor || '#e60000') + '" stroke="#fff" stroke-width="0.25"/>');
+      var lx = x + 1.3 + fo, ly = y + (ASC - DESC) / 2 * rs, la = 'start';
+      if (pt.lado === 'esquerda') { lx = x - 1.3 - fo; la = 'end'; }
+      else if (pt.lado === 'acima') { lx = x; ly = y - 1.2 - fo - DESC * rs; la = 'middle'; }
+      else if (pt.lado === 'abaixo') { lx = x; ly = y + 1.2 + fo + ASC * rs; la = 'middle'; }
       if (pt.rotulo) o.push('<text x="' + f2(lx) + '" y="' + f2(ly) + '" font-family="' + FONT + '" font-size="' + rs + '" font-weight="700" fill="#000" text-anchor="' + la + '" stroke="#fff" stroke-width="' + f2(rs * 0.3) + '" stroke-linejoin="round" paint-order="stroke">' + esc(pt.rotulo) + '</text>');
     });
+    }   // fim do mapa de Minas (sem op.mapaPersonalizado)
     o.push('</g>');
     o.push('<rect width="' + f2(MAP_VIS_W) + '" height="' + MAP.h + '" fill="none" stroke="rgb(86,123,154)" stroke-width="0.307666"/>');
     o.push('</g>');
     // coluna da legenda: quadro branco com o mesmo contorno da moldura do mapa
     o.push('<rect x="' + f2(LEG.x) + '" y="' + f2(LEG.y) + '" width="' + f2(LEG.w) + '" height="' + f2(LEG.h) + '" fill="#ffffff" stroke="rgb(86,123,154)" stroke-width="0.307666"/>');
-    // grade (1,5°, fora da moldura: esquerda e base)
+    // grade (1,5°, fora da moldura: esquerda e base); no recorte próprio, as posições vêm de op.mapaPersonalizado.grade
     var gs = 8.43053 * PT, gc = 'rgb(39,71,129)', lat, lon;
+    if (MP) {
+      ((MP.grade && MP.grade.lat) || []).forEach(function (g) { o.push('<text transform="translate(' + f2(MAP.x - 2.46133) + ' ' + f2(MAP.y + g[0]) + ') rotate(-90)" font-family="' + FONT + '" font-size="' + f2(gs) + '" fill="' + gc + '" text-anchor="middle">' + esc(g[1]) + '</text>'); });
+      ((MP.grade && MP.grade.lon) || []).forEach(function (g) { o.push('<text x="' + f2(MAP.x + g[0]) + '" y="' + f2(MAP.y + MAP.h + 2.46133 + ASC * gs) + '" font-family="' + FONT + '" font-size="' + f2(gs) + '" fill="' + gc + '" text-anchor="middle">' + esc(g[1]) + '</text>'); });
+    } else {
     for (lat = Math.ceil(MAP.ymin / 1.5) * 1.5; lat <= MAP.ymax; lat += 1.5) {
       var py = proj(MAP.xmin, lat)[1];
       o.push('<text transform="translate(' + f2(MAP.x - 2.46133) + ' ' + f2(py) + ') rotate(-90)" font-family="' + FONT + '" font-size="' + f2(gs) + '" fill="' + gc + '" text-anchor="middle">' + dms(lat, 'N', 'S') + '</text>');
@@ -419,14 +434,15 @@
       if (px + textW(lbl, gs) / 2 > MAP.x + MAP_VIS_W - 0.3) continue;
       o.push('<text x="' + f2(px) + '" y="' + f2(MAP.y + MAP.h + 2.46133 + ASC * gs) + '" font-family="' + FONT + '" font-size="' + f2(gs) + '" fill="' + gc + '" text-anchor="middle">' + lbl + '</text>');
     }
-    // seta norte e escala gráfica
-    o.push('<svg x="19.3411" y="166.3" width="7.7942" height="9.08866" viewBox="0 0 61.06 96.62">' + NORTH_ARROW + '</svg>');
-    (function () {
-      var seg = 8.35894, ss = 9 * PT, bx = 11.6913 + 1 + textW('0', ss) / 2, by = 184.0, ly = by - 1.6 - DESC * ss;
+    }
+    // seta norte e escala gráfica (MP.semEscala: sem os dois, para painéis com vários mapas)
+    if (!(MP && MP.semEscala)) o.push('<svg x="19.3411" y="166.3" width="7.7942" height="9.08866" viewBox="0 0 61.06 96.62">' + NORTH_ARROW + '</svg>');
+    if (!(MP && MP.semEscala)) (function () {
+      var EB = MP && MP.escala, seg = EB ? EB.seg : 8.35894, rot = EB ? EB.rotulos : ['0', '50', '100'], ss = 9 * PT, bx = 11.6913 + 1 + textW('0', ss) / 2, by = 184.0, ly = by - 1.6 - DESC * ss;
       o.push('<rect x="' + f2(bx) + '" y="' + by + '" width="' + seg + '" height="3" fill="#000" stroke="#000" stroke-width=".3"/>');
       o.push('<rect x="' + f2(bx + seg) + '" y="' + by + '" width="' + seg + '" height="3" fill="#fff" stroke="#000" stroke-width=".3"/>');
-      [['0', 0], ['50', seg], ['100', 2 * seg]].forEach(function (t) { o.push('<text x="' + f2(bx + t[1]) + '" y="' + f2(ly) + '" font-family="' + FONT + '" font-size="' + f2(ss) + '" fill="#000" text-anchor="middle">' + t[0] + '</text>'); });
-      o.push('<text x="' + f2(bx + 2 * seg + textW('100', ss) / 2 + 1) + '" y="' + f2(ly) + '" font-family="' + FONT + '" font-size="' + f2(ss) + '" fill="#000">km</text>');
+      [[rot[0], 0], [rot[1], seg], [rot[2], 2 * seg]].forEach(function (t) { o.push('<text x="' + f2(bx + t[1]) + '" y="' + f2(ly) + '" font-family="' + FONT + '" font-size="' + f2(ss) + '" fill="#000" text-anchor="middle">' + t[0] + '</text>'); });
+      o.push('<text x="' + f2(bx + 2 * seg + textW(rot[2], ss) / 2 + 1) + '" y="' + f2(ly) + '" font-family="' + FONT + '" font-size="' + f2(ss) + '" fill="#000">km</text>');
     })();
 
     /* ---- legenda (coluna própria, como na Previsão; chave de cor no lugar do ícone) ---- */
@@ -450,6 +466,14 @@
       var x0 = cx - blockW / 2, tx0 = x0 + sw + gap, y = top;
       itens.forEach(function (it) {
         var cy = y + rh / 2;
+        if (it.forma === 'losango' || it.forma === 'contorno' || it.forma === 'ponto') {   // 13/11/2026 (aditivo): símbolos de ponto/contorno
+          var mx = x0 + sw / 2, r = Math.min(sh, 4.2) / 2;
+          if (it.forma === 'losango') o.push('<path d="M' + f2(mx) + ' ' + f2(cy - r) + 'L' + f2(mx + r) + ' ' + f2(cy) + 'L' + f2(mx) + ' ' + f2(cy + r) + 'L' + f2(mx - r) + ' ' + f2(cy) + 'Z" fill="' + it.fill + '" stroke="' + (it.stroke || '#fff') + '" stroke-width="0.3"/>');
+          else if (it.forma === 'ponto') o.push('<circle cx="' + f2(mx) + '" cy="' + f2(cy) + '" r="' + f2(r * 0.6) + '" fill="' + it.fill + '" stroke="' + (it.stroke || '#1f2328') + '" stroke-width="0.3"/>');
+          else o.push('<rect x="' + f2(x0 + 0.5) + '" y="' + f2(cy - sh / 2 + 0.5) + '" width="' + f2(sw - 1) + '" height="' + f2(sh - 1) + '" fill="' + (it.fill || 'none') + '" stroke="' + (it.stroke || '#000') + '" stroke-width="' + (it.strokeWidth || 0.6) + '"/>');
+          o.push('<text x="' + f2(tx0) + '" y="' + f2(cy + (ASC - DESC) / 2 * fs) + '" font-family="' + FONT + '" font-size="' + f2(fs) + '" fill="#000" stroke="#fff" stroke-width="' + f2(fs * 0.25) + '" stroke-linejoin="round" paint-order="stroke">' + esc(it.label) + '</text>');
+          y += rh; return;
+        }
         if (/^(#fff|#ffffff|white)$/i.test(it.fill || '')) {
           // "sem cor" (Sem Tempestades, Sem Previsão, Sem alerta): mostra como Minas aparece no mapa —
           // um recorte do mapa base escolhido ou o tom claro de Minas sem mapa base
@@ -739,5 +763,6 @@
     fundos: FUNDOS.map(function (F) { return { id: F.id, nome: F.nome }; }), carregarFundo: carregarFundo, PAGE: PAGE,
     montarSeletor: montarSeletor, fundoEscolhido: fundoEscolhido, extensao: ext, fundoNoEditor: fundoNoEditor, painelAoVivo: painelAoVivo,
     editorExtras: editorExtras, amostraFundo: amostraFundo, MG_FILL: MG_FILL, STATE_LABELS: STATE_LABELS,
-    PT_R: PT_R, NOME_TAM: NOME_TAM };
+    PT_R: PT_R, NOME_TAM: NOME_TAM, NAVY: NAVY, FONT: FONT,
+    MAPA: { w: MAP_VIS_W, h: MAP.h, wTotal: MAP.w, xmin: MAP.xmin, xmax: MAP.xmax, ymin: MAP.ymin, ymax: MAP.ymax } };   // 13/11/2026: área do mapa (mm e graus)
 })();
