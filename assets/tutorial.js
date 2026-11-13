@@ -121,14 +121,49 @@
       NAVEGADOR, SALVAR
     ],
     'reservatorios': [
-      { s: '#cpcCycle', t: 'Ciclo', d: '00Z (≈3h) ou 06Z (≈9h).' },
+      // topo (vale para todas as abas)
+      { s: '#cpcCycle', t: 'Ciclo', d: '00Z (≈3h) ou 06Z (≈9h). Vale para Reservatórios, Tendência e Acumulados.' },
       { s: '#fonteDados', t: 'Fonte dos dados', d: 'Dado bruto GFS (chuva em mm, NOAA) ou Imagens do CPC. A escolha fica guardada neste navegador.' },
+      { s: '#faixasMapa', t: 'Faixas', d: 'Escala de cores dos mapas feitos com o GFS. Com as imagens do CPC é sempre a de 15 faixas.' },
       { s: '#cpcLoad', t: 'Buscar dados', d: 'Busca o ciclo escolhido, gera todos os mapas e preenche as datas.' },
-      { s: '.tabs', t: 'Abas', d: 'Reservatórios, Tendência (Week 1 e 2) e Acumulados.' },
-      { s: '#resStart', t: 'Período', d: 'Mude só se precisar e clique em Gerar mapa.' },
-      { s: '#resGenerate', t: 'Gerar mapa', d: 'Só depois de mudar a data.' },
+      { s: '#cpcStatus', t: 'Situação', d: 'Qual rodada foi carregada e quando foi baixada. Vermelho = não carregou.' },
+      { s: '.tabs', t: 'Abas', d: 'Reservatórios, Tendência (Week 1 e 2), Acumulados e Barragens e municípios (72/96 h).' },
+      // aba Reservatórios
+      { s: '#resStart', t: 'Período', d: 'Já vem preenchido pela rodada. Mude só se precisar e clique em Gerar mapa.' },
+      { s: '#resShowCities', t: 'Cidades', d: 'Mostra ou esconde as cidades de referência no mapa.' },
+      { s: '#resShowReserv', t: 'Reservatórios no mapa', d: 'Mostra os pontos e as siglas dos reservatórios.' },
+      { s: '#resGenerate', t: 'Gerar mapa', d: 'Só depois de mudar a data ou as opções.' },
+      { s: '#resCanvas', t: 'Mapa', d: 'Chuva prevista na semana, no layout padrão. A Prévia do mapa mostra em tamanho grande.' },
+      { s: '#resTableBody', t: 'Tabela dos reservatórios', d: 'Faixa de chuva em cada reservatório (e o valor em mm, com o GFS). Sai também no CSV.' },
+      // aba Tendência
       { s: '#wkGenerate', t: 'Gerar Week 1 + Week 2', d: 'Só se mudar as imagens ou as datas.' },
+      { s: '#wk1Canvas', t: 'Week 1', d: 'Chuva prevista nos próximos 7 dias.' },
+      { s: '#wk2Canvas', t: 'Week 2', d: 'Chuva prevista do 8º ao 14º dia.' },
+      { s: '#mesoRainSummary', t: 'Resumo por mesorregião', d: 'Faixa de chuva de cada mesorregião nas duas semanas, para o texto da Tendência.' },
+      // aba Acumulados
       { s: '#accGenerate', t: 'Gerar acumulados', d: 'Só se mudar as imagens ou as datas.' },
+      { s: '#a24Canvas', t: 'Acumulados', d: '24 h, 3 dias e 5 dias a partir da rodada. Cada um tem o seu PNG.' },
+      // aba Barragens e municípios
+      { s: '#brCiclo', t: 'Rodada', d: 'Abre sozinha com a rodada do topo. Troque e clique em Buscar se precisar.' },
+      { s: '#brProduto', t: 'Produto', d: 'Barragens (níveis marcados abaixo), Brumadinho - MG ou outro município.' },
+      { s: '#brHorizonte', t: 'Horizonte', d: '96 h (4 dias) ou 72 h (3 dias), sempre a partir da rodada.' },
+      { s: '#brEscala', t: 'Escala', d: 'A dos boletins de barragens (0–5 … > 250) ou a de 15 faixas.' },
+      { s: '#brFonte', t: 'Lista de barragens', d: 'ANM/SIGBM: atualizada sozinha 2x por dia com o nível de emergência oficial. Lista da equipe: o BARRAGENS.txt (reserva).' },
+      { s: '#brAnmInfo', t: 'Situação da lista', d: 'Quantas barragens de MG em cada nível e quando a ANM foi conferida. Aviso laranja = conferir.' },
+      { s: '.niv', t: 'Níveis de emergência', d: 'O manual (4.6) pede N2 e N3. Para emitir um nível separado, deixe só ele marcado.' },
+      { s: '#brRaio', t: 'Região da barragem', d: 'Onde o gatilho procura a chuva: no ponto da barragem ou no maior valor num raio de 10 ou 20 km.' },
+      { s: '#brBarrAvisos', t: 'Avisos da lista', d: 'Barragem sem coordenada, sem nível ou com município que não bate. Confira antes de emitir.' },
+      { s: '#brReprs', t: 'Representação', d: 'Padrão das ferramentas (o oficial), Original (como o boletim antigo, em blocos do GFS) e as propostas: Região detalhada, Por município e Dia a dia.' },
+      { s: '#brMapa', t: 'Mapa', d: 'Muda na hora com as opções. É o que vai no PNG e na Figura 1 do PDF.' },
+      { s: '#brGat', t: 'Gatilho do manual (4.6)', d: '100 mm em um dia ou 100 mm em 72 h na região. DISPARA = pode emitir. 40–50 mm/h o GFS não avalia: fica com o meteorologista.' },
+      { s: 'label:has(#brForcar)', t: 'Emitir sem gatilho', d: 'Só por decisão do meteorologista, com justificativa (vai no rodapé do PDF). Sem isso, o PDF fica bloqueado.' },
+      { s: '#brCondicao', t: 'Condição do tempo', d: 'Abre o texto (ex.: Previsão de tempo instável). Preencha antes do PDF.' },
+      { s: '#brTexto', t: 'Parágrafo principal', d: 'Montado com as faixas de cada município. Pode editar à vontade.' },
+      { s: '#brDias', t: 'Previsão diária', d: 'Escreva a condição de cada dia; a faixa de chuva já vem calculada.' },
+      { s: 'label:has(#brAtencao)', t: 'Estado de Atenção', d: 'Decisão do meteorologista. Marcado, o parágrafo vai no fim do PDF (editável).' },
+      { s: 'label:has(#brFig2)', t: 'Figura 2', d: 'Acrescenta o mapa Dia a dia no PDF.' },
+      { s: '#brTabMun', t: 'Chuva nos municípios', d: 'Média de cada dia, total, mínimo–máximo e a faixa usada no texto.' },
+      { s: '#brTabBarr', t: 'Barragens', d: 'Chuva no ponto, maior dia e maior 72 h na região, e o gatilho de cada uma. Linha vermelha = dispara.' },
       SALVAR
     ],
     'curto-prazo': [
