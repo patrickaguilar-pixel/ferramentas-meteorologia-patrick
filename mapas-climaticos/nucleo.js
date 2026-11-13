@@ -405,6 +405,139 @@
     return { n: e.length, mae: mae / e.length, rmse: Math.sqrt(rmse / e.length), vies: vies / e.length, pontos: e };
   }
 
+  /* ======================= MÉTODO RECOMENDADO POR VARIÁVEL (EM AVALIAÇÃO — não substitui o IDW nem a krigagem) =======================
+   * 13/11/2026. Base técnica (ver claude/mapas-climaticos-analise.md e o comparativo com os relatórios do meteorologista):
+   *  - IDW LOCAL: 12 estações mais próximas, distância em km (plano de KX/KY), potência 2. Corrige o principal defeito do IDW do
+   *    QGIS (todas as estações, distância em graus), que puxa o mapa para a média regional (os "alvos" em volta de estações
+   *    isoladas diminuem, mas não somem: é uma limitação de todo IDW).
+   *  - REGRESSÃO + KRIGAGEM DOS RESÍDUOS (temperaturas absolutas): v = b0 + b1·altitude(km) + b2·latitude, ajustada por mínimos
+   *    quadrados nas estações; os resíduos são krigados (krigagem ordinária local acima); no mapa, tendência da célula (altitude
+   *    média da célula, MDE Copernicus 90 m) + resíduo krigado. A altitude da estação vem do mesmo MDE (média da célula de 0,02°).
+   *  - Validação cruzada deixando uma de fora reajusta TUDO sem a estação (regressão, variograma), como o meteorologista fez.
+   */
+  var LOCAL = { vizinhas: 12, potencia: 2 };
+  function prepararLocal(pts) { return { pts: pts, xy: pts.map(function (p) { return planoKm(p.lon, p.lat); }), k: Math.min(LOCAL.vizinhas, pts.length) }; }
+  function idwLocalPonto(ctx, lon, lat) {
+    var q = planoKm(lon, lat), idx = vizinhas(ctx, q[0], q[1]), sw = 0, swv = 0, meia = LOCAL.potencia / 2;
+    for (var t = 0; t < idx.length; t++) {
+      var i = idx[t], dx = ctx.xy[i][0] - q[0], dy = ctx.xy[i][1] - q[1], d2 = dx * dx + dy * dy;
+      if (d2 < 1e-12) return ctx.pts[i].v;
+      var w = meia === 1 ? 1 / d2 : 1 / Math.pow(d2, meia); sw += w; swv += w * ctx.pts[i].v;
+    }
+    return sw > 0 ? swv / sw : NaN;
+  }
+  function idwLocalLinhas(ctx, masc, G, j0, j1) {
+    G = G || GRADE; if (!ctx.grade) ctx.grade = new Float64Array(G.nx * G.ny).fill(NaN);
+    for (var j = j0; j < Math.min(j1, G.ny); j++) { var lat = latDe(G, j); for (var i = 0; i < G.nx; i++) { var c = j * G.nx + i; if (masc[c] >= 0) ctx.grade[c] = idwLocalPonto(ctx, lonDe(G, i), lat); } }
+    return ctx.grade;
+  }
+  function resumoErros(e) {
+    if (!e.length) return null;
+    var mae = 0, rmse = 0, vies = 0;
+    e.forEach(function (x) { mae += Math.abs(x.erro); rmse += x.erro * x.erro; vies += x.erro; });
+    return { n: e.length, mae: mae / e.length, rmse: Math.sqrt(rmse / e.length), vies: vies / e.length, pontos: e };
+  }
+  function validacaoCruzadaLocal(pts, filtro) {
+    var e = [];
+    pts.forEach(function (pt, i) {
+      if (filtro && !filtro(pt)) return;
+      var est = idwLocalPonto(prepararLocal(pts.filter(function (_, k) { return k !== i; })), pt.lon, pt.lat);
+      e.push({ codigo: pt.codigo, obs: pt.v, est: est, erro: est - pt.v });
+    });
+    return resumoErros(e);
+  }
+
+  // ---- regressão (altitude em km e latitude) + krigagem dos resíduos ----
+  // gradiente aceito para o coeficiente da altitude (°C/km): temperaturas absolutas entre -12 e 0 (esperado ≈ -6);
+  // anomalias entre -6 e +6 (o relevo pode mudar a anomalia, mas pouco). Fora disso: aviso forte, o mapa não sai como recomendado.
+  // A tendência não é extrapolada além da altitude das estações: abaixo da mais baixa - 200 m ou acima da mais alta + 500 m,
+  // usa o limite (as células assim são contadas e informadas).
+  var RK = { minEstacoes: 30, gradienteMin: -12, gradienteMax: 0, gradAnomMin: -6, gradAnomMax: 6, folgaAbaixo: 200, folgaAcima: 500 };
+  function regressaoAltLat(pts) {   // mínimos quadrados: v = b0 + b1·alt_km + b2·lat
+    var XtX = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], Xty = [0, 0, 0], n = 0;
+    pts.forEach(function (p) {
+      var x = [1, p.alt / 1000, p.lat];
+      for (var a = 0; a < 3; a++) { Xty[a] += x[a] * p.v; for (var b = 0; b < 3; b++) XtX[a][b] += x[a] * x[b]; }
+      n++;
+    });
+    var inv = inverter(XtX);
+    if (!inv) return null;
+    var c = [0, 1, 2].map(function (a) { return inv[a][0] * Xty[0] + inv[a][1] * Xty[1] + inv[a][2] * Xty[2]; });
+    var media = 0; pts.forEach(function (p) { media += p.v; }); media /= n;
+    var sst = 0, sse = 0;
+    pts.forEach(function (p) { var f = c[0] + c[1] * p.alt / 1000 + c[2] * p.lat; sse += (p.v - f) * (p.v - f); sst += (p.v - media) * (p.v - media); });
+    return { b0: c[0], bAlt: c[1], bLat: c[2], r2: sst > 0 ? 1 - sse / sst : NaN, n: n, rmse: Math.sqrt(sse / n) };
+  }
+  // opc.anomalia: true para mapas de anomalia (limites de gradiente próprios)
+  function prepararRK(pts, opc) {
+    opc = opc || {};
+    var com = pts.filter(function (p) { return isFinite(p.alt); });
+    if (com.length < RK.minEstacoes) throw erroUsuario('Poucas estações com altitude para a regressão (' + com.length + '; mínimo ' + RK.minEstacoes + ').');
+    var reg = regressaoAltLat(com);
+    if (!reg) throw erroUsuario('Não foi possível ajustar a regressão com a altitude.');
+    var res = com.map(function (p) { return { codigo: p.codigo, lon: p.lon, lat: p.lat, alt: p.alt, v: p.v - (reg.b0 + reg.bAlt * p.alt / 1000 + reg.bLat * p.lat), dentroMG: p.dentroMG }; });
+    // resíduos praticamente nulos (a regressão explica tudo): não há o que krigar — o resíduo vale 0 (evita sistema singular)
+    var sr = 0; res.forEach(function (p) { sr += p.v * p.v; });
+    var semResiduo = Math.sqrt(sr / res.length) < 1e-9;
+    var vario = semResiduo ? null : ajustarVariograma(res), ctx = semResiduo ? null : prepararKrigagem(res, vario);
+    var altMin = Infinity, altMax = -Infinity; com.forEach(function (p) { if (p.alt < altMin) altMin = p.alt; if (p.alt > altMax) altMax = p.alt; });
+    var gMin = opc.anomalia ? RK.gradAnomMin : RK.gradienteMin, gMax = opc.anomalia ? RK.gradAnomMax : RK.gradienteMax;
+    return { reg: reg, vario: vario, ctx: ctx, usadas: com.length, semAltitude: pts.length - com.length,
+      altMinEst: altMin, altMaxEst: altMax, altLim: [altMin - RK.folgaAbaixo, altMax + RK.folgaAcima], celulasLimitadas: 0,
+      gradienteFaixa: [gMin, gMax], gradienteOk: reg.bAlt >= gMin && reg.bAlt <= gMax };
+  }
+  function rkPonto(rk, lon, lat, altM) {
+    if (!isFinite(altM)) return NaN;
+    var a = rk.altLim ? Math.min(rk.altLim[1], Math.max(rk.altLim[0], altM)) : altM;
+    return rk.reg.b0 + rk.reg.bAlt * a / 1000 + rk.reg.bLat * lat + (rk.ctx ? krigarPonto(rk.ctx, lon, lat, null) : 0);
+  }
+  // altGrade: Float32Array/Float64Array da altitude média de cada célula da GRADE (NaN sem dado → célula sem valor)
+  function rkLinhas(rk, masc, altGrade, G, j0, j1) {
+    G = G || GRADE; if (!rk.grade) rk.grade = new Float64Array(G.nx * G.ny).fill(NaN);
+    for (var j = j0; j < Math.min(j1, G.ny); j++) {
+      var lat = latDe(G, j);
+      for (var i = 0; i < G.nx; i++) {
+        var c = j * G.nx + i; if (masc[c] < 0) continue;
+        var a = altGrade[c];
+        if (isFinite(a) && rk.altLim && (a < rk.altLim[0] || a > rk.altLim[1])) rk.celulasLimitadas++;
+        rk.grade[c] = rkPonto(rk, lonDe(G, i), lat, a);
+      }
+    }
+    return rk.grade;
+  }
+  function validacaoCruzadaRK(pts, filtro, opc) {
+    var com = pts.filter(function (p) { return isFinite(p.alt); }), e = [];
+    com.forEach(function (pt, i) {
+      if (filtro && !filtro(pt)) return;
+      var rk = prepararRK(com.filter(function (_, k) { return k !== i; }), opc);
+      var est = rkPonto(rk, pt.lon, pt.lat, pt.alt);
+      e.push({ codigo: pt.codigo, obs: pt.v, est: est, erro: est - pt.v });
+    });
+    return resumoErros(e);
+  }
+  // método recomendado de cada produto. Escolha conferida em 13/11/2026 com set/2026 (referencia/avaliar_metodos.js; validação
+  // deixando uma de fora nas estações de MG, retiradas as de alerta forte; RMSE):
+  //   prec  IDW-QGIS 31,98 · krig 25,35 · IDW local 25,62 · RK 25,72 mm   → IDW local (empata com a krigagem, sem variograma e sem valores fora da faixa das estações)
+  //   aprec 77,89 · 78,56 · 78,41 · 78,60 mm (todos iguais; MAE: IDW-QGIS o pior, 61,2) → IDW local
+  //   clima 9,55 · 5,10 · 5,65 · 8,63 mm                                   → krigagem
+  //   atmed 1,38 · 1,31 · 1,30 · 0,94 °C (RK melhor em 35 de 50 estações) → RK (limites de anomalia)
+  //   tmax  2,04 · 1,78 · 1,86 · 1,46 °C (RK melhor em 41 de 53)           → RK
+  //   tmin  2,00 · 1,72 · 1,76 · 1,36 °C (RK melhor em 34 de 53)           → RK
+  // É UM mês: a escolha continua "em avaliação" até a equipe repetir a comparação com outros meses (a tela mostra os 4 erros a cada mês).
+  var NOME_METODO = {
+    local: 'IDW local (12 estações mais próximas, distância em km)',
+    krig: 'Krigagem ordinária local (20 estações)',
+    rk: 'Regressão com altitude e latitude + krigagem dos resíduos'
+  };
+  var RECOMENDADO = {
+    prec: { metodo: 'local', nome: NOME_METODO.local },
+    aprec: { metodo: 'local', nome: NOME_METODO.local },
+    clima: { metodo: 'krig', nome: NOME_METODO.krig },
+    atmed: { metodo: 'rk', nome: NOME_METODO.rk, anomalia: true },
+    tmax: { metodo: 'rk', nome: NOME_METODO.rk },
+    tmin: { metodo: 'rk', nome: NOME_METODO.rk }
+  };
+
   /* ======================= produtos e escalas ======================= */
   // cores: escalas da equipe (pasta ROTINA MAPAS/txt) e rampas do QGIS amostradas nos mapas oficiais de set/2026
   var RAMPA = {
@@ -662,6 +795,8 @@
         p.validacao ? 'IDW — validação cruzada em MG (n=' + p.validacao.n + '): MAE ' + numBR(p.validacao.mae, 2) + ' · RMSE ' + numBR(p.validacao.rmse, 2) + ' · viés ' + numBR(p.validacao.vies, 2) : '']);
       if (p.krig) L.push(['# Krigagem (em avaliação)', P.sigla, 'variograma exponencial: pepita ' + numBR(p.krig.vario.pepita, 3) + ' · patamar ' + numBR(p.krig.vario.patamar, 3) + ' · alcance ' + p.krig.vario.alcance + ' km' + (p.krig.vario.noLimite ? ' (no limite: correlação espacial mal definida)' : ''),
         p.krig.validacao ? 'validação cruzada em MG (n=' + p.krig.validacao.n + ', variograma reajustado a cada estação): MAE ' + numBR(p.krig.validacao.mae, 2) + ' · RMSE ' + numBR(p.krig.validacao.rmse, 2) + ' · viés ' + numBR(p.krig.validacao.vies, 2) : 'validação cruzada não calculada']);
+      if (p.rec) L.push(['# Método recomendado (em avaliação)', P.sigla, p.rec.nome + (p.rec.reg ? ' — regressão: ' + numBR(p.rec.reg.bAlt, 2) + ' por km de altitude · ' + numBR(p.rec.reg.bLat, 3) + ' por grau de latitude · R² ' + numBR(p.rec.reg.r2, 2) + ' · ' + p.rec.usadas + ' estações com altitude (MDE Copernicus GLO-90)' + (p.rec.gradienteOk === false ? ' · GRADIENTE FORA DA FAIXA ACEITA' : '') : ''),
+        p.rec.validacao ? 'validação cruzada em MG (n=' + p.rec.validacao.n + ', tudo reajustado a cada estação): MAE ' + numBR(p.rec.validacao.mae, 2) + ' · RMSE ' + numBR(p.rec.validacao.rmse, 2) + ' · viés ' + numBR(p.rec.validacao.vies, 2) : 'validação cruzada não calculada']);
     });
     L.push([]);
     L.push(['Arquivo', 'Linha', 'Código', 'Estação', 'Município', 'UF', 'Latitude', 'Longitude', 'Dentro de MG', 'Distância de MG (km)', 'Valor do mapa', 'Esperado pelas vizinhas', 'Alertas', 'Situação', 'Motivo', 'Observação', 'Decidido por', 'Decidido em']);
@@ -685,6 +820,8 @@
     krigagemLinhas: krigagemLinhas, krigagemGrade: krigagemGrade, validacaoCruzadaKrig: validacaoCruzadaKrig,
     escalaDe: escalaDe, escalaAuto: escalaAuto, escalaFixa: escalaFixa, classe: classe, rampa: rampa, rotulos: rotulos,
     conferir: conferir, situacaoEstacao: situacaoEstacao, pontosDoProduto: pontosDoProduto, chave: chave, valorMapa: valorMapa,
-    estatMeso: estatMeso, registroCSV: registroCSV, seguro: seguro, fmt: fmt
+    estatMeso: estatMeso, registroCSV: registroCSV, seguro: seguro, fmt: fmt,
+    LOCAL: LOCAL, prepararLocal: prepararLocal, idwLocalPonto: idwLocalPonto, idwLocalLinhas: idwLocalLinhas, validacaoCruzadaLocal: validacaoCruzadaLocal,
+    RK: RK, regressaoAltLat: regressaoAltLat, prepararRK: prepararRK, rkPonto: rkPonto, rkLinhas: rkLinhas, validacaoCruzadaRK: validacaoCruzadaRK, RECOMENDADO: RECOMENDADO, NOME_METODO: NOME_METODO
   };
 });

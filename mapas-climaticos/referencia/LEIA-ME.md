@@ -18,3 +18,10 @@ Krigagem (EM AVALIAÇÃO, separada do IDW): ordinária local com 20 vizinhas; va
 (18 faixas de distância pelos quantis 5–95 %, faixas com 30+ pares, peso √(n/nmax), alcance de 20 a 1200 km de 10 em 10,
 pepita e patamar por mínimos quadrados sem negativos); distância em km com x = R·lon·cos(-18,5°), y = R·lat.
 Chuva e climatologia com piso 0; anomalia de chuva com piso -100 %.
+
+## Método recomendado (em avaliação) — 13/11/2026
+- `../mde.js` lê o relevo (`../mde/`, gerado por `scripts/baixar_mde.py` no GitHub Actions; Copernicus GLO-90, média da célula, SHA-256 conferido).
+- `avaliar_metodos.js`: validação cruzada (deixa uma de fora, estações de MG) de IDW-QGIS, krigagem, IDW local e regressão-krigagem, por produto.
+  `node avaliar_metodos.js` (retira as de alerta forte) e `node avaliar_metodos.js --sem-conferencia`. Resultados em `avaliacao_*.json`.
+- `testar_equivalencia.py` agora confere também o IDW local e a regressão-krigagem contra a implementação independente em `referencia.py`
+  (altitudes das estações, coeficientes, grade, classes e a validação cruzada).

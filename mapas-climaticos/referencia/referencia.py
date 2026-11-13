@@ -189,6 +189,104 @@ def krigagem_grade(lon_e, lat_e, val, masc, piso=None, G=GRADE):
     return out, K.V
 
 
+# ======================= método recomendado (em avaliação) — implementação independente =======================
+LOCAL = dict(vizinhas=12, potencia=2.0)
+
+
+def idw_local(xy_e, val, q):
+    """xy_e: estações em km (n, 2); q: pontos em km (m, 2). 12 mais próximas (empate: menor índice), potência 2."""
+    k = min(LOCAL['vizinhas'], len(val))
+    d2 = ((xy_e[None, :, :] - q[:, None, :]) ** 2).sum(-1)
+    viz = np.argsort(d2, axis=1, kind='stable')[:, :k]
+    dd = np.take_along_axis(d2, viz, 1)
+    out = np.empty(len(q))
+    for c in range(len(q)):
+        z = dd[c] < 1e-12
+        if z.any():
+            out[c] = val[viz[c][np.argmax(z)]]
+        else:
+            w = 1.0 / dd[c] ** (LOCAL['potencia'] / 2)
+            out[c] = (w * val[viz[c]]).sum() / w.sum()
+    return out
+
+
+def idw_local_grade(lon_e, lat_e, val, masc, G=GRADE):
+    xy = plano_km(lon_e, lat_e)
+    lon = G['lon0'] + np.arange(G['nx']) * G['d']
+    lat = G['lat0'] - np.arange(G['ny']) * G['d']
+    out = np.full((G['ny'], G['nx']), np.nan)
+    for j in range(G['ny']):
+        cols = np.where(masc[j] >= 0)[0]
+        if cols.size:
+            out[j, cols] = idw_local(xy, val, plano_km(lon[cols], np.full(cols.size, lat[j])))
+    return out
+
+
+def ler_mde(pasta):
+    """Lê mde.json e as duas grades (Int16 LE; -32768 = sem dado) — conferindo o SHA-256."""
+    import hashlib
+    pasta = Path(pasta); meta = json.loads((pasta / 'mde.json').read_text(encoding='utf-8'))
+    out = {}
+    for k, g in meta['grades'].items():
+        b = (pasta / g['arquivo']).read_bytes()
+        if hashlib.sha256(b).hexdigest() != g['sha256']:
+            raise SystemExit(f'relevo {k}: SHA-256 não confere')
+        z = np.frombuffer(b, dtype='<i2').reshape(g['ny'], g['nx']).astype(float)
+        z[z == meta['sem_dado']] = np.nan
+        out[k] = dict(g, z=z)
+    return out
+
+
+def altitude_bilinear(G, lon, lat):
+    """Bilinear entre centros de célula; vizinho sem dado sai da média (peso renormalizado; exige peso > 0,25)."""
+    x = (lon - G['lon0']) / G['d']; y = (G['lat0'] - lat) / G['d']
+    i, j = int(np.floor(x)), int(np.floor(y)); fx, fy = x - i, y - j
+    s = w = 0.0
+    for di, dj, p in ((0, 0, (1 - fx) * (1 - fy)), (1, 0, fx * (1 - fy)), (0, 1, (1 - fx) * fy), (1, 1, fx * fy)):
+        ii, jj = i + di, j + dj
+        if 0 <= ii < G['nx'] and 0 <= jj < G['ny'] and np.isfinite(G['z'][jj, ii]):
+            s += G['z'][jj, ii] * p; w += p
+    return s / w if w > 0.25 else np.nan
+
+
+RK = dict(folga_abaixo=200.0, folga_acima=500.0)
+
+
+def regressao_alt_lat(alt_m, lat, v):
+    X = np.column_stack([np.ones_like(v), alt_m / 1000.0, lat])
+    c = np.linalg.solve(X.T @ X, X.T @ v)
+    f = X @ c
+    return dict(b0=c[0], bAlt=c[1], bLat=c[2], r2=1 - ((v - f) ** 2).sum() / ((v - v.mean()) ** 2).sum())
+
+
+class RegKrig:
+    def __init__(self, lon, lat, alt_m, v):
+        ok = np.isfinite(alt_m)
+        self.reg = regressao_alt_lat(alt_m[ok], lat[ok], v[ok])
+        r = self.reg
+        res = v[ok] - (r['b0'] + r['bAlt'] * alt_m[ok] / 1000 + r['bLat'] * lat[ok])
+        self.K = Krigagem(lon[ok], lat[ok], res, ajustar_variograma(lon[ok], lat[ok], res))
+        self.lim = (alt_m[ok].min() - RK['folga_abaixo'], alt_m[ok].max() + RK['folga_acima'])
+
+    def estimar(self, lon, lat, alt_m):
+        a = np.clip(alt_m, *self.lim); r = self.reg
+        return r['b0'] + r['bAlt'] * a / 1000 + r['bLat'] * lat + self.K.estimar(plano_km(lon, lat))
+
+
+def rk_grade(lon_e, lat_e, alt_e, val, masc, alt_grade, G=GRADE):
+    R = RegKrig(lon_e, lat_e, alt_e, val)
+    lon = G['lon0'] + np.arange(G['nx']) * G['d']
+    lat = G['lat0'] - np.arange(G['ny']) * G['d']
+    out = np.full((G['ny'], G['nx']), np.nan)
+    for j in range(G['ny']):
+        cols = np.where(masc[j] >= 0)[0]
+        if cols.size:
+            la = np.full(cols.size, lat[j]); est = R.estimar(lon[cols], la, alt_grade[j, cols])
+            est[~np.isfinite(alt_grade[j, cols])] = np.nan
+            out[j, cols] = est
+    return out, R
+
+
 def dentro_mg(mesos, lon, lat):
     """Estação dentro de alguma mesorregião (par-ímpar por anéis), como o nucleo.js faz para "estação de MG"."""
     from matplotlib.path import Path as MPath

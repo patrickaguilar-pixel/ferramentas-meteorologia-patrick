@@ -192,6 +192,19 @@
       { s: '#mcEstMapa', t: 'Estações', d: 'Laranja = pendente. Clique numa estação para achá-la na tabela.' },
       { s: '#mcEstBody', t: 'Conferência', d: 'Para cada pendente: Manter (conferida) ou Retirar, com o motivo.' },
       { s: '#abaMapasBtn', t: 'Mapas', d: 'Os 6 mapas (inclui a Climatologia) no layout padrão. Só salvam depois da conferência.' },
+      { s: '#mcArqTab', t: 'Arquivo', d: 'Troca entre Precipitação, Máxima, Mínima e Média. O número entre parênteses é de pendentes.' },
+      { s: '#mcFiltro', t: 'Filtro', d: 'Pendentes, com alerta, retiradas ou todas as estações do arquivo.' },
+      { s: '#mcRetirarFortes', t: 'Retirar as fortes', d: 'Retira de uma vez as pendentes com alerta forte (pede um segundo clique para confirmar). As de atenção você decide uma a uma.' },
+      { s: '#mcExemplo', t: 'Exemplo', d: 'Carrega setembro/2026 para treinar ou conferir a ferramenta.' },
+      // aba 2 · Mapas
+      { s: '#mcProd', t: 'Produto', d: 'Os 6 mapas do mês. Um ponto depois da sigla = ainda não dá para salvar (falta conferência).' },
+      { s: '#mcMetodo', t: 'Método', d: 'IDW = mapa oficial (igual ao QGIS). Krigagem e Método recomendado ficam em avaliação, cada um com título, arquivo e botões próprios.' },
+      { s: '#mcRecAviso', t: 'Método recomendado', d: 'Qual método foi usado neste produto e, nas temperaturas, o efeito da altitude no mês. Em vermelho: o PNG fica bloqueado.' },
+      { s: '#mcEscalaBox', t: 'Escala', d: 'Automática ou ajustada à mão. Os três métodos usam a mesma escala para comparar.' },
+      { s: '#mcIso', t: 'Isolinhas e opções', d: 'Isolinhas nos limites das classes, valores nas linhas, estações usadas e cidades de referência.' },
+      { s: '#mcValid', t: 'Qualidade', d: 'Erro da validação cruzada de cada método (tira uma estação por vez). Quanto menor, melhor.' },
+      { s: '#mcMapa', t: 'Mapa', d: 'Layout de impressão, igual ao PNG. A Prévia do mapa mostra em tamanho grande.' },
+      { s: '#mcMesoBody', t: 'Mesorregiões', d: 'Média, mínimo e máximo do mapa em cada mesorregião. Sai no CSV.' },
       SALVAR
     ]
   };

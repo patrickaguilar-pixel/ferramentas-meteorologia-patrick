@@ -23,6 +23,7 @@ with tempfile.TemporaryDirectory() as tmp:
         print(js.stdout, js.stderr); sys.exit('ERRO: o Node não conseguiu gerar as grades')
     info = json.loads((Path(tmp) / 'info.json').read_text())
     mesos = R.carregar_mesos(MC / 'meso.js')
+    MDE = R.ler_mde(MC / 'mde')
     m_py = R.mascara(mesos)
     m_js = np.fromfile(Path(tmp) / 'mascara.i8', dtype=np.int8).reshape(m_py.shape)
     dif_masc = int(((m_py >= 0) != (m_js >= 0)).sum())
@@ -66,5 +67,44 @@ with tempfile.TemporaryDirectory() as tmp:
             extra = f' · validação cruzada RMSE {rm:.4f} (Python) x {d["loo"]["rmse"]:.4f} (navegador)'
             if abs(rm - d['loo']['rmse']) > 1e-6 or len(mg) != d['loo']['n']: falhou = True; extra += ' FALHOU'
         print(f'       krigagem: alcance {vj["alcance"]} km · diferença máx. {dk:.2e} · classes iguais {igk:.4f} % · {stk}{extra}')
+        # IDW local (método recomendado, em avaliação)
+        gl_py = R.idw_local_grade(lon_e, lat_e, val, m_js)
+        gl_js = np.fromfile(Path(tmp) / f'{prod}_local.f64', dtype=np.float64).reshape(g_py.shape)
+        okl = np.isfinite(gl_py) & np.isfinite(gl_js)
+        dl = float(np.max(np.abs(gl_py[okl] - gl_js[okl])))
+        stl = 'OK' if dl < 1e-9 and int((np.isfinite(gl_py) != np.isfinite(gl_js)).sum()) == 0 else 'FALHOU'
+        extra = ''
+        if d.get('looLocal'):
+            mg = [i for i, e in enumerate(est) if R.dentro_mg(mesos, e['lon'], e['lat'])]
+            xy = R.plano_km(lon_e, lat_e)
+            errs = [R.idw_local(xy[np.arange(len(est)) != i], val[np.arange(len(est)) != i], xy[i:i + 1])[0] - val[i] for i in mg]
+            rm = float(np.sqrt(np.mean(np.square(errs))))
+            extra = f' · validação cruzada RMSE {rm:.4f} (Python) x {d["looLocal"]["rmse"]:.4f} (navegador)'
+            if abs(rm - d['looLocal']['rmse']) > 1e-9: stl = 'FALHOU'
+        falhou |= stl != 'OK'
+        print(f'       IDW local: diferença máx. {dl:.2e} · {stl}{extra}')
+        if d.get('rk'):
+            alt_py = np.array([R.altitude_bilinear(MDE['ext'], e['lon'], e['lat']) for e in est])
+            da = float(np.nanmax(np.abs(alt_py - np.array(d['rk']['alt'], float))))
+            gr_py, RKp = R.rk_grade(lon_e, lat_e, alt_py, val, m_js, MDE['mg']['z'])
+            gr_js = np.fromfile(Path(tmp) / f'{prod}_rk.f64', dtype=np.float64).reshape(g_py.shape)
+            okr = np.isfinite(gr_py) & np.isfinite(gr_js)
+            dr = float(np.max(np.abs(gr_py[okr] - gr_js[okr])))
+            rj = d['rk']['reg']; dc = max(abs(RKp.reg[k] - rj[k]) for k in ('b0', 'bAlt', 'bLat'))
+            igr = float((R.classe(gr_py[okr], d['lim']) == R.classe(gr_js[okr], d['lim'])).mean() * 100)
+            str_ = 'OK' if da < 1e-6 and dc < 1e-8 and dr < 1e-6 and igr >= 99.999 and int((np.isfinite(gr_py) != np.isfinite(gr_js)).sum()) == 0 else 'FALHOU'
+            extra = ''
+            if d['rk'].get('loo'):
+                mg = [i for i, e in enumerate(est) if R.dentro_mg(mesos, e['lon'], e['lat'])]
+                errs = []
+                for i in mg:
+                    k = np.arange(len(est)) != i
+                    RR = R.RegKrig(lon_e[k], lat_e[k], alt_py[k], val[k])
+                    errs.append(RR.estimar(lon_e[i:i + 1], lat_e[i:i + 1], alt_py[i:i + 1])[0] - val[i])
+                rm = float(np.sqrt(np.mean(np.square(errs))))
+                extra = f' · validação cruzada RMSE {rm:.4f} (Python) x {d["rk"]["loo"]["rmse"]:.4f} (navegador)'
+                if abs(rm - d['rk']['loo']['rmse']) > 1e-6: str_ = 'FALHOU'
+            falhou |= str_ != 'OK'
+            print(f'       regressão+krigagem: altitudes das estações dif. máx. {da:.1e} m · coeficientes dif. {dc:.1e} · gradiente {rj["bAlt"]:.2f} °C/km · grade dif. máx. {dr:.2e} · classes iguais {igr:.4f} % · {str_}{extra}')
     print('RESULTADO:', 'FALHOU' if falhou else 'OK — navegador e referência em Python batem')
     sys.exit(1 if falhou else 0)

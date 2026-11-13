@@ -99,4 +99,41 @@ t('variograma: ajuste determinístico (mesma entrada, mesmo resultado) e alcance
   assert.deepStrictEqual(v1, v2); assert(v1.alcance >= 20 && v1.alcance <= 1200 && v1.pepita >= 0 && v1.patamar > 0);
 });
 t('produto Climatologia usa a coluna CLIMATOLOGIA do TXT de precipitação', () => { assert.strictEqual(N.PRODUTOS.clima.arq, 'PREC'); assert.strictEqual(N.PRODUTOS.clima.campo, 'clim'); assert(N.ORDEM.includes('clima')); });
+t('IDW local: em cima da estação devolve o valor; campo constante; só as 12 mais próximas contam', () => {
+  const pts = []; for (let i = 0; i < 30; i++) pts.push({ lon: -46 + (i % 6) * 0.4, lat: -20 + Math.floor(i / 6) * 0.4, v: 5 });
+  pts.push({ lon: -40, lat: -15, v: 9999 });   // longe: não pode entrar entre as 12 vizinhas de -45/-19
+  const L = N.prepararLocal(pts);
+  assert(Math.abs(N.idwLocalPonto(L, -45.1, -19.1) - 5) < 1e-12);
+  assert.strictEqual(N.idwLocalPonto(L, -40, -15), 9999);
+  assert.strictEqual(N.LOCAL.vizinhas, 12);
+});
+t('regressão altitude+latitude recupera coeficientes conhecidos e RK reproduz campo linear', () => {
+  const pts = []; for (let i = 0; i < 60; i++) { const lat = -22 + (i % 10) * 0.6, lon = -50 + Math.floor(i / 10) * 1.5, alt = 200 + ((i * 137) % 1300); pts.push({ codigo: 'X' + i, lon, lat, alt, v: 40 - 6.5 * alt / 1000 + 0.3 * lat, dentroMG: true }); }
+  const r = N.regressaoAltLat(pts);
+  assert(Math.abs(r.bAlt + 6.5) < 1e-9 && Math.abs(r.bLat - 0.3) < 1e-9 && Math.abs(r.b0 - 40) < 1e-8);
+  const rk = N.prepararRK(pts);
+  assert(rk.gradienteOk);
+  assert(Math.abs(N.rkPonto(rk, -45, -19, 900) - (40 - 6.5 * 0.9 + 0.3 * -19)) < 1e-6);
+});
+t('RK: altitude limitada à faixa das estações (-200 m / +500 m) e gradiente positivo em temperatura absoluta é recusado', () => {
+  const pts = []; for (let i = 0; i < 40; i++) { const alt = 300 + i * 25; pts.push({ lon: -48 + (i % 8), lat: -21 + Math.floor(i / 8), alt, v: 20 + 3 * alt / 1000, dentroMG: true }); }
+  const rk = N.prepararRK(pts);
+  assert(!rk.gradienteOk, 'gradiente +3 °C/km deveria ser recusado');
+  assert.deepStrictEqual(rk.altLim, [100, 1775]);
+  assert(Math.abs(N.rkPonto(rk, -45, -19, 3000) - N.rkPonto(rk, -45, -19, 1775)) < 1e-12);
+  assert(N.prepararRK(pts, { anomalia: true }).gradienteOk, 'em anomalia, +3 °C/km está dentro de ±6');
+  assert.throws(() => N.prepararRK(pts.slice(0, 20)), /Poucas estações/);
+});
+t('relevo (mde.js): Int16 LE, -32768 vira NaN, bilinear e tamanho conferido', () => {
+  const M = require(path.join(__dirname, '..', 'mde.js'));
+  const g = { lon0: -45, lat0: -19, d: 1, nx: 2, ny: 2, arquivo: 't' }, b = new ArrayBuffer(8), dv = new DataView(b);
+  [100, 200, 300, -32768].forEach((v, k) => dv.setInt16(k * 2, v, true));
+  const md = M.carregarDeBuffers({ grades: { mg: g, ext: g } }, b, b);
+  assert(Number.isNaN(md.ext.z[3]));
+  assert(Math.abs(M.altitudeEstacao(md, -44.5, -19) - 150) < 1e-9);
+  assert(Math.abs(M.altitudeEstacao(md, -45, -19.5) - 200) < 1e-9);   // entre 100 e 300
+  assert(Math.abs(M.altitudeEstacao(md, -44.5, -19.5) - 200) < 1e-9);  // sem o canto vazio: média de 100, 200, 300
+  assert.throws(() => M.carregarDeBuffers({ grades: { mg: g, ext: g } }, new ArrayBuffer(6), b), /tamanho/);
+});
+t('método recomendado: todo produto tem método conhecido', () => { N.ORDEM.forEach(p => assert(['local', 'krig', 'rk'].includes(N.RECOMENDADO[p].metodo), p)); });
 console.log(`\n${ok} ok, ${falhas} falha(s)`); process.exit(falhas ? 1 : 0);

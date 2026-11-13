@@ -1,6 +1,10 @@
 /*
- * Mapas Climáticos v0.2 (13/11/2026, Patrick/Claude) — SIMGE/IGAM
+ * Mapas Climáticos v0.3 (13/11/2026, Patrick/Claude) — SIMGE/IGAM
  * v0.2: Climatologia de Precipitação; krigagem como método SEPARADO (em avaliação); isolinhas sutis opcionais.
+ * v0.3: terceiro método SEPARADO, "Método recomendado (em avaliação)": um método por produto (N.RECOMENDADO) — IDW local
+ *       (chuva e anomalia de chuva), krigagem (climatologia), regressão com altitude e latitude + krigagem dos resíduos
+ *       (temperaturas; altitude do MDE Copernicus GLO-90 em mapas-climaticos/mde/, conferida por SHA-256). O IDW do QGIS continua
+ *       o padrão e o mapa oficial; nada dele mudou.
  *
  * Tela da ferramenta. Os números saem todos de mapas-climaticos/nucleo.js (testado contra a referência em Python).
  * Etapa 1: carregar os TXT do mês, conferir e decidir as estações com alerta (com motivo e responsável).
@@ -23,7 +27,7 @@
   var COR_ST = { pendente: '#f59e0b', usada: '#2563eb', mantida: '#16a34a', retirada: '#dc2626', invalida: '#9aa3af' };
   var ROT_ST = { pendente: 'Pendente', usada: 'Usada', mantida: 'Mantida (conferida)', retirada: 'Retirada', invalida: 'Inválida' };
   var PLURAL = { pendente: ['pendente', 'pendentes'], usada: ['usada', 'usadas'], mantida: ['mantida após conferência', 'mantidas após conferência'], retirada: ['retirada', 'retiradas'], invalida: ['inválida', 'inválidas'] };
-  var S = { arqs: {}, meta: {}, geral: [], periodoArq: null, decisoes: {}, filtro: 'pendentes', tipoTab: 'PREC', prod: 'prec', metodo: 'idw', escOpc: {}, cache: {}, cacheK: {}, iso: {}, gen: 0, sel: null, masc: null, erros: [] };
+  var S = { arqs: {}, meta: {}, geral: [], periodoArq: null, decisoes: {}, filtro: 'pendentes', tipoTab: 'PREC', prod: 'prec', metodo: 'idw', escOpc: {}, cache: {}, cacheK: {}, cacheR: {}, iso: {}, gen: 0, sel: null, masc: null, erros: [] };
 
   /* ---------------- guardar decisões neste navegador (para não perder ao recarregar) ---------------- */
   function chaveSessao() { return 'mcConf:' + TIPOS_ORDEM.map(function (t) { return S.meta[t] ? S.meta[t].sha256.slice(0, 16) : '-'; }).join('|'); }
@@ -271,7 +275,7 @@
   /* ---------------- etapa 2: mapas ---------------- */
   // Dois métodos SEPARADOS: "idw" (padrão, igual ao QGIS) e "krig" (krigagem, EM AVALIAÇÃO). Cada um tem a própria grade,
   // o próprio cache, título, crédito, nome de arquivo e botões de salvar. A escala é a mesma (vem do IDW) para comparar.
-  function limparCache() { S.cache = {}; S.cacheK = {}; S.iso = {}; S.gen = (S.gen || 0) + 1; }
+  function limparCache() { S.cache = {}; S.cacheK = {}; S.cacheR = {}; S.iso = {}; S.gen = (S.gen || 0) + 1; }
   function decisoesValidas() {   // só decisões completas valem para o cálculo
     var d = {}; Object.keys(S.decisoes).forEach(function (k) { if (decisaoCompleta(S.decisoes[k])) d[k] = S.decisoes[k]; }); return d;
   }
@@ -310,7 +314,63 @@
       }, 0);
     })();
   }
-  function gradeDe(p, metodo) { if (metodo === 'krig') { var K = calcularKrig(p); return K && K.grade; } var C = calcular(p); return C && C.grade; }
+  /* ---- método recomendado (em avaliação): um método por produto, calculado em pedaços como a krigagem ---- */
+  var SUFIXO_REC = { local: { titulo: ' (IDW local)', arquivo: '_IDWLOCAL', credito: 'IDW local, 12 estações mais próximas' },
+    krig: { titulo: ' (Krigagem)', arquivo: '_KRIGAGEM', credito: 'krigagem ordinária' },
+    rk: { titulo: ' (Regressão-krigagem)', arquivo: '_REGKRIG', credito: 'regressão com a altitude + krigagem dos resíduos' } };
+  function carregarMde() {
+    if (S.mde) return Promise.resolve(S.mde);
+    if (S.mdeP) return S.mdeP;
+    if (!window.Mde) return Promise.reject(new Error('o módulo do relevo (mde.js) não carregou'));
+    S.mdeP = Mde.carregar((window.BASE_DADOS || '../') + 'mapas-climaticos/mde/').then(function (m) { S.mde = m; return m; }, function (e) { S.mdeP = null; throw e; });
+    return S.mdeP;
+  }
+  function calcularRec(p) { return S.cacheR[p] && S.cacheR[p].pronto ? S.cacheR[p] : null; }
+  function recBloqueado(X) { return !X || !X.pronto || (X.rk && !X.rk.gradienteOk); }
+  function iniciarRec(p) {
+    if (S.cacheR[p]) return;
+    var C = calcular(p); if (!C) return;
+    var P = N.PRODUTOS[p], Rp = N.RECOMENDADO[p], G = N.GRADE, gen = S.gen, masc = mascara(), mg = function (x) { return x.dentroMG; };
+    var X = S.cacheR[p] = { pronto: false, progresso: 0, metodo: Rp.metodo, nome: Rp.nome };
+    var vivo = function () { return gen === S.gen && S.cacheR[p] === X; };
+    var redesenhar = function () { if (!$('abaMapas').hidden && S.prod === p) mapas(); else atualizarBotoes(); };
+    function preparar() {
+      var pts = C.pts.map(function (q) { return { codigo: q.codigo, lon: q.lon, lat: q.lat, v: q.v, dentroMG: q.dentroMG }; });
+      if (Rp.metodo === 'local') { var L = N.prepararLocal(pts); return { pts: pts, passo: function (a, b) { N.idwLocalLinhas(L, masc, G, a, b); }, grade: function () { return L.grade; }, vc: function () { return N.validacaoCruzadaLocal(pts, mg); } }; }
+      if (Rp.metodo === 'krig') { var v = N.ajustarVariograma(pts), K = N.prepararKrigagem(pts, v); return { pts: pts, vario: v, passo: function (a, b) { N.krigagemLinhas(K, masc, G, a, b, P.piso); }, grade: function () { return K.grade; }, vc: function () { return N.validacaoCruzadaKrig(pts, mg, P.piso); } }; }
+      var opc = { anomalia: !!Rp.anomalia };
+      pts.forEach(function (q) { q.alt = Mde.altitudeEstacao(S.mde, q.lon, q.lat); });
+      var rk = N.prepararRK(pts, opc);
+      return { pts: pts, rk: rk, vario: rk.vario, passo: function (a, b) { N.rkLinhas(rk, masc, S.mde.mg.z, G, a, b); }, grade: function () { return rk.grade; }, vc: function () { return N.validacaoCruzadaRK(pts, mg, opc); } };
+    }
+    function comecar() {
+      if (!vivo()) return;
+      var T;
+      try { T = preparar(); } catch (e) { X.erro = e.usuario ? e.message : 'Não foi possível calcular o método recomendado (' + e.message + ').'; redesenhar(); return; }
+      X.rk = T.rk || null; X.vario = T.vario || null; X.pts = T.pts;
+      var j = 0, PASSO = 30;
+      (function pedaco() {
+        if (!vivo()) return;
+        try { T.passo(j, j + PASSO); } catch (e) { X.erro = 'Não foi possível calcular o método recomendado (' + e.message + ').'; redesenhar(); return; }
+        j += PASSO; X.progresso = Math.min(1, j / G.ny);
+        if (S.prod === p && S.metodo === 'rec' && !$('abaMapas').hidden) { var el = $('mcMapa').querySelector('.vazio b'); if (el) el.textContent = Math.round(X.progresso * 100) + ' %'; }
+        if (j < G.ny) { setTimeout(pedaco, 0); return; }
+        setTimeout(function () {
+          if (!vivo()) return;
+          X.grade = T.grade();
+          try { X.vc = T.vc(); } catch (e) { X.vc = null; }
+          X.pronto = true; redesenhar();
+        }, 0);
+      })();
+    }
+    if (Rp.metodo === 'rk' && !S.mde) carregarMde().then(comecar, function (e) { if (!vivo()) return; X.erro = 'O relevo (altitude) não carregou: ' + e.message + '. Este método precisa dele; use o IDW ou a krigagem e recarregue a página mais tarde.'; redesenhar(); });
+    else comecar();
+  }
+  function gradeDe(p, metodo) {
+    if (metodo === 'krig') { var K = calcularKrig(p); return K && K.grade; }
+    if (metodo === 'rec') { var X = calcularRec(p); return X && X.grade; }
+    var C = calcular(p); return C && C.grade;
+  }
   function escala(p) {
     var C = calcular(p), o = S.escOpc[p] || {};
     return N.escalaDe(p, C.vals, o.auto === false ? { passo: o.passo, primeiro: o.primeiro, classes: o.classes } : {});
@@ -351,8 +411,26 @@
     }
     return false;
   }
-  function isolinhas(grade, lim, comRotulos, comCidades, chave) {
+  // média móvel (janela de 2r+1 células, 2 passadas ≈ gaussiana) só dentro de Minas: usada APENAS para as isolinhas do método
+  // com relevo (regressão-krigagem), que na grade de 1 km viram dezenas de laços pequenos. O mapa colorido não é suavizado.
+  function suavizarParaIso(grade, r) {
+    var G = N.GRADE, nx = G.nx, ny = G.ny, masc = mascara(), a = Float64Array.from(grade), t = new Float64Array(nx * ny);
+    for (var pass = 0; pass < 2; pass++) {
+      for (var j = 0; j < ny; j++) for (var i = 0; i < nx; i++) {   // horizontal
+        var s0 = 0, n0 = 0; for (var k = -r; k <= r; k++) { var ii = i + k; if (ii < 0 || ii >= nx) continue; var v = a[j * nx + ii]; if (isFinite(v)) { s0 += v; n0++; } }
+        t[j * nx + i] = n0 ? s0 / n0 : NaN;
+      }
+      for (j = 0; j < ny; j++) for (i = 0; i < nx; i++) {   // vertical
+        var c = j * nx + i; if (masc[c] < 0 || !isFinite(grade[c])) { a[c] = NaN; continue; }
+        var s1 = 0, n1 = 0; for (k = -r; k <= r; k++) { var jj = j + k; if (jj < 0 || jj >= ny) continue; var w = t[jj * nx + i]; if (isFinite(w)) { s1 += w; n1++; } }
+        a[c] = n1 ? s1 / n1 : NaN;
+      }
+    }
+    return a;
+  }
+  function isolinhas(grade, lim, comRotulos, comCidades, chave, minComp) {
     chave = chave + '|' + (comRotulos ? 1 : 0) + (comCidades ? 1 : 0);
+    minComp = minComp || 0;
     if (S.iso[chave]) return S.iso[chave];
     var G = N.GRADE, nx = G.nx, ny = G.ny, ll = function (x, y) { return [G.lon0 + G.d * x, G.lat0 - G.d * y]; };
     var linhas = [], rotulos = [], usados = [], cids = comCidades ? cidades() : [];
@@ -396,6 +474,7 @@
         if (pts.length > 1) ln.push(pts[pts.length - 1].p);
         var acum = [0]; for (q = 1; q < ln.length; q++) acum.push(acum[q - 1] + Math.hypot(ln[q][0] - ln[q - 1][0], ln[q][1] - ln[q - 1][1]));
         var comp = acum[acum.length - 1], cortes = [];
+        if (minComp && comp < minComp) continue;   // laço pequeno (só no método com relevo)
         if (comRotulos && comp >= ISO.compMin) {
           var txt = N.fmt(nv), meia = (txt.length * 0.556 * ISO.rotTam / 2 + ISO.folga) / ISO.mmGrau;
           for (var s0 = comp / 2 % ISO.passoRot || comp / 2; s0 < comp - meia; s0 += ISO.passoRot) {
@@ -432,18 +511,21 @@
   function opMapa(p, metodo) {
     metodo = metodo || S.metodo;
     var P = N.PRODUTOS[p], per = periodoEscolhido(), C = calcular(p), es = escala(p), grade = gradeDe(p, metodo), krig = metodo === 'krig';
+    var rec = metodo === 'rec' ? SUFIXO_REC[N.RECOMENDADO[p].metodo] : null;
     var dias = N.diasNoMes(per.mes, per.ano), mm = ('0' + per.mes).slice(-2);
     var op = {
-      titulo: P.titulo + ' - ' + N.MESES_BR[per.mes - 1] + (P.semAno ? '' : ' de ' + per.ano) + (krig ? ' (Krigagem)' : ''),
+      titulo: P.titulo + ' - ' + N.MESES_BR[per.mes - 1] + (P.semAno ? '' : ' de ' + per.ano) + (krig ? ' (Krigagem)' : rec ? rec.titulo : ''),
       textoValidade: P.semAno ? 'NORMAL CLIMATOLÓGICA 1991-2020 (INMET)' : 'PERÍODO: 01/' + mm + '/' + per.ano + ' a ' + dias + '/' + mm + '/' + per.ano,
-      credito: P.credito + (krig ? ' · Interpolação: krigagem ordinária (em avaliação)' : '') + ' - SIMGE/IGAM, ' + new Date().getFullYear(),
+      credito: P.credito + (krig ? ' · Interpolação: krigagem ordinária (em avaliação)' : rec ? ' · Interpolação: ' + rec.credito + ' (em avaliação)' : '') + ' - SIMGE/IGAM, ' + new Date().getFullYear(),
       fundo: '',
       areas: areas(grade, es),
       legenda: es.rotulos.map(function (l, i) { return { fill: es.cores[i], label: l + ' ' + P.unidade }; }),
       cidades: $('mcCidades').checked ? cidades() : []
     };
     if ($('mcIso').checked) {
-      var I = isolinhas(grade, es.lim, $('mcIsoRot').checked, $('mcCidades').checked, metodo + '|' + p + '|' + es.lim.join(','));
+      var comRelevo = metodo === 'rec' && N.RECOMENDADO[p].metodo === 'rk', chIso = metodo + '|' + p + '|' + es.lim.join(',');
+      var I = comRelevo ? (S.iso[chIso + '|' + ($('mcIsoRot').checked ? 1 : 0) + ($('mcCidades').checked ? 1 : 0)] || isolinhas(suavizarParaIso(grade, 3), es.lim, $('mcIsoRot').checked, $('mcCidades').checked, chIso, 0.3))
+        : isolinhas(grade, es.lim, $('mcIsoRot').checked, $('mcCidades').checked, chIso);
       op.isolinhas = [{ linhas: I.linhas, stroke: ISO.cor, width: ISO.largura, opacity: ISO.opacidade }];
       op.rotulosIso = I.rotulos;
     }
@@ -452,33 +534,38 @@
   }
   function nomeArquivo(p, ext, metodo) {
     var per = periodoEscolhido(), P = N.PRODUTOS[p];
-    return P.sigla + '_' + N.SIGLAS[per.mes - 1] + (P.semAno ? '' : '_' + per.ano) + ((metodo || S.metodo) === 'krig' ? '_KRIGAGEM' : '') + '.' + ext;
+    var m = metodo || S.metodo, suf = m === 'krig' ? '_KRIGAGEM' : m === 'rec' ? SUFIXO_REC[N.RECOMENDADO[p].metodo].arquivo : '';
+    return P.sigla + '_' + N.SIGLAS[per.mes - 1] + (P.semAno ? '' : '_' + per.ano) + suf + '.' + ext;
   }
   function linhaValid(nome, v, un) { return v ? '<tr><td>' + nome + '</td><td class="num">' + v.n + '</td><td class="num">' + fmt(v.mae, 2) + '</td><td class="num">' + fmt(v.rmse, 2) + '</td><td class="num">' + fmt(v.vies, 2) + '</td></tr>' : '<tr><td>' + nome + '</td><td colspan="4" class="small">' + un + '</td></tr>'; }
   function mapas() {
     $('mcProd').innerHTML = N.ORDEM.map(function (p) { var ok = prontoProduto(p).ok, P = N.PRODUTOS[p]; return '<button type="button" data-p="' + p + '"' + (p === S.prod ? ' class="on"' : '') + ' title="' + esc(P.titulo) + '">' + esc(P.sigla) + (ok ? '' : ' ·') + '</button>'; }).join('');
     [].forEach.call(document.querySelectorAll('#mcMetodo button'), function (b) { b.classList.toggle('on', b.dataset.m === S.metodo); });
-    var krig = S.metodo === 'krig';
-    $('mcVistaIdw').hidden = krig; $('mcVistaKrig').hidden = !krig; $('mcKrigAviso').hidden = !krig;
+    var krig = S.metodo === 'krig', recM = S.metodo === 'rec';
+    $('mcVistaIdw').hidden = krig || recM; $('mcVistaKrig').hidden = !krig; $('mcKrigAviso').hidden = !krig; $('mcVistaRec').hidden = !recM; $('mcRecAviso').hidden = !recM;
     $('mcIsoRot').disabled = !$('mcIso').checked;
     var p = S.prod, P = N.PRODUTOS[p], el = $('mcMapa'), pr = prontoProduto(p), C = S.arqs[P.arq] ? calcular(p) : null;
-    $('mcMapaTit').textContent = P.titulo + (krig ? ' — Krigagem (em avaliação)' : '');
+    $('mcMapaTit').textContent = P.titulo + (krig ? ' — Krigagem (em avaliação)' : recM ? ' — ' + N.RECOMENDADO[p].nome + ' (em avaliação)' : '');
+    $('mcRecMetodo').textContent = N.RECOMENDADO[p].nome;
     if (!C) {
       el.innerHTML = '<div class="vazio">' + esc(S.arqs[P.arq] ? 'Nenhuma estação aprovada para este produto.' : 'Falta o arquivo ' + N.TIPOS[P.arq].arquivo + ' (etapa 1).') + '</div>';
-      $('mcProdStatus').className = 'stbox aviso'; $('mcProdStatus').textContent = pr.motivo || 'Sem dados.'; $('mcMesoBody').innerHTML = ''; $('mcValid').innerHTML = '—'; $('mcVario').textContent = '';
+      $('mcProdStatus').className = 'stbox aviso'; $('mcProdStatus').textContent = pr.motivo || 'Sem dados.'; $('mcMesoBody').innerHTML = ''; $('mcValid').innerHTML = '—'; $('mcVario').textContent = ''; $('mcRecInfo').textContent = '';
       $('previewBtn').disabled = true; escalaCampos(p, null); atualizarBotoes(); return;
     }
     var es = escala(p);
     escalaCampos(p, es);
     if (krig) iniciarKrig(p);
-    var K = calcularKrig(p);
+    if (recM) iniciarRec(p);
+    var K = calcularKrig(p), X = S.cacheR[p];
     $('mcProdStatus').className = 'stbox ' + (pr.ok ? 'ok' : 'aviso');
     $('mcProdStatus').innerHTML = (pr.ok ? '<strong>Pronto para salvar.</strong> ' + C.pts.length + ' estações (' + C.pts.filter(function (x) { return x.dentroMG; }).length + ' em MG). Arquivo: ' + esc(nomeArquivo(p, 'png')) + '.'
       : '<strong>Prévia — ainda não dá para salvar.</strong> ' + esc(pr.motivo) + ' As pendentes estão fora deste mapa até a decisão.');
     // qualidade: IDW e krigagem lado a lado (mesmas estações, mesma validação deixando uma de fora)
     $('mcValid').innerHTML = '<table class="mtab" style="font-size:13px"><thead><tr><th>Método</th><th class="num">Estações MG</th><th class="num">Erro médio</th><th class="num">RMSE</th><th class="num">Viés</th></tr></thead><tbody>' +
-      linhaValid('IDW (padrão)', C.vc, 'sem estações em MG') + linhaValid('Krigagem', K && K.vc, K ? 'sem estações em MG' : (S.cacheK[p] ? 'calculando…' : 'abra o método Krigagem para calcular')) + '</tbody></table>' +
-      '<p class="small" style="margin-top:6px">Unidade: ' + esc(P.unidade) + '. Quanto menor o erro, melhor; compare os dois sempre com as mesmas estações.</p>';
+      linhaValid('IDW (padrão)', C.vc, 'sem estações em MG') + linhaValid('Krigagem', K && K.vc, K ? 'sem estações em MG' : (S.cacheK[p] ? 'calculando…' : 'abra o método Krigagem para calcular')) +
+      linhaValid('Recomendado: ' + esc(N.RECOMENDADO[p].nome), X && X.pronto && X.vc, X && X.erro ? 'não calculado: ' + esc(X.erro) : X && X.pronto ? 'sem estações em MG' : (X ? 'calculando…' : 'abra o Método recomendado para calcular')) + '</tbody></table>' +
+      '<p class="small" style="margin-top:6px">Unidade: ' + esc(P.unidade) + '. Quanto menor o erro, melhor; compare os métodos sempre com as mesmas estações.</p>';
+    $('mcRecInfo').innerHTML = recInfo(p, X);
     $('mcVario').innerHTML = K ? 'Variograma do mês: pepita ' + fmt(K.vario.pepita, 2) + ' · patamar ' + fmt(K.vario.patamar, 2) + ' · alcance <b>' + K.vario.alcance + ' km</b>' +
       (K.vario.noLimite ? '<br><span class="g-atencao">O alcance bateu no limite de 1200 km: neste mês os dados não definem bem a distância de influência entre as estações. Use a krigagem só para comparar.</span>' : '') +
       (!K.vario.ajustado ? '<br><span class="g-forte">Poucos pares de estações: o variograma não pôde ser ajustado (valores padrão).</span>' : '') : '';
@@ -488,14 +575,38 @@
       el.innerHTML = '<div class="vazio">Calculando a krigagem (cerca de 5 segundos)… <b>' + Math.round(((S.cacheK[p] || {}).progresso || 0) * 100) + ' %</b></div>';
       $('previewBtn').disabled = true; $('mcMesoBody').innerHTML = ''; atualizarBotoes(); return;
     }
+    if (recM && !(X && X.pronto)) {
+      el.innerHTML = X && X.erro ? '<div class="vazio">' + esc(X.erro) + '</div>' : '<div class="vazio">Calculando o método recomendado (' + esc(N.RECOMENDADO[p].nome) + ')… <b>' + Math.round(((X || {}).progresso || 0) * 100) + ' %</b></div>';
+      $('previewBtn').disabled = true; $('mcMesoBody').innerHTML = ''; atualizarBotoes(); return;
+    }
     var op = opMapa(p), img = new Image(); img.alt = op.titulo;
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(LayoutMapa.svg(op));
     el.innerHTML = ''; el.appendChild(img);
     $('previewBtn').disabled = false;
     var est = N.estatMeso(gradeDe(p, S.metodo), mascara(), MESOS), cont = MESOS.features.map(function (f) { return C.pts.filter(function (x) { return N.dentroGeom(x.lon, x.lat, f.geometry); }).length; });
-    $('mcMesoLede').textContent = P.titulo + ' (' + P.unidade + ')' + (krig ? ', krigagem' : '') + ': média, mínimo e máximo do mapa dentro de cada mesorregião.';
+    $('mcMesoLede').textContent = P.titulo + ' (' + P.unidade + ')' + (krig ? ', krigagem' : recM ? ', ' + N.RECOMENDADO[p].nome.toLowerCase() : '') + ': média, mínimo e máximo do mapa dentro de cada mesorregião.';
     $('mcMesoBody').innerHTML = est.map(function (m, i) { return '<tr><td>' + esc(m.nome) + '</td><td class="num">' + fmt(m.media) + '</td><td class="num">' + fmt(m.min) + '</td><td class="num">' + fmt(m.max) + '</td><td class="num">' + cont[i] + '</td></tr>'; }).join('');
     atualizarBotoes();
+  }
+  // painel do método recomendado: o que foi usado e os avisos (gradiente fora da faixa bloqueia o PNG)
+  function recInfo(p, X) {
+    var Rp = N.RECOMENDADO[p], u = N.PRODUTOS[p].unidade, h = '';
+    if (!X) return '';
+    if (X.erro) return '<span class="g-forte">' + esc(X.erro) + '</span>';
+    if (X.rk) {
+      var r = X.rk, rg = r.reg;
+      h += 'Regressão do mês: <b>' + fmt(rg.bAlt, 2) + ' ' + esc(u) + ' por km de altitude</b> · ' + fmt(rg.bLat, 3) + ' ' + esc(u) + ' por grau de latitude · R² ' + fmt(rg.r2, 2) +
+        ' · ' + r.usadas + ' estações com altitude' + (r.semAltitude ? ' (<b>' + r.semAltitude + ' sem altitude, fora da regressão</b>)' : '') + '.';
+      h += '<br>Altitude das estações: ' + fmt(r.altMinEst, 0) + ' a ' + fmt(r.altMaxEst, 0) + ' m (MDE Copernicus GLO-90, média da célula' + (S.mde && S.mde.conferido ? ', SHA-256 conferido' : '') + ').';
+      if (X.pronto && r.celulasLimitadas) h += ' ' + r.celulasLimitadas + ' células de Minas fora dessa faixa usam o limite (sem extrapolar).';
+      if (!r.gradienteOk) h += '<br><span class="g-forte">O coeficiente da altitude (' + fmt(rg.bAlt, 2) + ' ' + esc(u) + '/km) ficou fora da faixa aceita (' + fmt(r.gradienteFaixa[0], 0) + ' a ' + fmt(r.gradienteFaixa[1], 0) + '). Confira as estações: o PNG deste método fica bloqueado neste mês.</span>';
+      else if (rg.r2 < 0.1) h += '<br><span class="g-atencao">A altitude e a latitude explicam pouco neste mês (R² ' + fmt(rg.r2, 2) + '): o mapa fica parecido com a krigagem.</span>';
+    }
+    if (X.vario) h += (h ? '<br>' : '') + 'Variograma' + (X.rk ? ' dos resíduos' : '') + ': pepita ' + fmt(X.vario.pepita, 2) + ' · patamar ' + fmt(X.vario.patamar, 2) + ' · alcance <b>' + X.vario.alcance + ' km</b>' +
+      (X.vario.noLimite ? ' <span class="g-atencao">(no limite de 1200 km: distância de influência mal definida neste mês)</span>' : '');
+    if (Rp.metodo === 'local') h += 'Cada ponto usa as 12 estações mais próximas (distância em km, potência 2): o valor nunca sai da faixa das estações vizinhas.';
+    if (X.pronto && X.vc && calcular(p).vc && X.vc.rmse > 1.05 * calcular(p).vc.rmse) h += '<br><span class="g-atencao">Neste mês o erro da validação ficou mais de 5 % maior que o do IDW padrão: compare antes de usar.</span>';
+    return h;
   }
   function escalaCampos(p, es) {
     var fixa = N.PRODUTOS[p].escala.tipo === 'fixa', o = S.escOpc[p] || {};
@@ -504,7 +615,7 @@
     if (!es) { $('mcEscHint').textContent = ''; return; }
     if (fixa) { $('mcEscPrim').value = ''; $('mcEscPasso').value = ''; $('mcEscN').value = es.cores.length; $('mcEscHint').textContent = 'Escala fixa da equipe (' + (es.fonte || '') + '): ' + es.rotulos[0] + ' … ' + es.rotulos[es.rotulos.length - 1] + '.'; return; }
     if (o.auto !== false) { $('mcEscPrim').value = es.primeiro; $('mcEscPasso').value = es.passo; $('mcEscN').value = es.classes; }
-    $('mcEscHint').textContent = 'Valores em Minas (IDW): de ' + fmt(es.min) + ' a ' + fmt(es.max) + ' ' + N.PRODUTOS[p].unidade + '. ' + (o.auto !== false ? 'Automática: passo redondo do percentil 2 ao 98.' : 'Ajustada à mão (fica registrada).') + ' A krigagem usa a mesma escala.';
+    $('mcEscHint').textContent = 'Valores em Minas (IDW): de ' + fmt(es.min) + ' a ' + fmt(es.max) + ' ' + N.PRODUTOS[p].unidade + '. ' + (o.auto !== false ? 'Automática: passo redondo do percentil 2 ao 98.' : 'Ajustada à mão (fica registrada).') + ' A krigagem e o método recomendado usam a mesma escala.';
   }
   function lerEscalaCampos() {
     var p = S.prod; if (N.PRODUTOS[p].escala.tipo === 'fixa') return;
@@ -521,8 +632,8 @@
   }
   function png(p, metodo) {
     var pr = prontoProduto(p);
-    if (!pr.ok || !calcular(p) || (metodo === 'krig' && !calcularKrig(p))) { status('aviso', esc(pr.motivo || 'Sem dados.')); return; }
-    var b = $((metodo === 'krig' ? 'mcPngK_' : 'mcPng_') + p), txt = b.textContent; b.disabled = true; b.textContent = 'Gerando PNG…';
+    if (!pr.ok || !calcular(p) || (metodo === 'krig' && !calcularKrig(p)) || (metodo === 'rec' && recBloqueado(calcularRec(p)))) { status('aviso', esc(pr.motivo || 'O mapa deste método ainda não está pronto.')); return; }
+    var b = $((metodo === 'krig' ? 'mcPngK_' : metodo === 'rec' ? 'mcPngR_' : 'mcPng_') + p), txt = b.textContent; b.disabled = true; b.textContent = 'Gerando PNG…';
     LayoutMapa.png(opMapa(p, metodo)).then(function (blob) { baixar(nomeArquivo(p, 'png', metodo), blob); })
       .catch(function (e) { $('mcProdStatus').innerHTML += '<div class="warn">Não foi possível gerar o PNG: ' + esc(e.message) + '</div>'; })
       .then(function () { b.textContent = txt; atualizarBotoes(); });
@@ -530,29 +641,32 @@
   function csvMeso() {
     var p = S.prod, P = N.PRODUTOS[p], g = gradeDe(p, S.metodo); if (!g || !prontoProduto(p).ok) return;
     var est = N.estatMeso(g, mascara(), MESOS), per = periodoEscolhido();
-    var L = [['Produto', P.titulo + ' (' + P.unidade + ')'], ['Método', S.metodo === 'krig' ? 'Krigagem ordinária (em avaliação)' : 'IDW (padrão QGIS)'], ['Período', N.MESES_BR[per.mes - 1] + '/' + per.ano], ['Conferido por', N.seguro($('mcConferente').value.trim())], [], ['Mesorregião', 'Média', 'Mínimo', 'Máximo']]
+    var L = [['Produto', P.titulo + ' (' + P.unidade + ')'], ['Método', S.metodo === 'krig' ? 'Krigagem ordinária (em avaliação)' : S.metodo === 'rec' ? N.RECOMENDADO[p].nome + ' (método recomendado, em avaliação)' : 'IDW (padrão QGIS)'], ['Período', N.MESES_BR[per.mes - 1] + '/' + per.ano], ['Conferido por', N.seguro($('mcConferente').value.trim())], [], ['Mesorregião', 'Média', 'Mínimo', 'Máximo']]
       .concat(est.map(function (m) { return [m.nome, fmt(m.media, 2), fmt(m.min, 2), fmt(m.max, 2)]; }));
+    if (S.metodo === 'rec' && recBloqueado(calcularRec(p))) return;
     baixar('Mesorregioes_' + nomeArquivo(p, 'csv'), new Blob(['﻿' + L.map(function (l) { return l.join(';'); }).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
   }
   function registro() {
     if (!Object.keys(S.arqs).length) return;
     var per = periodoEscolhido();
     var prods = N.ORDEM.filter(function (p) { return S.arqs[N.PRODUTOS[p].arq]; }).map(function (p) {
-      var C = calcular(p), K = calcularKrig(p);
-      return { id: p, n: C ? C.pts.length : 0, escala: C ? escala(p) : null, validacao: C && C.vc, krig: K ? { vario: K.vario, validacao: K.vc } : null };
+      var C = calcular(p), K = calcularKrig(p), X = calcularRec(p);
+      return { id: p, n: C ? C.pts.length : 0, escala: C ? escala(p) : null, validacao: C && C.vc, krig: K ? { vario: K.vario, validacao: K.vc } : null,
+        rec: X ? { nome: X.nome, validacao: X.vc, reg: X.rk && X.rk.reg, usadas: X.rk && X.rk.usadas, gradienteOk: X.rk ? X.rk.gradienteOk : null } : null };
     });
-    var txt = N.registroCSV({ periodo: per, conferente: $('mcConferente').value.trim(), geradoEm: agora(), versaoFerramenta: '0.2',
+    var txt = N.registroCSV({ periodo: per, conferente: $('mcConferente').value.trim(), geradoEm: agora(), versaoFerramenta: '0.3',
       arquivos: TIPOS_ORDEM.filter(function (t) { return S.arqs[t]; }).map(function (t) { return { tipo: t, nome: S.meta[t].nome, sha256: S.meta[t].sha256, codificacao: S.arqs[t].codificacao, linhas: S.arqs[t].estacoes.length }; }),
       arqs: S.arqs, decisoes: S.decisoes, produtos: prods, criterios: N.CRITERIOS });
     baixar('Registro_conferencia_MapasClimaticos_' + (per ? N.SIGLAS[per.mes - 1] + '_' + per.ano : 'sem_periodo') + '.csv', new Blob([txt], { type: 'text/csv;charset=utf-8' }));
   }
   function atualizarBotoes() {
     N.ORDEM.forEach(function (p) {
-      var ok = prontoProduto(p).ok, b = $('mcPng_' + p), k = $('mcPngK_' + p);
+      var ok = prontoProduto(p).ok, b = $('mcPng_' + p), k = $('mcPngK_' + p), r = $('mcPngR_' + p);
       if (b && b.textContent.indexOf('Gerando') < 0) b.disabled = !ok;
       if (k && k.textContent.indexOf('Gerando') < 0) k.disabled = !ok || !calcularKrig(p);
+      if (r && r.textContent.indexOf('Gerando') < 0) r.disabled = !ok || recBloqueado(calcularRec(p));
     });
-    $('mcMesoCsv').disabled = !prontoProduto(S.prod).ok || !gradeDe(S.prod, S.metodo);
+    $('mcMesoCsv').disabled = !prontoProduto(S.prod).ok || !gradeDe(S.prod, S.metodo) || (S.metodo === 'rec' && recBloqueado(calcularRec(S.prod)));
     var temPend = TIPOS_ORDEM.some(function (t) { return contagem(t).pendente; });
     $('mcRegistro').disabled = !Object.keys(S.arqs).length || !!bloqueiosGerais().length || temPend;
   }
@@ -596,15 +710,15 @@
     $('mcEscAuto').addEventListener('change', lerEscalaCampos);
     ['mcEscPrim', 'mcEscPasso', 'mcEscN'].forEach(function (id) { $(id).addEventListener('change', lerEscalaCampos); });
     ['mcMostrarEst', 'mcCidades'].forEach(function (id) { $(id).addEventListener('change', mapas); });
-    N.ORDEM.forEach(function (p) { $('mcPng_' + p).addEventListener('click', function () { png(p, 'idw'); }); $('mcPngK_' + p).addEventListener('click', function () { png(p, 'krig'); }); });
+    N.ORDEM.forEach(function (p) { $('mcPng_' + p).addEventListener('click', function () { png(p, 'idw'); }); $('mcPngK_' + p).addEventListener('click', function () { png(p, 'krig'); }); $('mcPngR_' + p).addEventListener('click', function () { png(p, 'rec'); }); });
     $('mcMetodo').addEventListener('click', function (e) { var b = e.target.closest('[data-m]'); if (b && b.dataset.m !== S.metodo) { S.metodo = b.dataset.m; mapas(); } });
     ['mcIso', 'mcIsoRot'].forEach(function (id) { $(id).addEventListener('change', function () { try { localStorage.setItem(id, $(id).checked ? '1' : '0'); } catch (er) { } mapas(); }); });
     try { $('mcIso').checked = localStorage.getItem('mcIso') === '1'; $('mcIsoRot').checked = localStorage.getItem('mcIsoRot') === '1'; } catch (er) { }
     $('mcMesoCsv').addEventListener('click', csvMeso);
     $('mcRegistro').addEventListener('click', registro);
-    $('previewBtn').addEventListener('click', function () { if (!$('abaMapas').hidden && calcular(S.prod) && periodoEscolhido() && window.LayoutMapa) LayoutMapa.previa(opMapa(S.prod)); });
+    $('previewBtn').addEventListener('click', function () { if (!$('abaMapas').hidden && calcular(S.prod) && periodoEscolhido() && window.LayoutMapa && gradeDe(S.prod, S.metodo)) LayoutMapa.previa(opMapa(S.prod)); });
     tudo();
   }
-  window.MapasClimaticos = { _S: S, calcular: calcular, escala: escala, opMapa: function (p) { return opMapa(p || S.prod); }, prontoProduto: prontoProduto };   // para conferência no console
+  window.MapasClimaticos = { _S: S, calcular: calcular, escala: escala, opMapa: function (p, m) { return opMapa(p || S.prod, m); }, prontoProduto: prontoProduto, calcularRec: calcularRec, nomeArquivo: nomeArquivo };   // para conferência no console
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
 })();
