@@ -49,6 +49,7 @@ INDICES = [  # endereço novo (desde 2026) e o antigo, que a ANM disse que ficar
 HOSTS_OK = {"dadosabertos.anm.gov.br", "app.anm.gov.br"}
 UA = "SIMGE-IGAM-ferramentas-meteorologia/1.0 (painel de testes; github.com/patrickaguilar-pixel/ferramentas-meteorologia-patrick)"
 MAX_BYTES = 60 * 1024 * 1024
+VERSAO_LEITOR = 2   # mudou a leitura? sobe o número: o anm.json é refeito mesmo se o arquivo da ANM for o mesmo
 EXT_OK = (".csv", ".zip", ".xlsx", ".json", ".txt")
 MG_BBOX = (-51.1, -23.0, -39.8, -14.2)   # lon0, lat0, lon1, lat1 (com folga)
 
@@ -400,19 +401,24 @@ def main():
 
     total, mg, pend = 0, [], []
     cont_br = {0: 0, 1: 0, 2: 0, 3: 0, None: 0}
+    alerta_br = 0
     for n, r in enumerate(lin, start=2):
         if not any(str(c).strip() for c in r):
             continue
         total += 1
         nv = nivel(cel(r, "nivel"))
+        em_alerta = "ALERTA" in norm(cel(r, "nivel"))   # "Nível de Alerta": abaixo do nível 1 de emergência (não é emergência)
+        if em_alerta and nv is None:
+            nv = 0
         cont_br[nv] += 1
+        alerta_br += 1 if em_alerta else 0
         if norm(cel(r, "uf")) not in ("MG", "MINAS GERAIS"):
             continue
         la, lo = coord(cel(r, "lat")), coord(cel(r, "lon"))
         item = {
             "id": cel(r, "id"), "nome": cel(r, "nome"), "empreendedor": cel(r, "empreendedor"), "municipio": cel(r, "municipio"),
             "uf": "MG", "lat": round(la, 6) if la is not None else None, "lon": round(lo, 6) if lo is not None else None,
-            "nivel": nv, "nivel_texto": cel(r, "nivel"), "alerta": sim_nao(cel(r, "alerta")) if "alerta" in mp else None,
+            "nivel": nv, "nivel_texto": cel(r, "nivel"), "alerta": True if em_alerta else (sim_nao(cel(r, "alerta")) if "alerta" in mp else False),
             "alerta_texto": cel(r, "alerta"), "cri": cel(r, "cri"), "dpa": cel(r, "dpa"), "situacao": cel(r, "situacao"),
             "metodo": cel(r, "metodo"), "minerio": cel(r, "minerio"), "atualizacao": cel(r, "atualizacao"), "linha": n,
         }
@@ -448,10 +454,10 @@ def main():
 
     mg.sort(key=lambda b: (-(b["nivel"] or 0), b["municipio"], b["nome"]))
     novo = {
-        "versao": 1, "fonte": "ANM — Sistema Integrado de Gestão de Barragens de Mineração (SIGBM), dados abertos",
+        "versao": 1, "versao_leitor": VERSAO_LEITOR, "fonte": "ANM — Sistema Integrado de Gestão de Barragens de Mineração (SIGBM), dados abertos",
         "indice": indice_usado, "arquivo": url, "tabela": rot, "formato": desc, "sha256": sha,
         "colunas": {k: cab[i] for k, i in mp.items()},
-        "total_brasil": total, "niveis_brasil": {str(k): v for k, v in cont_br.items() if k is not None},
+        "total_brasil": total, "niveis_brasil": {str(k): v for k, v in cont_br.items() if k is not None}, "alerta_brasil": alerta_br,
         "total_mg": len(mg), "niveis_mg": {str(k): v for k, v in cont_mg.items()}, "pendencias_mg": len(pend),
         "baixado_em": agora, "barragens": mg,
     }
@@ -461,7 +467,7 @@ def main():
 def terminar(saida, agora, anterior, novo, erro, extra=None):
     mudou = False
     if novo is not None:
-        if anterior and anterior.get("sha256") == novo["sha256"]:
+        if anterior and anterior.get("sha256") == novo["sha256"] and anterior.get("versao_leitor") == VERSAO_LEITOR:
             log("Arquivo da ANM igual ao anterior: anm.json mantido.")
         else:
             (saida / "anm.json").write_text(json.dumps(novo, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
