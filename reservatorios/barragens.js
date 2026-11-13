@@ -386,13 +386,18 @@
     // isolinhas (seletores "Isolinhas" e "Valores" no topo da ferramenta), só no mapa de chuva suavizada
     var isoRot = '';
     if (!op.porMunicipio && !op.semRotulos && isoLigada() && window.IsoLinhas) {
-      var I = IsoLinhas.calcular({ valor: function (lo, la) { return N.bilinear(S.J.grade, m, lo, la); }, ext: P.e, passo: (P.e.x1 - P.e.x0) / 420, niveis: isoNiveis(), mmGrau: P.k,
-        rotulos: isoValores(), tam: isoEstilo().rotTam * 0.85, minLinhaMm: 30, distRotulosMm: 28, entreRotulosMm: 90, cor: isoEstilo().rotCor, opacidade: isoEstilo().rotOpac,
-        dentro: function (lo, la) { return lo > P.e.x0 && lo < P.e.x1 && la > P.e.y0 && la < P.e.y1; } });
-      s += '<g clip-path="url(#' + id + 'mg)"><path d="' + I.linhas.map(function (ln) { return ln.map(function (q, i) { return (i ? 'L' : 'M') + mm(P.X(q[0])) + ' ' + mm(P.Y(q[1])); }).join(''); }).join('') + '" fill="none" stroke="' + isoEstilo().linha + '" stroke-width="0.3" stroke-opacity="' + isoEstilo().opacLinha + '" stroke-linejoin="round"/></g>';
-      I.rotulos.forEach(function (r) {
-        var x = P.X(r.lon), y = P.Y(r.lat);
-        isoRot += '<text x="' + mm(x) + '" y="' + mm(y + r.tamanho * 0.35) + '" transform="rotate(' + r.angulo + ' ' + mm(x) + ' ' + mm(y) + ')" font-family="' + FONTE + '" font-size="' + r.tamanho + '" fill="' + r.cor + '" fill-opacity="' + r.opacidade + '" text-anchor="middle">' + String(r.texto).replace(/[<&]/g, '') + '</text>';
+      var evZ = [];
+      isoConjuntos(esc.lim).forEach(function (E) {
+        if (!E.niveis.length) return;
+        var I = IsoLinhas.calcular({ valor: function (lo, la) { return N.bilinear(S.J.grade, m, lo, la); }, ext: P.e, passo: (P.e.x1 - P.e.x0) / 420, niveis: E.niveis, mmGrau: P.k,
+          rotulos: isoValores(), tam: E.rotTam * 0.85, minLinhaMm: 30, distRotulosMm: 28, entreRotulosMm: 90, cor: E.rotCor, opacidade: E.rotOpac, evitar: evZ.slice(),
+          dentro: function (lo, la) { return lo > P.e.x0 && lo < P.e.x1 && la > P.e.y0 && la < P.e.y1; } });
+        s += '<g clip-path="url(#' + id + 'mg)"><path d="' + I.linhas.map(function (ln) { return ln.map(function (q, i) { return (i ? 'L' : 'M') + mm(P.X(q[0])) + ' ' + mm(P.Y(q[1])); }).join(''); }).join('') + '" fill="none" stroke="' + E.linha + '" stroke-width="' + (E.largura * 1.36).toFixed(2) + '" stroke-opacity="' + E.opacLinha + '" stroke-linejoin="round"/></g>';
+        I.rotulos.forEach(function (r) {
+          var x = P.X(r.lon), y = P.Y(r.lat), dg = 4 / P.k;
+          evZ.push([r.lon - dg, r.lat - dg / 2, r.lon + dg, r.lat + dg / 2]);
+          isoRot += '<text x="' + mm(x) + '" y="' + mm(y + r.tamanho * 0.35) + '" transform="rotate(' + r.angulo + ' ' + mm(x) + ' ' + mm(y) + ')" font-family="' + FONTE + '" font-size="' + r.tamanho + '" fill="' + r.cor + '" fill-opacity="' + r.opacidade + '" text-anchor="middle"' + (E.halo ? ' stroke="#fff" stroke-width="' + mm(r.tamanho * 0.22) + '" stroke-linejoin="round" paint-order="stroke"' : '') + '>' + String(r.texto).replace(/[<&]/g, '') + '</text>';
+        });
       });
     }
     s += '</g>' + isoRot;
@@ -445,6 +450,8 @@
   function isoValores() { return !!(window.RESERV_ISO && window.RESERV_ISO.valores()); }
   // a cada 50 mm e no estilo da Umidade Mínima (definidos em app.js; reserva igual se faltar)
   function isoNiveis() { return (window.RESERV_ISO && window.RESERV_ISO.niveis) || [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]; }
+  // conjuntos de isolinhas (tipo escolhido no topo: a cada 50 mm, nas faixas ou as duas); reserva = a cada 50 mm
+  function isoConjuntos(lim) { if (window.RESERV_ISO && window.RESERV_ISO.conjuntos) return window.RESERV_ISO.conjuntos(lim); return [Object.assign({ niveis: isoNiveis(), halo: false }, isoEstilo())]; }
   function isoEstilo() { return (window.RESERV_ISO && window.RESERV_ISO.estilo) || { linha: '#ffffff', largura: 0.22, opacLinha: 0.8, rotCor: '#3a3a3a', rotOpac: 0.7, rotTam: 3.6 }; }
   function dentroMinas(lon, lat) {   // dentro de algum município de MG (para os valores não caírem fora do estado)
     var F = S.mun.features;
@@ -507,10 +514,14 @@
     if (isoLigada() && window.IsoLinhas) {
       var evitar = cidades.map(function (c) { var w = c.nome.length * 0.105 / 2; return [c.lon - w, c.lat - 0.3, c.lon + w, c.lat + 0.04]; })
         .concat(op.pontos.map(function (p) { return [p.lon - 0.12, p.lat - 0.15, p.lon + 0.12 + (p.rotulo || '').length * 0.1, p.lat + 0.15]; }));
-      var I = IsoLinhas.calcular({ valor: function (lo, la) { return N.bilinear(S.J.grade, m, lo, la); }, ext: { x0: -51.2, x1: -39.7, y0: -23.2, y1: -14.1 }, passo: 0.025, niveis: isoNiveis(), mmGrau: 18.6,
-        dentro: dentroMinas, evitar: evitar, rotulos: isoValores(), tam: isoEstilo().rotTam, cor: isoEstilo().rotCor, opacidade: isoEstilo().rotOpac });
-      op.isolinhas = [{ linhas: I.linhas, stroke: isoEstilo().linha, width: isoEstilo().largura, opacity: isoEstilo().opacLinha }];
-      op.rotulosIso = I.rotulos.map(function (r) { r.halo = false; return r; });
+      op.isolinhas = []; op.rotulosIso = [];
+      isoConjuntos(esc.lim).forEach(function (E) {
+        if (!E.niveis.length) return;
+        var I = IsoLinhas.calcular({ valor: function (lo, la) { return N.bilinear(S.J.grade, m, lo, la); }, ext: { x0: -51.2, x1: -39.7, y0: -23.2, y1: -14.1 }, passo: 0.025, niveis: E.niveis, mmGrau: 18.6,
+          dentro: dentroMinas, evitar: evitar.slice(), rotulos: isoValores(), tam: E.rotTam, cor: E.rotCor, opacidade: E.rotOpac });
+        op.isolinhas.push({ linhas: I.linhas, stroke: E.linha, width: E.largura, opacity: E.opacLinha });
+        I.rotulos.forEach(function (r) { r.halo = E.halo; op.rotulosIso.push(r); evitar.push([r.lon - 0.2, r.lat - 0.12, r.lon + 0.2, r.lat + 0.12]); });
+      });
     }
     return op;
   }

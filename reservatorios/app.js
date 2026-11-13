@@ -174,7 +174,16 @@ const LADO_RES={SFV:'acima',SSA:'esquerda',CA:'esquerda',PE:'esquerda'};
 function opcaoMapa(id,padrao){ const el=document.getElementById(id); if(el) return el.checked; try{ const v=localStorage.getItem('reserv_'+id); return v==null?padrao:v==='1'; }catch(e){ return padrao; } }
 // isolinhas a cada 50 mm (50, 100, 150…), no estilo da Umidade Mínima: linha branca, rótulo cinza sem contorno (13/11/2026)
 const ISO_NIVEIS=Array.from({length:20},(_,i)=>50*(i+1)), ISO_ESTILO={ linha:'#ffffff', largura:0.22, opacLinha:0.8, rotCor:'#3a3a3a', rotOpac:0.7, rotTam:3.6 };
-window.RESERV_ISO={ suave:()=>opcaoMapa('mapaSuave',true), linhas:()=>opcaoMapa('mapaIso',false), valores:()=>opcaoMapa('mapaIsoVal',false), niveis:ISO_NIVEIS, estilo:ISO_ESTILO };
+// tipo das isolinhas (seletor ao lado de "Isolinhas"): '50' = a cada 50 mm (padrão) · 'faixas' = nos limites das faixas (estilo anterior) · 'duas'
+function isoTipo(){ const el=document.getElementById('mapaIsoTipo'); let v=el?el.value:null; if(!v){ try{ v=localStorage.getItem('reserv_mapaIsoTipo'); }catch(e){} } return ['50','faixas','duas'].includes(v)?v:'50'; }
+// conjuntos de linhas a desenhar, cada um com os níveis e o estilo; nas duas, as faixas que já são múltiplas de 50 ficam só no conjunto de 50 mm
+function isoConjuntos(limFaixas){
+  const t=isoTipo();
+  const faixas={ niveis:(limFaixas||[]).filter(v=>t!=='duas'||v%50!==0), linha:'#ffffff', largura:0.22, opacLinha:0.85, rotCor:'#1f2328', rotOpac:0.85, rotTam:3.0, halo:true };
+  const cinq=Object.assign({}, ISO_ESTILO, { niveis:ISO_NIVEIS, largura:t==='duas'?0.4:ISO_ESTILO.largura, halo:false });
+  return t==='faixas'?[faixas]:t==='duas'?[cinq,faixas]:[cinq];
+}
+window.RESERV_ISO={ suave:()=>opcaoMapa('mapaSuave',true), linhas:()=>opcaoMapa('mapaIso',false), valores:()=>opcaoMapa('mapaIsoVal',false), niveis:ISO_NIVEIS, estilo:ISO_ESTILO, tipo:isoTipo, conjuntos:isoConjuntos };
 // ponto dentro de Minas (mesorregiões)
 const MESO_BB=MESO.features.map(f=>{ const b=[1e9,1e9,-1e9,-1e9]; (f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates).forEach(p=>p[0].forEach(c=>{ b[0]=Math.min(b[0],c[0]); b[1]=Math.min(b[1],c[1]); b[2]=Math.max(b[2],c[0]); b[3]=Math.max(b[3],c[1]); })); return b; });
 function dentroMG(lon,lat){
@@ -196,9 +205,15 @@ function rasterGfs(g){
 function isoGfs(g,cidades){
   if(!window.IsoLinhas) return null;
   const evitar=(cidades||[]).map(c=>{ const w=c.nome.length*0.105/2; return [c.lon-w,c.lat-0.3,c.lon+w,c.lat+0.04]; });
-  const I=IsoLinhas.calcular({ valor:(lo,la)=>gfsValor(g,lo,la), ext:{x0:-51.2,x1:-39.7,y0:-23.2,y1:-14.1}, passo:0.025, niveis:ISO_NIVEIS, mmGrau:18.6,
-    dentro:dentroMG, evitar, rotulos:RESERV_ISO.valores(), tam:ISO_ESTILO.rotTam, cor:ISO_ESTILO.rotCor, opacidade:ISO_ESTILO.rotOpac });
-  return { isolinhas:[{ linhas:I.linhas, stroke:ISO_ESTILO.linha, width:ISO_ESTILO.largura, opacity:ISO_ESTILO.opacLinha }], rotulosIso:I.rotulos.map(r=>Object.assign(r,{halo:false})) };
+  const out={ isolinhas:[], rotulosIso:[] };
+  isoConjuntos(GFS_LIMITES).forEach(E=>{
+    if(!E.niveis.length) return;
+    const I=IsoLinhas.calcular({ valor:(lo,la)=>gfsValor(g,lo,la), ext:{x0:-51.2,x1:-39.7,y0:-23.2,y1:-14.1}, passo:0.025, niveis:E.niveis, mmGrau:18.6,
+      dentro:dentroMG, evitar, rotulos:RESERV_ISO.valores(), tam:E.rotTam, cor:E.rotCor, opacidade:E.rotOpac });
+    out.isolinhas.push({ linhas:I.linhas, stroke:E.linha, width:E.largura, opacity:E.opacLinha });
+    I.rotulos.forEach(r=>{ r.halo=E.halo; out.rotulosIso.push(r); evitar.push([r.lon-0.2,r.lat-0.12,r.lon+0.2,r.lat+0.12]); });   // o segundo conjunto não põe número em cima do primeiro
+  });
+  return out;
 }
 function mapaOp(proc,cfg){
   const ano=(cfg.ano||String(new Date().getFullYear()));
@@ -360,8 +375,14 @@ function montarSeletorFonte(){
   [['mapaSuave','Suave',true],['mapaIso','Isolinhas',false],['mapaIsoVal','Valores',false]].forEach(([id,txt,pad])=>{
     const l=document.createElement('label'); l.className='check'; l.style.margin='0'; l.style.whiteSpace='nowrap';
     const cb=document.createElement('input'); cb.type='checkbox'; cb.id=id; cb.checked=opcaoMapa(id,pad);
-    cb.addEventListener('change',()=>{ try{ localStorage.setItem('reserv_'+id,cb.checked?'1':'0'); }catch(e){} if(id==='mapaIso') document.getElementById('mapaIsoVal').disabled=!cb.checked||fonteDados()!=='gfs'; trocarCores(); });
+    cb.addEventListener('change',()=>{ try{ localStorage.setItem('reserv_'+id,cb.checked?'1':'0'); }catch(e){} if(id==='mapaIso'){ document.getElementById('mapaIsoVal').disabled=!cb.checked||fonteDados()!=='gfs'; const t=document.getElementById('mapaIsoTipo'); if(t) t.disabled=!cb.checked||fonteDados()!=='gfs'; } trocarCores(); });
     l.append(cb,' '+txt); box.appendChild(l);
+    if(id==='mapaIso'){   // tipo das isolinhas
+      const s=document.createElement('select'); s.id='mapaIsoTipo'; s.title='Onde passam as isolinhas';
+      s.innerHTML='<option value="50">a cada 50 mm</option><option value="faixas">nas faixas</option><option value="duas">as duas</option>';
+      s.value=isoTipo(); s.addEventListener('change',()=>{ try{ localStorage.setItem('reserv_mapaIsoTipo',s.value); }catch(e){} trocarCores(); });
+      box.appendChild(s);
+    }
   });
   selC.after(box);
   textoFonte();
@@ -370,6 +391,7 @@ function textoFonte(){
   const g=fonteDados()==='gfs', b=document.getElementById('cpcLoad'), h=document.querySelector('.cpcRow h2');
   const sf=document.getElementById('faixasMapa'); if(sf){ sf.disabled=!g; sf.title=g?'Escala usada nos mapas gerados com o GFS':'Com as imagens do CPC a escala é sempre a de 15 faixas'; }
   ['mapaSuave','mapaIso','mapaIsoVal'].forEach(id=>{ const el=document.getElementById(id); if(el){ el.disabled=!g||(id==='mapaIsoVal'&&!document.getElementById('mapaIso').checked); el.parentElement.title=g?'':'Só com o dado bruto do GFS (as imagens do CPC não têm o valor em mm)'; } });
+  const st=document.getElementById('mapaIsoTipo'); if(st) st.disabled=!g||!document.getElementById('mapaIso').checked;
   aplicarEscala();
   if(b) b.textContent=g?'Buscar dados do GFS':'Buscar imagens do CPC';
   if(h) h.textContent=g?'Dados do GFS (NOAA)':'Imagens do CPC';

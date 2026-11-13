@@ -126,7 +126,7 @@
       { s: '#fonteDados', t: 'Fonte dos dados', d: 'Dado bruto GFS (chuva em mm, NOAA) ou Imagens do CPC. A escolha fica guardada neste navegador.' },
       { s: '#faixasMapa', t: 'Faixas', d: 'Escala de cores dos mapas feitos com o GFS. Com as imagens do CPC é sempre a de 15 faixas.' },
       { s: '#coresMapa', t: 'Cores', d: 'Paleta de todos os mapas da ferramenta (inclusive Barragens): Azul (atual), Viridis ou Amarelo → índigo. A escolha fica guardada neste navegador.' },
-      { s: '#opcoesMapa', t: 'Suave, Isolinhas e Valores', d: 'Só com o GFS. Suave: chuva desenhada fina, sem os quadradinhos (mesmos valores). Isolinhas: linhas brancas a cada 50 mm (50, 100, 150…). Valores: o número em cima das linhas. Vale para todos os mapas, inclusive Barragens.' },
+      { s: '#opcoesMapa', t: 'Suave, Isolinhas e Valores', d: 'Só com o GFS. Suave: chuva desenhada fina, sem os quadradinhos (mesmos valores). Isolinhas: escolha a cada 50 mm (50, 100, 150…), nas faixas da legenda (estilo anterior) ou as duas juntas (as de 50 mm mais grossas). Valores: o número em cima das linhas. Vale para todos os mapas, inclusive Barragens.' },
       { s: '#cpcLoad', t: 'Buscar dados', d: 'Busca o ciclo escolhido, gera todos os mapas e preenche as datas.' },
       { s: '#cpcStatus', t: 'Situação', d: 'Qual rodada foi carregada e quando foi baixada. Vermelho = não carregou.' },
       { s: '.tabs', t: 'Abas', d: 'Reservatórios, Tendência (Week 1 e 2), Acumulados e Barragens e municípios (72/96 h).' },
