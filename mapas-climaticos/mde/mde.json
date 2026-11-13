@@ -1,0 +1,44 @@
+{
+ "versao": 1,
+ "fonte": "Copernicus DEM GLO-90 (ESA/Copernicus; AWS Open Data, bucket copernicus-dem-90m)",
+ "metodo": "altitude média dos pixels de 90 m dentro de cada célula",
+ "sem_dado": -32768,
+ "formato": "Int16 LE, linhas do norte para o sul",
+ "blocos": 385,
+ "gerado_em": "2026-11-13T18:34Z",
+ "grades": {
+  "mg": {
+   "lon0": -51.06,
+   "lat0": -14.22,
+   "d": 0.01,
+   "nx": 1123,
+   "ny": 873,
+   "arquivo": "mde_mg.bin",
+   "cobertura": 0.9952018556089023,
+   "min": 0.0,
+   "max": 2673.9700557824335,
+   "pixels_por_celula": 144.0,
+   "sha256": "175d2d0b8f033b199e761f939aecab1aed310b5b3f265c3594a9f78736dab175",
+   "bytes": 1960758
+  },
+  "ext": {
+   "lon0": -58.0,
+   "lat0": -8.5,
+   "d": 0.02,
+   "nx": 1051,
+   "ny": 826,
+   "arquivo": "mde_ext.bin",
+   "cobertura": 0.9136070109638462,
+   "min": 0.0,
+   "max": 2563.712909749349,
+   "pixels_por_celula": 576.0,
+   "sha256": "ca366db69f5d0c500e56a02d527da2205d8ad76f439a5cb1dac5523a76f7d2a3",
+   "bytes": 1736252
+  }
+ },
+ "controle": {
+  "Belo Horizonte (centro)": 859,
+  "Montes Claros": 660,
+  "Caparaó (maior célula perto do Pico da Bandeira)": 2631
+ }
+}
