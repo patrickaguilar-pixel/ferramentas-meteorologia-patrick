@@ -53,6 +53,7 @@
   function nivelInt(t) { var m = /n[ií]vel\s*([0-3])|\bN\s*([0-3])\b/i.exec(String(t || '')); return m ? +(m[1] || m[2]) : null; }
 
   var REPRES = [
+    { id: 'padrao', nome: 'Padrão das ferramentas', grupo: 'Padrão', desc: 'Mesmo layout dos outros mapas da plataforma (Reservatórios, Acumulados, Previsão): chuva do GFS interpolada em grade de 0,05°, como na aba Acumulados.' },
     { id: 'orig', nome: 'Original · Estado (blocos)', grupo: 'Original', desc: 'Como o boletim de hoje: Minas inteira, chuva nos blocos de 0,25° do GFS.' },
     { id: 'origzoom', nome: 'Original · Zoom (blocos)', grupo: 'Original', desc: 'Como o layout “com zoom” do QGIS (centro-sul de Minas), com o nome das barragens.' },
     { id: 'regiao', nome: 'Região detalhada', grupo: 'Proposta', desc: 'Zoom automático na região, chuva suavizada, limites municipais, barragens numeradas e localização no estado.' },
@@ -76,7 +77,7 @@
   function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
 
   /* ---------------- estado ---------------- */
-  var S = { anm: null, anmStatus: null, anmErro: null, fonte: 'anm', listaEquipe: [], meso: null, logos: {}, J: null, ciclo: null, mun: null, munIdx: null, barragens: [], avisosLista: [], origemLista: 'padrão', repr: 'orig', fig: null, calc: null, carregando: null };
+  var S = { figOp: null, anm: null, anmStatus: null, anmErro: null, fonte: 'anm', listaEquipe: [], meso: null, logos: {}, J: null, ciclo: null, mun: null, munIdx: null, barragens: [], avisosLista: [], origemLista: 'padrão', repr: 'padrao', fig: null, calc: null, carregando: null };
 
   /* ---------------- lista de barragens ---------------- */
   function lerBarragensTxt(txt) {
@@ -173,7 +174,8 @@
   /* ---------------- opções da tela ---------------- */
   function opcoes() {
     var produto = $('brProduto').value, h = +$('brHorizonte').value;
-    var munNome = $('brMunicipio').value;
+    var munNome = produto === 'brumadinho' ? 'Brumadinho' : $('brMunicipio').value;
+    if (produto === 'brumadinho') produto = 'municipio';
     return { produto: produto, horas: h, escala: N.ESCALAS[$('brEscala').value] || N.ESCALAS.boletim, escalaId: $('brEscala').value, munNome: munNome,
       cidades: $('brCidades').checked, rotulosBarr: $('brRotulos').checked, niveis: niveisEscolhidos(), raio: +$('brRaio').value };
   }
@@ -604,6 +606,91 @@
     return svgFolha(s);
   }
 
+  /* ---------- Padrão das ferramentas: o mesmo LayoutMapa dos outros mapas da plataforma ----------
+   * Chuva: interpolação bilinear do GFS numa grade de 0,05° (igual à aba Acumulados), agrupada em faixas por linha. */
+  function areasGfs(m, esc) {
+    var g = S.J.grade, A = 0.05, C0 = -52.0, F0 = -13.5, W = Math.round((-38.9 - C0) / A) + 1, H = Math.round((F0 + 24.0) / A) + 1;
+    var polys = esc.cores.map(function () { return []; });
+    for (var y = 0; y < H; y++) {
+      var lat = F0 - A * y, top = lat + A / 2, bot = lat - A / 2, x = 0, cl = [];
+      for (var i = 0; i < W; i++) { var v = N.bilinear(g, m, C0 + A * i, lat); cl.push(isFinite(v) ? N.classe(v, esc.lim) : -1); }
+      while (x < W) {
+        var c = cl[x], xe = x; while (xe + 1 < W && cl[xe + 1] === c) xe++;
+        if (c >= 0) { var l = C0 + A * (x - 0.5), r = C0 + A * (xe + 0.5); polys[c].push([[[l, top], [r, top], [r, bot], [l, bot], [l, top]]]); }
+        x = xe + 1;
+      }
+    }
+    return polys.map(function (pp, i) { return pp.length ? { geometry: { type: 'MultiPolygon', coordinates: pp }, fill: hexRgb(esc.cores[i]), strokeWidth: 0.15 } : null; }).filter(Boolean);
+  }
+  function hexRgb(h) { var a = hexRgbArr(h); return 'rgb(' + a.join(',') + ')'; }
+  // "Forquilha II", "Forquilha III" -> "Forquilha II e III"; mais de 3 nomes -> "Nome +N"
+  function juntarNomes(n) {
+    if (n.length === 1) return n[0];
+    var p = n.map(function (x) { return x.split(/\s+/); }), w = p[0][0];
+    if (p.every(function (x) { return x[0] === w && x.length > 1; }) && n.length <= 3) return w + ' ' + lista(p.map(function (x) { return x.slice(1).join(' '); }));
+    return n.length > 2 ? n[0] + ' +' + (n.length - 1) : n.join(' / ');
+  }
+  // caixas aproximadas (em graus) no mapa do LayoutMapa (~18,6 mm por grau): ponto 3,2 mm; cidade 3,5 mm embaixo do ponto
+  function arrumarRotulos(pontos, cidades) {
+    var GX = 0.097, GC = 0.105, H = 0.19;
+    function caixaCidade(c) { var w = c.nome.length * GC; return [c.lon - w / 2, c.lat - 0.26, c.lon + w / 2, c.lat - 0.05]; }
+    function caixaPonto(p, lado) {
+      var w = p.rotulo.length * GX;
+      if (lado === 'esquerda') return [p.lon - 0.07 - w, p.lat - H / 2, p.lon - 0.07, p.lat + H / 2];
+      if (lado === 'acima') return [p.lon - w / 2, p.lat + 0.06, p.lon + w / 2, p.lat + 0.06 + H];
+      return [p.lon + 0.07, p.lat - H / 2, p.lon + 0.07 + w, p.lat + H / 2];
+    }
+    function cruzaB(a, b) { return !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]); }
+    var ocupadas = [];
+    pontos.forEach(function (p) {
+      var cx = cidades.map(caixaCidade), melhor = null;
+      ['direita', 'esquerda', 'acima'].some(function (lado) {
+        var bx = caixaPonto(p, lado);
+        var nCid = cx.filter(function (c) { return cruzaB(bx, c); }).length, nPt = ocupadas.filter(function (o) { return cruzaB(bx, o); }).length;
+        if (!melhor || nCid + 10 * nPt < melhor.custo) melhor = { lado: lado, bx: bx, custo: nCid + 10 * nPt };
+        return melhor.custo === 0;
+      });
+      p.lado = melhor.lado === 'direita' ? undefined : melhor.lado;
+      ocupadas.push(melhor.bx);
+      // nenhuma posição livre: sai o nome da cidade de referência (o rótulo da barragem é o que importa aqui)
+      for (var i = cidades.length - 1; i >= 0; i--) if (cruzaB(melhor.bx, caixaCidade(cidades[i]))) cidades.splice(i, 1);
+    });
+  }
+  function opPadrao(C) {
+    var o = C.o, J = S.J, esc = o.escala, m = J.produtos[C.H.total].mm;
+    var areas = areasGfs(m, esc), legenda = esc.rotulos.map(function (l, i) { return { fill: hexRgb(esc.cores[i]), label: l + ' mm' }; });
+    var pontos = [];
+    if (o.produto === 'barragens') {
+      // barragens a menos de ~5 km viram um ponto só (nomes juntos), para os rótulos não se sobreporem
+      var grupos = [];
+      S.barragens.forEach(function (b) {
+        var g = null; for (var k = 0; k < grupos.length; k++) if (Math.abs(grupos[k].lon - b.lon) < 0.05 && Math.abs(grupos[k].lat - b.lat) < 0.05) { g = grupos[k]; break; }
+        if (!g) { g = { lon: b.lon, lat: b.lat, itens: [] }; grupos.push(g); } g.itens.push(b);
+      });
+      grupos.forEach(function (g) {
+        var nv = Math.max.apply(null, g.itens.map(function (b) { return b.nv || 0; }));
+        pontos.push({ lon: g.lon, lat: g.lat, cor: COR_NIVEL[nv], rotulo: juntarNomes(g.itens.map(function (b) { return b.nome.replace(/^Barragem\s+/i, ''); })) });
+      });
+      (o.niveis || []).slice().sort(function (a, b) { return b - a; }).forEach(function (n) { legenda.push({ fill: COR_NIVEL[n], label: 'Barragem nível ' + n }); });
+    } else {
+      C.mons.forEach(function (f) { areas.push({ geometry: f.geometry, fill: 'rgb(140,140,140)', opacity: 0.85, stroke: 'rgb(35,35,35)', strokeWidth: 0.35 }); });
+      legenda.push({ fill: 'rgb(140,140,140)', label: o.munNome });
+    }
+    // rótulos sem sobreposição: para cada barragem tenta direita, esquerda e acima; se nada couber, tira o nome da cidade que atrapalha
+    var cidades = o.cidades ? cidadesRef().map(function (c) { return { nome: c[0], lon: c[1], lat: c[2] }; }) : [];
+    if (pontos.length) arrumarRotulos(pontos, cidades);
+    var j0 = C.jan[0], jn = C.jan[C.jan.length - 1];
+    var ini = j0.local.split(' a ')[0], fim = jn.local.split(' a ')[1].replace(' (hora local)', '');
+    return {
+      titulo: 'Total Previsto de Precipitação · ' + (o.produto === 'barragens' ? tituloProduto(o).replace(' - MG', '') : o.munNome),
+      textoValidade: 'VÁLIDO: ' + ini.replace(' de ', ' ') + ' às ' + fim.replace(' de ', ' ') + ', hora local (' + o.horas + ' h)',
+      credito: 'Fonte de dados: GFS/NCEP/NOAA (rodada ' + J.ciclo + 'Z de ' + N.br(J.data_ciclo) + ')' + (o.produto === 'barragens' ? ' · barragens: ' + (S.fonte === 'anm' && S.anm ? 'ANM/SIGBM' : 'lista da equipe') : '') + ' - SIMGE/IGAM, ' + J.data_ciclo.slice(0, 4),
+      fundo: '', areas: areas, legenda: legenda,
+      cidades: cidades,
+      pontos: pontos
+    };
+  }
+
   /* =====================================================================================
    * TELA
    * ===================================================================================== */
@@ -622,7 +709,7 @@
     var st = document.createElement('style');
     st.textContent = '#barr .reprs{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}#barr .reprs button{background:#fff;border:1px solid var(--line);color:#25354a;font-weight:700;font-size:12px;padding:7px 10px}' +
       '#barr .reprs button.on{background:var(--accent);border-color:var(--accent);color:#fff}#barr .reprs .g{font-size:11px;font-weight:700;color:var(--muted);align-self:center;margin:0 2px 0 6px}' +
-      '#barr .reprs .g.prop{color:#146c56}#barr .rdesc{font-size:12px;color:var(--muted);margin:-4px 0 10px}#barr .lmPrev{min-height:200px}' +
+      '#barr .reprs .g.prop{color:#146c56}#barr .reprs .g.pad{color:#0d668f}#barr .rdesc{font-size:12px;color:var(--muted);margin:-4px 0 10px}#barr .lmPrev{min-height:200px}' +
       '#barr .br-ok{border-color:#9fd8c2;background:#effaf5}#barr .br-erro{border-color:#f0b4b4;background:#fff3f3}#barr textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px;font:13px/1.45 Arial,Helvetica,sans-serif;resize:vertical}' +
       '#barr td.n{text-align:right;font-variant-numeric:tabular-nums}#barr .av{color:#9a5b00;font-size:12px}#barr .selo{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:middle}' +
       '#barr .selo.o{background:#edf2f7;color:#25354a}#barr .selo.p{background:#e5f6ef;color:#146c56}#barr details{margin-top:10px;font-size:12px;line-height:1.5}#barr details summary{cursor:pointer;font-weight:700}#barr .diaLin{display:grid;grid-template-columns:86px 1fr;gap:6px;align-items:center;margin:4px 0}' +
@@ -635,7 +722,7 @@
       '<h2>Barragens e municípios · 72 / 96 h</h2>' +
       '<div class="small">Boletins “Previsão para as próximas 72/96 horas” das <b>barragens níveis 2 e 3</b> e de <b>Brumadinho</b>. Mesma chuva do GFS das outras abas (acumulado desde a rodada).</div>' +
       '<label for="brCiclo">Rodada do GFS</label><div class="row"><select id="brCiclo"><option value="00">00Z</option><option value="06">06Z</option></select><button id="brBuscar" class="primary">Buscar dados do GFS</button></div>' +
-      '<label for="brProduto">Produto</label><select id="brProduto"><option value="barragens">Barragens níveis 2 e 3 - MG</option><option value="municipio">Um município (ex.: Brumadinho)</option></select>' +
+      '<label for="brProduto">Produto</label><select id="brProduto"><option value="barragens">Barragens (níveis marcados abaixo)</option><option value="brumadinho">Brumadinho - MG</option><option value="municipio">Outro município</option></select>' +
       '<div id="brMunBox" hidden><label for="brMunicipio">Município em destaque</label><input id="brMunicipio" type="text" list="brMunLista" value="Brumadinho" autocomplete="off"><datalist id="brMunLista"></datalist></div>' +
       '<div class="row"><div><label for="brHorizonte">Horizonte</label><select id="brHorizonte"><option value="96">96 horas (4 dias)</option><option value="72">72 horas (3 dias)</option></select></div>' +
       '<div><label for="brEscala">Escala</label><select id="brEscala"><option value="boletim">Boletim (0–5 … &gt; 250)</option><option value="reserv15">15 faixas (0–10 … &gt; 300)</option></select></div></div>' +
@@ -678,12 +765,12 @@
     // controles
     var rp = $('brReprs'), g0 = '';
     REPRES.forEach(function (r) {
-      if (r.grupo !== g0) { g0 = r.grupo; var sp = document.createElement('span'); sp.className = 'g' + (r.grupo === 'Proposta' ? ' prop' : ''); sp.textContent = r.grupo + ':'; rp.appendChild(sp); }
+      if (r.grupo !== g0) { g0 = r.grupo; var sp = document.createElement('span'); sp.className = 'g' + (r.grupo === 'Proposta' ? ' prop' : r.grupo === 'Padrão' ? ' pad' : ''); sp.textContent = r.grupo + ':'; rp.appendChild(sp); }
       var b = document.createElement('button'); b.type = 'button'; b.dataset.r = r.id; b.textContent = r.nome.replace(/^Original · /, ''); b.title = r.desc;
-      b.addEventListener('click', function () { S.repr = r.id; ls('barrRepr', r.id); desenhar(); });
+      b.addEventListener('click', function () { S.repr = r.id; ls('barrRepr2', r.id); desenhar(); });
       rp.appendChild(b);
     });
-    var rs = ls('barrRepr'); if (rs && REPRES.some(function (r) { return r.id === rs; })) S.repr = rs;
+    var rs = ls('barrRepr2'); if (rs && REPRES.some(function (r) { return r.id === rs; })) S.repr = rs;
     $('brBuscar').addEventListener('click', buscarGfs);
     ['brProduto', 'brHorizonte', 'brEscala', 'brCidades', 'brRotulos'].forEach(function (k) { $(k).addEventListener('change', function () { if (k === 'brProduto') trocarProduto(); gerar(); }); });
     $('brMunicipio').addEventListener('change', function () { var f = S.munIdx && S.munIdx[norm(this.value)]; if (!f) { status('Município “' + esc(this.value) + '” não encontrado. Escolha um nome da lista.', 'erro'); return; } this.value = f.properties.nome; gerar(); });
@@ -707,7 +794,7 @@
   }
   function trocarProduto() {
     var b = $('brProduto').value === 'barragens';
-    $('brMunBox').hidden = b; $('brBarrBox').hidden = !b; $('brTabBarrCard').hidden = !b; $('brRotulos').parentNode.hidden = !b;
+    $('brMunBox').hidden = $('brProduto').value !== 'municipio'; $('brBarrBox').hidden = !b; $('brTabBarrCard').hidden = !b; $('brRotulos').parentNode.hidden = !b;
   }
   function usarLista(txt, origem) {
     var r = lerBarragensTxt(txt);
@@ -830,6 +917,7 @@
   }
   function figura(id) {
     var C = S.calc;
+    if (id === 'padrao') { S.figOp = opPadrao(C); return window.LayoutMapa.svg(S.figOp); }
     if (id === 'orig') return figOriginal(C, false);
     if (id === 'origzoom') return figOriginal(C, true);
     if (id === 'regiao') return figRegiao(C, false);
@@ -839,7 +927,7 @@
   function desenhar() {
     document.querySelectorAll('#brReprs button').forEach(function (b) { b.classList.toggle('on', b.dataset.r === S.repr); });
     var r = REPRES.filter(function (x) { return x.id === S.repr; })[0];
-    $('brReprDesc').innerHTML = esc(r.desc) + (r.grupo === 'Original' ? '<span class="selo o">versão de hoje</span>' : '<span class="selo p">proposta</span>');
+    $('brReprDesc').innerHTML = esc(r.desc) + (r.grupo === 'Original' ? '<span class="selo o">versão de hoje</span>' : r.grupo === 'Padrão' ? '<span class="selo o" style="background:#e3f1fb;color:#0d668f">layout da plataforma</span>' : '<span class="selo p">proposta</span>');
     if (!S.calc) return;
     var el = $('brMapa');
     try {
@@ -920,7 +1008,10 @@
   function baixar(blob, nome) { var a = document.createElement('a'); a.download = nome; a.href = URL.createObjectURL(blob); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000); }
   async function salvarPng() {
     if (!S.fig) return; var b = $('brPng'); b.disabled = true;
-    try { var r = await svgParaPng(S.fig); baixar(r.blob, baseNome() + '_' + S.repr + '.png'); }
+    try {
+      if (S.repr === 'padrao' && S.figOp && window.LayoutMapa) baixar(await window.LayoutMapa.png(S.figOp), baseNome() + '.png');
+      else { var r = await svgParaPng(S.fig); baixar(r.blob, baseNome() + '_' + S.repr + '.png'); }
+    }
     catch (e) { console.error(e); alert('Não foi possível gerar o PNG: ' + e.message); }
     finally { b.disabled = false; }
   }
