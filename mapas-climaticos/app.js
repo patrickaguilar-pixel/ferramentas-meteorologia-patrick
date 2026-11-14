@@ -507,7 +507,7 @@
     return (S.iso[chave] = { linhas: linhas, rotulos: rotulos });
   }
   /* ---- isolinhas em intervalos fixos (13/11/2026): a cada 50 ou 100, só nos mapas em mm ou % ---- */
-  var ISO_INT = { linha: '#ffffff', largura: 0.22, opacLinha: 0.8, rotCor: '#3a3a3a', rotOpac: 0.7, rotTam: 3.6 };   // igual à Umidade Mínima
+  var ISO_INT = { linha: '#ffffff', largura: 0.22, opacLinha: 0.8, rotCor: '#ffffff', rotOpac: 0.75, rotTam: 3.6 };   // 14/11: número branco e discreto (igual à Reservatórios)   // igual à Umidade Mínima
   function isoTipo() { var v = $('mcIsoTipo') ? $('mcIsoTipo').value : 'faixas'; return v === '50' || v === '100' ? v : 'faixas'; }
   function aceitaIntervalo(p) { var u = N.PRODUTOS[p].unidade; return u === 'mm' || u === '%'; }
   function isoPasso(p) { var t = isoTipo(); return t !== 'faixas' && aceitaIntervalo(p) ? +t : 0; }
@@ -547,7 +547,7 @@
       if (passoIso) op.rotulosIso = I.rotulos.map(function (r) {
         var nv = parseFloat(String(r.texto).replace(',', '.')), lum = function (h) { return (0.299 * parseInt(h.slice(1, 3), 16) + 0.587 * parseInt(h.slice(3, 5), 16) + 0.114 * parseInt(h.slice(5, 7), 16)) / 255; };
         var L = Math.min(lum(es.cores[N.classe(nv - 0.01, es.lim)]), lum(es.cores[N.classe(nv + 0.01, es.lim)]));
-        return L < 0.45 ? Object.assign({}, r, { cor: '#ffffff', opacidade: 0.92 }) : Object.assign({}, r, { cor: ISO_INT.rotCor, opacidade: ISO_INT.rotOpac });
+        return Object.assign({}, r, { cor: ISO_INT.rotCor, opacidade: ISO_INT.rotOpac, fundo: L });   // padronizado: sempre branco
       });
     }
     if ($('mcMostrarEst').checked) op.pontos = C.pts.filter(function (x) { return x.lon > -52 && x.lon < -39 && x.lat > -23.5 && x.lat < -14; }).map(function (x) { return { lon: x.lon, lat: x.lat, rotulo: '', cor: '#111' }; });

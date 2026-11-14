@@ -173,7 +173,7 @@ const LADO_RES={SFV:'acima',SSA:'esquerda',CA:'esquerda',PE:'esquerda'};
 // 13/11/2026: opções de desenho dos mapas do GFS (seletores no topo; ficam guardadas neste navegador)
 function opcaoMapa(id,padrao){ const el=document.getElementById(id); if(el) return el.checked; try{ const v=localStorage.getItem('reserv_'+id); return v==null?padrao:v==='1'; }catch(e){ return padrao; } }
 // isolinhas a cada 50 mm (50, 100, 150…), no estilo da Umidade Mínima: linha branca, rótulo cinza sem contorno (13/11/2026)
-const ISO_NIVEIS=Array.from({length:20},(_,i)=>50*(i+1)), ISO_ESTILO={ linha:'#ffffff', largura:0.22, opacLinha:0.8, rotCor:'#3a3a3a', rotOpac:0.7, rotTam:3.6 };
+const ISO_NIVEIS=Array.from({length:20},(_,i)=>50*(i+1)), ISO_ESTILO={ linha:'#ffffff', largura:0.22, opacLinha:0.8, rotCor:'#ffffff', rotOpac:0.75, rotTam:3.6 };   // 14/11: número branco em todo o mapa, discreto
 // tipo das isolinhas (seletor ao lado de "Isolinhas"): '50' = a cada 50 mm (padrão) · 'faixas' = nos limites das faixas (estilo anterior) · 'duas'
 function isoTipo(){ const el=document.getElementById('mapaIsoTipo'); let v=el?el.value:null; if(!v){ try{ v=localStorage.getItem('reserv_mapaIsoTipo'); }catch(e){} } return ['50','faixas','duas'].includes(v)?v:'50'; }
 // conjuntos de linhas a desenhar, cada um com os níveis e o estilo; nas duas, as faixas que já são múltiplas de 50 ficam só no conjunto de 50 mm
@@ -188,8 +188,8 @@ function isoConjuntos(limFaixas){
 function luminancia(rgb){ return (0.299*rgb[0]+0.587*rgb[1]+0.114*rgb[2])/255; }
 function rotuloNoFundo(r, rgbBaixo, rgbCima){
   if(r.halo) return r;
-  const L=Math.min(luminancia(rgbBaixo),luminancia(rgbCima));   // basta um dos lados ser escuro
-  if(L<0.45){ r.cor='#ffffff'; r.opacidade=0.92; }
+  // 14/11 (pedido do Patrick): padronizado — número sempre branco e discreto, em qualquer fundo
+  r.cor=ISO_ESTILO.rotCor; r.opacidade=ISO_ESTILO.rotOpac;
   return r;
 }
 window.RESERV_ISO={ rotuloNoFundo, suave:()=>opcaoMapa('mapaSuave',true), linhas:()=>opcaoMapa('mapaIso',false), valores:()=>opcaoMapa('mapaIsoVal',false), niveis:ISO_NIVEIS, estilo:ISO_ESTILO, tipo:isoTipo, conjuntos:isoConjuntos };

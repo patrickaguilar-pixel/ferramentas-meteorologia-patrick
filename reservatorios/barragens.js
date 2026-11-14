@@ -459,7 +459,7 @@
   function isoNiveis() { return (window.RESERV_ISO && window.RESERV_ISO.niveis) || [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]; }
   // conjuntos de isolinhas (tipo escolhido no topo: a cada 50 mm, nas faixas ou as duas); reserva = a cada 50 mm
   function isoConjuntos(lim) { if (window.RESERV_ISO && window.RESERV_ISO.conjuntos) return window.RESERV_ISO.conjuntos(lim); return [Object.assign({ niveis: isoNiveis(), halo: false }, isoEstilo())]; }
-  function isoEstilo() { return (window.RESERV_ISO && window.RESERV_ISO.estilo) || { linha: '#ffffff', largura: 0.22, opacLinha: 0.8, rotCor: '#3a3a3a', rotOpac: 0.7, rotTam: 3.6 }; }
+  function isoEstilo() { return (window.RESERV_ISO && window.RESERV_ISO.estilo) || { linha: '#ffffff', largura: 0.22, opacLinha: 0.8, rotCor: '#ffffff', rotOpac: 0.75, rotTam: 3.6 }; }
   function dentroMinas(lon, lat) {   // dentro de algum município de MG (para os valores não caírem fora do estado)
     var F = S.mun.features;
     for (var i = 0; i < F.length; i++) { var b = bbGeom(F[i]); if (lon >= b[0] && lon <= b[2] && lat >= b[1] && lat <= b[3] && N.dentro(lon, lat, F[i].geometry)) return true; }
