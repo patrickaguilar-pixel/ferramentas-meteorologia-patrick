@@ -54,8 +54,7 @@
       "atualizado_no_cpc": "2026-11-14T12:41:04+00:00",
       "baixado_em": "2026-11-14T14:51:29+00:00",
       "bytes": 70716,
-      "sha256": "25e53b338f5c623ebc9ca4351dde51591cea9d374fd924b061dc4a1a9751fa7c",
-      "erro": "<urlopen error [Errno 111] Connection refused>"
+      "sha256": "25e53b338f5c623ebc9ca4351dde51591cea9d374fd924b061dc4a1a9751fa7c"
     },
     "prob100_week1": {
       "descricao": "GEFS prob. >100 mm Week 1",
@@ -80,5 +79,5 @@
       "sha256": "4508dbb890f835d9d4c7c6021b1c8d802e582efd7c0c86e25939b0eb839131f8"
     }
   },
-  "atualizado_em": "2026-11-14T22:45:55+00:00"
+  "atualizado_em": "2026-11-15T01:16:17+00:00"
 }
