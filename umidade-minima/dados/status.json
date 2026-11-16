@@ -1,8 +1,7 @@
 {
  "wrf": {
-  "resultado": "erro",
+  "resultado": "ok",
   "rodada": "2026-11-16",
-  "detalhe": "WRF f066 .inv: falha depois de 3 tentativas: HTTP Error 503: Service Unavailable",
-  "em": "2026-11-16T09:18Z"
+  "em": "2026-11-16T11:46Z"
  }
 }
