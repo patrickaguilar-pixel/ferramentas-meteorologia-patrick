@@ -2,12 +2,12 @@
  "gfs": {
   "resultado": "ok",
   "rodada": "2026-11-16",
-  "em": "2026-11-16T09:12Z"
+  "em": "2026-11-16T11:41Z"
  },
  "wrf": {
   "resultado": "erro",
   "rodada": "2026-11-16",
-  "detalhe": "WRF f084 .inv: falha depois de 3 tentativas: HTTP Error 503: Service Unavailable",
-  "em": "2026-11-16T09:12Z"
+  "detalhe": "WRF f060 GRIB: falha depois de 3 tentativas: HTTP Error 503: Service Unavailable",
+  "em": "2026-11-16T11:41Z"
  }
 }
