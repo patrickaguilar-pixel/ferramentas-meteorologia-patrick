@@ -124,8 +124,10 @@
       // topo (vale para todas as abas)
       { s: '#cpcCycle', t: 'Ciclo', d: '00Z (≈3h) ou 06Z (≈9h). Vale para Reservatórios, Tendência e Acumulados.' },
       { s: '#fonteDados', t: 'Fonte dos dados', d: 'Dado bruto GFS (chuva em mm, NOAA) ou Imagens do CPC. A escolha fica guardada neste navegador.' },
-      { s: '#legendaChip', t: 'Legenda', d: 'Mapas do GFS: 12 faixas (até > 200 mm) e cores Amarelo → índigo, fixas. Quando a legenda é estendida pelo gatilho, aparece aqui em roxo.' },
-      { s: '#gatilho200', t: 'Gatilho > 200 mm', d: 'Aparece só quando o GFS prevê mais de 200 mm dentro de Minas: máximo, local e área de cada produto. Escolha estender a legenda (até 250, 300, 400… mm); o recomendado é o menor topo que cobre o máximo. Vale para todos os mapas da rodada.' },
+      { s: '#legendaChip', t: 'Legenda', d: 'Mapas do GFS: 12 faixas (até > 200 mm) e cores Amarelo → índigo, fixas. Mostra a legenda da aba aberta; em roxo quando ela foi detalhada acima de 200 mm.' },
+      { s: '#gat_reserv', t: 'Chuva acima de 200 mm', d: 'Só aparece se o mapa desta aba passar de 200 mm em Minas: máximo, local e áreas. Escolha manter as 12 faixas ou detalhar acima de 200 mm (até o limite escolhido; o recomendado cobre o máximo). Vale só para esta aba.' },
+      { s: '#gat_weekly', t: 'Chuva acima de 200 mm', d: 'Só aparece se Week 1 ou Week 2 passar de 200 mm em Minas. Escolha manter as 12 faixas ou detalhar acima de 200 mm. Vale só para os mapas desta aba.' },
+      { s: '#gat_accum', t: 'Chuva acima de 200 mm', d: 'Só aparece se o acumulado de 24 h, 3 dias ou 5 dias passar de 200 mm em Minas. Escolha manter as 12 faixas ou detalhar acima de 200 mm. Vale só para os mapas desta aba.' },
       { s: '#opcoesMapa', t: 'Suave, Isolinhas e Valores', d: 'Só com o GFS. Suave: chuva desenhada fina, sem os quadradinhos (mesmos valores). Isolinhas: escolha a cada 50 mm (50, 100, 150…), nas faixas da legenda (estilo anterior) ou as duas juntas (as de 50 mm mais grossas). Valores: o número em cima das linhas. Vale para todos os mapas, inclusive Barragens.' },
       { s: '#cpcLoad', t: 'Buscar dados', d: 'Busca o ciclo escolhido, gera todos os mapas e preenche as datas.' },
       { s: '#cpcStatus', t: 'Situação', d: 'Qual rodada foi carregada e quando foi baixada. Vermelho = não carregou.' },

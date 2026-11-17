@@ -59,22 +59,33 @@ th{background:#f7f9fc;position:sticky;top:0}
 /* 17/11/2026: legenda fixa + gatilho > 200 mm */
 .legChip{display:inline-block;padding:5px 10px;border-radius:999px;background:var(--accent-bg);color:var(--accent);font-size:12px;font-weight:700;white-space:nowrap}
 .legChip.ext{background:#f3e8f7;color:#5c1474}
-.gatilho{margin-top:12px;border:1px solid #e3c7d6;border-left:5px solid #8c1d7d;border-radius:10px;background:#fdf8fb;padding:12px 14px}
-.gatilho .gHead{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
+.gatilho{margin:0 0 14px;border:1px solid #e3c7d6;border-left:5px solid #8c1d7d;border-radius:12px;background:#fdf8fb;padding:14px 16px}
+.gatilho .gHead{display:flex;gap:10px;align-items:flex-start;margin-bottom:10px}
+.gatilho .gHead strong{color:#3d0f4d;font-size:15px}
 .gatilho .gIco{flex:0 0 24px;height:24px;border-radius:50%;background:#8c1d7d;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px}
-.gatilho .gTab{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
-.gatilho .gTab th{background:#f3e8f7;color:#3d0f4d;text-align:left;padding:6px 8px;font-weight:700;border-bottom:1px solid #e3c7d6}
-.gatilho .gTab td{padding:5px 8px;border-bottom:1px solid #f0e3ea;color:#5d6675}
-.gatilho .gTab tr.on td{color:var(--text)}
-.gatilho .gTab td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-.gatilho .gOpc{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
-.gatilho .gBtn{border:1px solid #d8c2cf;background:#fff;color:#3d0f4d;border-radius:999px;padding:5px 11px;font-size:12px;cursor:pointer}
-.gatilho .gBtn.on{background:#5c1474;border-color:#5c1474;color:#fff}
-.gatilho .gBtn em{font-style:normal;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-left:4px;padding:1px 5px;border-radius:4px;background:#f3e8f7;color:#8c1d7d}
-.gatilho .gBtn.on em{background:rgba(255,255,255,.2);color:#fff}
-.gatilho .gPrev{margin-top:8px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
-.gatilho .gsw{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
-.gatilho .gsw i{display:inline-block;width:16px;height:11px;border:1px solid rgba(0,0,0,.25);border-radius:2px}
+.gatilho .gCards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.gatilho .gCard{flex:1 1 240px;max-width:420px;background:#fff;border:1px solid #ecd9e4;border-radius:10px;padding:10px 12px}
+.gatilho .gT{font-size:12px;font-weight:700;color:#8c1d7d;text-transform:uppercase;letter-spacing:.04em}
+.gatilho .gBig{font-size:24px;font-weight:800;color:#3d0f4d;line-height:1.15;font-variant-numeric:tabular-nums}
+.gatilho .gBig small{font-size:13px;font-weight:600;color:#6b5672}
+.gatilho .gS{font-size:12px;color:#5d6675;margin-bottom:6px}
+.gatilho .gK{display:flex;flex-direction:column;gap:2px;font-size:12px;color:#5d6675;border-top:1px solid #f3e8f0;padding-top:6px}
+.gatilho .gK b{color:var(--text);font-variant-numeric:tabular-nums}
+.gatilho .gQ{font-weight:700;color:#3d0f4d;margin-bottom:6px;font-size:13px}
+.gatilho .gOpcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
+.gatilho .gOpt{display:flex;gap:10px;align-items:flex-start;background:#fff;border:2px solid #e6d3df;border-radius:10px;padding:10px 12px;cursor:pointer;margin:0;font-weight:400}
+.gatilho .gOpt:hover{border-color:#c79bb6}
+.gatilho .gOpt.on{border-color:#5c1474;background:#faf3fb;box-shadow:0 0 0 3px rgba(92,20,116,.12)}
+.gatilho .gOpt input{margin-top:3px;accent-color:#5c1474;width:auto}
+.gatilho .gOpt b{display:block;color:#3d0f4d;font-size:14px;margin-bottom:2px}
+.gatilho .gOpt .gD{display:block;font-size:12px;color:#5d6675}
+.gatilho .gOpt select{width:auto;display:inline-block;padding:2px 6px;font-size:12px;margin:0 2px}
+.gatilho .gRec{display:block;font-style:normal;color:#8c1d7d;font-weight:600;margin-top:2px}
+.gatilho .gSw{display:flex;flex-wrap:wrap;gap:3px 10px;margin-top:6px}
+.gatilho .gsw{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:11.5px;color:#25354a}
+.gatilho .gsw i{display:inline-block;width:18px;height:12px;border:1px solid rgba(0,0,0,.25);border-radius:2px}
+.gatilho .gEstado{margin-top:10px;font-size:13px;font-weight:600;color:#3d0f4d}
+.gatilho .gNota{margin-top:4px}
 @media(max-width:1100px){.grid{grid-template-columns:1fr}.dual,.triple,.kpi,.row{grid-template-columns:1fr}}
 </style>
 </head>
@@ -206,13 +217,13 @@ th{background:#f7f9fc;position:sticky;top:0}
 </section>
 </main>
 <script>window.BASE_DADOS='../';window.FERRAMENTA='reservatorios';window.PONTE_SELO='PNG e CSV são salvos no Drive';</script>
-<script src="../previsao/data/geo.js?v=teste-20261117b"></script>
-<script src="../chuva/data/cidades.js?v=teste-20261117b"></script>
-<script src="../assets/layout-mapa.js?v=teste-20261117b"></script>
-<script src="../assets/isolinhas.js?v=teste-20261117b"></script>   <!-- 13/11/2026: isolinhas com valores -->
-<script src="../reservatorios/app.js?v=teste-20261117b"></script>
-<script src="../reservatorios/barragens-nucleo.js?v=teste-20261117b"></script>   <!-- 13/11/2026: aba Barragens e municípios -->
-<script src="../reservatorios/barragens.js?v=teste-20261117b"></script>
-<script src="../assets/ponte-drive.js?v=teste-20261117b"></script>
-<script src="../assets/planner-teste.js?v=teste-20261117b"></script>   <!-- Planner da semana (botão na barra) -->
+<script src="../previsao/data/geo.js?v=teste-20261117c"></script>
+<script src="../chuva/data/cidades.js?v=teste-20261117c"></script>
+<script src="../assets/layout-mapa.js?v=teste-20261117c"></script>
+<script src="../assets/isolinhas.js?v=teste-20261117c"></script>   <!-- 13/11/2026: isolinhas com valores -->
+<script src="../reservatorios/app.js?v=teste-20261117c"></script>
+<script src="../reservatorios/barragens-nucleo.js?v=teste-20261117c"></script>   <!-- 13/11/2026: aba Barragens e municípios -->
+<script src="../reservatorios/barragens.js?v=teste-20261117c"></script>
+<script src="../assets/ponte-drive.js?v=teste-20261117c"></script>
+<script src="../assets/planner-teste.js?v=teste-20261117c"></script>   <!-- Planner da semana (botão na barra) -->
 </body></html>
