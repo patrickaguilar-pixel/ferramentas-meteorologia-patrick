@@ -925,8 +925,17 @@ function renderSVG({forExport=false} = {}){
       if (i >= 0) cred[i] = `Mapa base: ${ab.credito}`;
       else { const j = cred.findIndex(l => /^\s*Base cartográfica\s*:/i.test(l)); cred.splice(j >= 0 ? j + 1 : cred.length, 0, `Mapa base: ${ab.credito}`); }
     } }
-  const credSize = Math.min(fitSize(cred, 6.68628*PT, LEG_MAXW, 400), 20/(Math.max(1, cred.length)*LH));
-  const credH = cred.length*credSize*LH, credTop = LEG.y + LEG.h - 2.6 - credH;
+  // 17/11/2026: créditos no modelo B (igual a assets/layout-mapa.js): 1ª linha em negrito 7 pt com quebra; demais em 6 pt,
+  // com os 4 créditos fixos padrão compactados em 2 linhas (linhas escritas pelo usuário ficam como estão)
+  cred = cred.map(l => l.trim()).filter(Boolean); if (!cred.length) cred = ["SIMGE/IGAM"];
+  const resto = cred.slice(1), tem = t => resto.indexOf(t) >= 0;
+  if (tem("Limites municipais e mesorregiões - IBGE") && tem("Base cartográfica: IBGE")) { resto.splice(resto.indexOf("Limites municipais e mesorregiões - IBGE"), 1, "Limites e base cartográfica: IBGE"); resto.splice(resto.indexOf("Base cartográfica: IBGE"), 1); }
+  if (tem("Sistema de Coordenadas Geográficas") && tem("Sistema geodésico de referência: Sirgas2000")) { resto.splice(resto.indexOf("Sistema de Coordenadas Geográficas"), 1, "Coordenadas geográficas · SIRGAS 2000"); resto.splice(resto.indexOf("Sistema geodésico de referência: Sirgas2000"), 1); }
+  const quebrar = (t, s, w) => { const out = []; let ln = ""; t.split(" ").forEach(p => { const x = ln ? ln + " " + p : p; if (!ln || textW(x, s, w) <= LEG_MAXW) ln = x; else { out.push(ln); ln = p; } }); if (ln) out.push(ln);
+    for (let i = 1; i < out.length; i++) { const m = out[i].match(/^([-·])\s+(.*)$/); if (m) { out[i-1] += " " + m[1]; out[i] = m[2]; } } return out; };
+  const credBlocos = [{lines: quebrar(cred[0], 7*PT, 700), size: 7*PT, weight: 700}];
+  if (resto.length) credBlocos.push({lines: [].concat(...resto.map(l => quebrar(l, 6*PT, 400))), size: 6*PT, weight: 400, gapTop: 0.6});
+  const credH = credBlocos.reduce((h, b) => h + (b.gapTop || 0) + b.lines.length*b.size*LH, 0), credTop = LEG.y + LEG.h - 2.6 - credH;
   const linVal2 = credTop - 2.2, linVal1 = linVal2 - 9.2;
   const vt = validityText(S.val, true), val = vt || "Validade não informada";   // 05/11/2026: mapa também com ", hora local"
 
@@ -966,7 +975,7 @@ function renderSVG({forExport=false} = {}){
   o.push(`<rect x="${f2(COL-LIN_W/2)}" y="${f2(linVal1)}" width="${f2(LIN_W)}" height="0.256388" fill="rgb(138,187,228)"/>`);
   o.push(textBlock({lines:[val], x:COL, yTop:linVal1 + 0.25, h:linVal2 - linVal1 - 0.25, size:fitSize([val],11*PT,LEG.w-4,400), fill: vt ? navy : "#8a97a8", anchor:"middle"}));
   o.push(`<rect x="${f2(COL-LIN_W/2)}" y="${f2(linVal2)}" width="${f2(LIN_W)}" height="0.256388" fill="rgb(138,187,228)"/>`);
-  o.push(textBlock({lines:cred, x:COL, yTop:credTop, h:credH, size:credSize, fill:navy, anchor:"middle"}));
+  { let cy = credTop; credBlocos.forEach(b => { cy += b.gapTop || 0; const bh = b.lines.length*b.size*LH; o.push(textBlock({lines:b.lines, x:COL, yTop:cy, h:bh, size:b.size, weight:b.weight, fill:navy, anchor:"middle"})); cy += bh; }); }
 
   /* ---- rodapé ---- */
   [[4.30732,194.2,289.001,14.3,3.28177],[4.51243,194.4,288.59,13.9,3.07666],[4.71754,194.6,288.18,13.5,2.87155]]

@@ -68,6 +68,20 @@
   function proj(lon, lat) { return [MAP.x + (lon - MAP.xmin) * K, MAP.y + (MAP.ymax - lat) * K]; }
   var measureCtx = document.createElement('canvas').getContext('2d');
   function textW(text, sizeMM, weight) { measureCtx.font = (weight || 400) + ' 100px ' + FONT; return measureCtx.measureText(text).width * sizeMM / 100; }
+  // créditos: quebra em palavras, de preferência depois de " - ", " · ", ";" ou "(", sem começar linha com "-" ou "·"
+  var CRED_MODO = 'destaque';   // 17/11/2026: modelo B (equipe)
+  function quebrarCredito(texto, size, maxW, weight) {
+    var out = [], line = '';
+    String(texto).split(' ').forEach(function (w) {
+      var t = line ? line + ' ' + w : w;
+      if (!line || textW(t, size, weight || 400) <= maxW) { line = t; return; }
+      out.push(line); line = w;
+    });
+    if (line) out.push(line);
+    // linha começando com separador: puxa o separador para o fim da anterior
+    for (var i = 1; i < out.length; i++) { var mm = out[i].match(/^([-·])\s+(.*)$/); if (mm) { out[i - 1] += ' ' + mm[1]; out[i] = mm[2]; } }
+    return out;
+  }
   function fitSize(lines, sizeMM, maxW, weight) {
     var w = Math.max.apply(null, lines.map(function (l) { return textW(l, sizeMM, weight); }));
     return w > maxW ? sizeMM * maxW / w : sizeMM;
@@ -449,8 +463,18 @@
     // parte de baixo da coluna (de baixo para cima): créditos, linha, validade, linha
     var cred = [op.credito || 'SIMGE/IGAM'].concat(CREDITOS_FIXOS);
     if (F) cred.push('Mapa base: ' + F.credito);   // mesmo formato de crédito da Previsão
-    var credSize = Math.min(fitSize(cred, 6.68628 * PT, LEG_MAXW, 400), 20 / (Math.max(1, cred.length) * LH));
-    var credH = cred.length * credSize * LH, credTop = LEG.y + LEG.h - 2.6 - credH;
+    // 17/11/2026: créditos no modelo B (escolhido pela equipe): a fonte dos dados em negrito, 7 pt, com quebra de linha
+    // (nunca mais encolhe até ficar ilegível); os 4 créditos fixos viram 2 linhas de 6 pt. op.creditosModelo='atual' = como antes.
+    var modoCred = op.creditosModelo || CRED_MODO, credBlocos = null, credSize, credH;
+    if (modoCred === 'destaque') {
+      credBlocos = [{ lines: quebrarCredito(cred[0], 7 * PT, LEG_MAXW, 700), size: 7 * PT, weight: 700 },
+        { lines: ['Limites e base cartográfica: IBGE', 'Coordenadas geográficas · SIRGAS 2000'].concat(F ? quebrarCredito('Mapa base: ' + F.credito, 6 * PT, LEG_MAXW) : []), size: 6 * PT, weight: 400, gapTop: 0.6 }];
+      credH = credBlocos.reduce(function (h, b) { return h + (b.gapTop || 0) + b.lines.length * b.size * LH; }, 0);
+    } else {
+      credSize = Math.min(fitSize(cred, 6.68628 * PT, LEG_MAXW, 400), 20 / (Math.max(1, cred.length) * LH));
+      credH = cred.length * credSize * LH;
+    }
+    var credTop = LEG.y + LEG.h - 2.6 - credH;
     var linVal2 = credTop - 2.2, linVal1 = linVal2 - 9.2;
     o.push(textBlock({ lines: ['Legenda'], x: COL, yTop: LEG.y + 2.4, h: 6.78946, size: 16 * PT, weight: 700, fill: navy, anchor: 'middle' }));
     o.push('<rect x="' + f2(COL - LIN_W / 2) + '" y="' + f2(LEG.y + 11.2) + '" width="' + f2(LIN_W) + '" height="0.266644" fill="rgb(138,187,228)"/>');
@@ -497,7 +521,8 @@
       o.push(textBlock({ lines: vl, x: COL, yTop: linVal1 + 0.25, h: vh, size: vs, fill: vt ? navy : '#8a97a8', anchor: 'middle' }));
     })();
     o.push('<rect x="' + f2(COL - LIN_W / 2) + '" y="' + f2(linVal2) + '" width="' + f2(LIN_W) + '" height="0.256388" fill="rgb(138,187,228)"/>');
-    o.push(textBlock({ lines: cred, x: COL, yTop: credTop, h: credH, size: credSize, fill: navy, anchor: 'middle' }));
+    if (credBlocos) { var cy0 = credTop; credBlocos.forEach(function (b) { cy0 += b.gapTop || 0; var bh = b.lines.length * b.size * LH; o.push(textBlock({ lines: b.lines, x: COL, yTop: cy0, h: bh, size: b.size, weight: b.weight, fill: b.fill || navy, anchor: 'middle' })); cy0 += bh; }); }
+    else o.push(textBlock({ lines: cred, x: COL, yTop: credTop, h: credH, size: credSize, fill: navy, anchor: 'middle' }));
 
     /* ---- rodapé ---- */
     [[4.30732, 194.2, 289.001, 14.3, 3.28177], [4.51243, 194.4, 288.59, 13.9, 3.07666], [4.71754, 194.6, 288.18, 13.5, 2.87155]]
@@ -759,7 +784,7 @@
     agendar();
   }
 
-  window.LayoutMapa = { svg: svg, png: png, previa: previa, canvas: canvas, validadeTexto: validadeTexto, fmtDateBR: fmtDateBR,
+  window.LayoutMapa = { creditosModelo: function (m) { if (m) CRED_MODO = m; return CRED_MODO; }, svg: svg, png: png, previa: previa, canvas: canvas, validadeTexto: validadeTexto, fmtDateBR: fmtDateBR,
     fundos: FUNDOS.map(function (F) { return { id: F.id, nome: F.nome }; }), carregarFundo: carregarFundo, PAGE: PAGE,
     montarSeletor: montarSeletor, fundoEscolhido: fundoEscolhido, extensao: ext, fundoNoEditor: fundoNoEditor, painelAoVivo: painelAoVivo,
     editorExtras: editorExtras, amostraFundo: amostraFundo, MG_FILL: MG_FILL, STATE_LABELS: STATE_LABELS,
