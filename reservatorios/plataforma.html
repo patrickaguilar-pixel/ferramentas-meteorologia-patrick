@@ -56,6 +56,25 @@ th{background:#f7f9fc;position:sticky;top:0}
 .cpcCtl select{width:auto}
 .cpcList{margin:6px 0 0;padding-left:18px}
 .warn{color:#9a5b00;font-weight:700}
+/* 17/11/2026: legenda fixa + gatilho > 200 mm */
+.legChip{display:inline-block;padding:5px 10px;border-radius:999px;background:var(--accent-bg);color:var(--accent);font-size:12px;font-weight:700;white-space:nowrap}
+.legChip.ext{background:#f3e8f7;color:#5c1474}
+.gatilho{margin-top:12px;border:1px solid #e3c7d6;border-left:5px solid #8c1d7d;border-radius:10px;background:#fdf8fb;padding:12px 14px}
+.gatilho .gHead{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
+.gatilho .gIco{flex:0 0 24px;height:24px;border-radius:50%;background:#8c1d7d;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px}
+.gatilho .gTab{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
+.gatilho .gTab th{background:#f3e8f7;color:#3d0f4d;text-align:left;padding:6px 8px;font-weight:700;border-bottom:1px solid #e3c7d6}
+.gatilho .gTab td{padding:5px 8px;border-bottom:1px solid #f0e3ea;color:#5d6675}
+.gatilho .gTab tr.on td{color:var(--text)}
+.gatilho .gTab td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.gatilho .gOpc{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
+.gatilho .gBtn{border:1px solid #d8c2cf;background:#fff;color:#3d0f4d;border-radius:999px;padding:5px 11px;font-size:12px;cursor:pointer}
+.gatilho .gBtn.on{background:#5c1474;border-color:#5c1474;color:#fff}
+.gatilho .gBtn em{font-style:normal;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-left:4px;padding:1px 5px;border-radius:4px;background:#f3e8f7;color:#8c1d7d}
+.gatilho .gBtn.on em{background:rgba(255,255,255,.2);color:#fff}
+.gatilho .gPrev{margin-top:8px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.gatilho .gsw{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.gatilho .gsw i{display:inline-block;width:16px;height:11px;border:1px solid rgba(0,0,0,.25);border-radius:2px}
 @media(max-width:1100px){.grid{grid-template-columns:1fr}.dual,.triple,.kpi,.row{grid-template-columns:1fr}}
 </style>
 </head>
@@ -187,13 +206,13 @@ th{background:#f7f9fc;position:sticky;top:0}
 </section>
 </main>
 <script>window.BASE_DADOS='../';window.FERRAMENTA='reservatorios';window.PONTE_SELO='PNG e CSV são salvos no Drive';</script>
-<script src="../previsao/data/geo.js?v=teste-20261114a"></script>
-<script src="../chuva/data/cidades.js?v=teste-20261114a"></script>
-<script src="../assets/layout-mapa.js?v=teste-20261114a"></script>
-<script src="../assets/isolinhas.js?v=teste-20261114a"></script>   <!-- 13/11/2026: isolinhas com valores -->
-<script src="../reservatorios/app.js?v=teste-20261114a"></script>
-<script src="../reservatorios/barragens-nucleo.js?v=teste-20261114a"></script>   <!-- 13/11/2026: aba Barragens e municípios -->
-<script src="../reservatorios/barragens.js?v=teste-20261114a"></script>
-<script src="../assets/ponte-drive.js?v=teste-20261114a"></script>
-<script src="../assets/planner-teste.js?v=teste-20261114a"></script>   <!-- Planner da semana (botão na barra) -->
+<script src="../previsao/data/geo.js?v=teste-20261117a"></script>
+<script src="../chuva/data/cidades.js?v=teste-20261117a"></script>
+<script src="../assets/layout-mapa.js?v=teste-20261117a"></script>
+<script src="../assets/isolinhas.js?v=teste-20261117a"></script>   <!-- 13/11/2026: isolinhas com valores -->
+<script src="../reservatorios/app.js?v=teste-20261117a"></script>
+<script src="../reservatorios/barragens-nucleo.js?v=teste-20261117a"></script>   <!-- 13/11/2026: aba Barragens e municípios -->
+<script src="../reservatorios/barragens.js?v=teste-20261117a"></script>
+<script src="../assets/ponte-drive.js?v=teste-20261117a"></script>
+<script src="../assets/planner-teste.js?v=teste-20261117a"></script>   <!-- Planner da semana (botão na barra) -->
 </body></html>

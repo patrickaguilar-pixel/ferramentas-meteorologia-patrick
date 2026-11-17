@@ -88,7 +88,8 @@ const PALETAS={
   viridis:{nome:'Viridis', pts:['#fde725','#b5de2b','#6ece58','#35b779','#1f9e89','#26828e','#31688e','#3e4989','#482878','#440154']},   // invertida (13/11): amarelo = pouca chuva, roxo = muita
   amarelo_indigo:{nome:'Amarelo → índigo', pts:['#ffffd9','#edf8b1','#c7e9b4','#7fcdbb','#41b6c4','#1d91c0','#225ea8','#253494','#2a1e78','#2e0854']}
 };
-function paletaEscolhida(){ const el=document.getElementById('coresMapa'); let v=el?el.value:null; if(!v){ try{ v=localStorage.getItem('reservCores'); }catch(e){} } return PALETAS[v]?v:'azul'; }
+// 17/11/2026: paleta fixa Amarelo → índigo em todos os mapas (seletor de cores removido a pedido do Patrick)
+function paletaEscolhida(){ return 'amarelo_indigo'; }
 function coresPaleta(id,n){
   const P=PALETAS[id]; if(!P||!P.pts) return null;
   const pts=P.pts.map(hx), out=[];
@@ -98,9 +99,30 @@ function coresPaleta(id,n){
 }
 // para a aba Barragens (barragens.js): a paleta escolhida, em hex, com n faixas (null = cores originais)
 window.RESERV_PALETA={ id:()=>paletaEscolhida(), cores:n=>{ const c=coresPaleta(paletaEscolhida(),n); return c?c.map(x=>'#'+x.map(v=>('0'+v.toString(16)).slice(-2)).join('')):null; } };
-function faixasEscolhidas(){ const el=document.getElementById('faixasMapa'); const n=el?el.value:'15'; return ESCALAS[n]?n:'15'; }
-// com as imagens do CPC a classe vem da cor da imagem (15 faixas), então só o GFS usa a escala escolhida
-function aplicarEscala(){ const e=ESCALAS[(typeof fonteDados==='function'&&fonteDados()==='gfs')?faixasEscolhidas():'15']; CLASS_LABELS=e.labels; CLASS_COLORS=coresPaleta(paletaEscolhida(),e.colors.length)||e.colors; GFS_LIMITES=e.lim; }
+/* ---- 17/11/2026: legenda de 12 faixas (padrão) + extensão acima de 200 mm decidida pelo meteorologista (gatilho) ----
+ * As 12 faixas (0–10 … 150–200, > 200) continuam idênticas; ao estender, a faixa "> 200" vira "200–250" (mesma cor) e
+ * entram faixas novas até o topo escolhido, com cores próprias (roxo → magenta → vermelho), para não mudar as cores
+ * que a equipe já conhece. Vale só para os mapas do GFS (com as imagens do CPC a classe vem da cor: 15 faixas). */
+const EXT_DEGRAUS=[250,300,400,500,750,1000];
+const EXT_CORES=['#5c1474','#8c1d7d','#b92e78','#df4f69','#f47c5c','#f9a65a'].map(hx);
+let EXT_TOPO=0;   // 0 = legenda padrão de 12 faixas
+const fmtMm=v=>String(v).replace('.',',');
+function escalaGfs(topo){
+  const b=ESCALAS[12], base=coresPaleta('amarelo_indigo',12);
+  if(!topo) return {nome:'12 faixas', lim:b.lim.slice(), labels:b.labels.slice(), colors:base};
+  const extra=EXT_DEGRAUS.filter(v=>v<=topo), lim=b.lim.concat(extra), labels=b.labels.slice(0,11);
+  for(let i=11;i<lim.length;i++) labels.push(fmtMm(lim[i-1])+' - '+fmtMm(lim[i]));
+  labels.push('> '+fmtMm(lim[lim.length-1]));
+  return {nome:labels.length+' faixas', lim, labels, colors:base.concat(EXT_CORES.slice(0,extra.length))};
+}
+function faixasEscolhidas(){ return '12'; }
+// com as imagens do CPC a classe vem da cor da imagem (15 faixas), então só o GFS usa a escala de 12 faixas (+ extensão)
+function aplicarEscala(){
+  if(typeof fonteDados!=='function'||fonteDados()==='gfs'){ const e=escalaGfs(EXT_TOPO); CLASS_LABELS=e.labels; CLASS_COLORS=e.colors; GFS_LIMITES=e.lim; }
+  else { const e=ESCALAS[15]; CLASS_LABELS=e.labels; CLASS_COLORS=coresPaleta('amarelo_indigo',15); GFS_LIMITES=e.lim; }
+  const ch=document.getElementById('legendaChip');
+  if(ch){ const gfs=typeof fonteDados!=='function'||fonteDados()==='gfs'; ch.textContent=gfs?(EXT_TOPO?`Legenda estendida: ${CLASS_LABELS.length} faixas (até > ${fmtMm(EXT_TOPO)} mm)`:'Legenda: 12 faixas (até > 200 mm)'):'Legenda: 15 faixas (imagens do CPC)'; ch.classList.toggle('ext',!!(gfs&&EXT_TOPO)); }
+}
 function classeMm(v){ let c=0; while(c<GFS_LIMITES.length && v>=GFS_LIMITES[c]) c++; return c; }
 // interpolação bilinear na grade 0,25° (lat do norte para o sul, lon do oeste para o leste)
 function gfsValor(g,lon,lat){
@@ -136,7 +158,7 @@ function periodoMapa(idIni,idFim){
 }
 function anoDe(id){ const v=document.getElementById(id).value; return v?v.slice(0,4):String(new Date().getFullYear()); }
 function hexRgb(c){ return '#'+c.map(v=>v.toString(16).padStart(2,'0')).join(''); }
-function pixelClass(proc,x,y){ if(x<0||x>=proc.gridW||y<0||y>=proc.gridH) return 0; const v=proc.classGrid[y*proc.gridW+x]; return v<15?v:0; }
+function pixelClass(proc,x,y){ if(x<0||x>=proc.gridW||y<0||y>=proc.gridH) return 0; const v=proc.classGrid[y*proc.gridW+x]; return v<CLASS_LABELS.length?v:0; }   // 17/11: aceita a legenda estendida (até 18 faixas)
 // Cada pixel do CPC vira um retângulo em lon/lat (trechos seguidos da mesma faixa numa linha viram um só),
 // agrupados por faixa: é exatamente a leitura por pixel já usada nas tabelas.
 function classAreas(proc){
@@ -363,22 +385,10 @@ function montarSeletorFonte(){
   sel.value=salvo==='cpc'?'cpc':'gfs';
   sel.addEventListener('change',()=>{ try{ localStorage.setItem('reservFonte',sel.value); }catch(e){} textoFonte(); });
   ctl.insertBefore(sel,ctl.firstChild); ctl.insertBefore(lab,sel);
-  // v0.17: número de faixas da escala (GFS)
-  const labF=document.createElement('label'); labF.htmlFor='faixasMapa'; labF.style.margin='0'; labF.textContent='Faixas';
-  const selF=document.createElement('select'); selF.id='faixasMapa';
-  selF.innerHTML=['15','12','13'].map(n=>`<option value="${n}">${ESCALAS[n].nome}</option>`).join('');
-  let fx='15'; try{ fx=localStorage.getItem('reservFaixas')||'15'; }catch(e){}
-  selF.value=ESCALAS[fx]?fx:'15';
-  selF.addEventListener('change',()=>{ try{ localStorage.setItem('reservFaixas',selF.value); }catch(e){} trocarEscala(); });
-  sel.after(labF,selF);
-  // 13/11/2026: paleta de cores de todos os mapas (Reservatórios, Tendência, Acumulados e Barragens)
-  const labC=document.createElement('label'); labC.htmlFor='coresMapa'; labC.style.margin='0'; labC.textContent='Cores';
-  const selC=document.createElement('select'); selC.id='coresMapa';
-  selC.innerHTML=Object.keys(PALETAS).map(k=>`<option value="${k}">${PALETAS[k].nome}</option>`).join('');
-  let pc='azul'; try{ pc=localStorage.getItem('reservCores')||'azul'; }catch(e){}
-  selC.value=PALETAS[pc]?pc:'azul';
-  selC.addEventListener('change',()=>{ try{ localStorage.setItem('reservCores',selC.value); }catch(e){} trocarCores(); });
-  selF.after(labC,selC);
+  // 17/11/2026: seletores "Faixas" e "Cores" removidos: legenda de 12 faixas + paleta Amarelo → índigo fixas; a extensão
+  // acima de 200 mm é oferecida pelo painel do gatilho (#gatilho200) quando o GFS tem chuva acima de 200 mm em Minas
+  const selC=document.createElement('span'); selC.id='legendaChip'; selC.className='legChip';
+  sel.after(selC);
   // 13/11/2026: mapa suave e isolinhas (só com o dado bruto do GFS)
   const box=document.createElement('span'); box.id='opcoesMapa'; box.style.cssText='display:inline-flex;gap:10px;align-items:center;flex-wrap:wrap';
   [['mapaSuave','Suave',true],['mapaIso','Isolinhas',false],['mapaIsoVal','Valores',false]].forEach(([id,txt,pad])=>{
@@ -398,7 +408,7 @@ function montarSeletorFonte(){
 }
 function textoFonte(){
   const g=fonteDados()==='gfs', b=document.getElementById('cpcLoad'), h=document.querySelector('.cpcRow h2');
-  const sf=document.getElementById('faixasMapa'); if(sf){ sf.disabled=!g; sf.title=g?'Escala usada nos mapas gerados com o GFS':'Com as imagens do CPC a escala é sempre a de 15 faixas'; }
+  const gp=document.getElementById('gatilho200'); if(gp&&!g) gp.hidden=true;
   ['mapaSuave','mapaIso','mapaIsoVal'].forEach(id=>{ const el=document.getElementById(id); if(el){ el.disabled=!g||(id==='mapaIsoVal'&&!document.getElementById('mapaIso').checked); el.parentElement.title=g?'':'Só com o dado bruto do GFS (as imagens do CPC não têm o valor em mm)'; } });
   const st=document.getElementById('mapaIsoTipo'); if(st) st.disabled=!g||!document.getElementById('mapaIso').checked;
   aplicarEscala();
@@ -525,7 +535,7 @@ async function loadGfs(c, btn){
   btn.disabled=true; setStatus('cpcStatus',`Buscando os dados do GFS do ciclo <strong>${c}Z</strong>…`);
   try{
     const j=await carregarGfs(c);
-    aplicarEscala();
+    EXT_TOPO=0; aplicarEscala();   // 17/11: cada rodada começa com a legenda padrão; o gatilho abaixo decide se oferece a extensão
     const g={lat:j.grade.lat, lon:j.grade.lon};
     const previas={};
     for(const [key,sec,field,prev] of GFS_ITENS){
@@ -557,6 +567,7 @@ async function loadGfs(c, btn){
     preencherDatas(j.data_ciclo);
     ['resCycle','wkCycle','accCycle'].forEach(id=>document.getElementById(id).value=`${c}Z`);
     await generateReserv(); await generateWeekly(); await generateAccum();
+    try{ avaliarGatilho200(j); }catch(e){ console.error('gatilho 200 mm',e); }
     document.getElementById('resInputKpi').textContent=`GFS bruto Week 1 · ${c}Z`;
     document.getElementById('resGridKpi').textContent='grade 0,25° (sem correção)';
     const idadeH=(Date.now()-new Date(j.rodada_utc.replace('Z',':00Z')).getTime())/3600000;
@@ -569,7 +580,71 @@ async function loadGfs(c, btn){
     setStatus('cpcStatus',`<span class="warn">Não foi possível carregar os dados do GFS:</span> ${String(err.message||err).replace(/[<>&]/g,'')}. Troque a fonte para "Imagens do CPC" ou use o upload manual em cada aba.`);
   }finally{ btn.disabled=false; }
 }
+/* ---- 17/11/2026: gatilho de chuva acima de 200 mm em Minas Gerais ----
+ * Na grade de exibição (0,05°, mesma interpolação bilinear dos mapas), conta as células DENTRO de Minas com chuva ≥ 200 mm
+ * em cada produto do GFS (24 h, 3 dias, 5 dias, Week 1, Week 2): área em km² (célula = (0,05·111,32)² · cos(lat)), % do
+ * estado, máximo e onde ocorre (cidade de referência mais próxima e mesorregião), e as áreas ≥ 250 e ≥ 300 mm.
+ * Se houver área, mostra o painel e sugere o menor topo da legenda que cobre o máximo; quem decide é o meteorologista. */
+const GATILHO_MM=200;
+const GAT_PRODUTOS=[['24h','24 horas'],['day3','3 dias'],['day5','5 dias'],['week1','Week 1'],['week2','Week 2']];
+let MASCARA_MG=null;
+function mascaraMG(){
+  if(MASCARA_MG) return MASCARA_MG;
+  const d=0.05, cel=[];
+  for(let lat=-14.2;lat>=-22.95;lat-=d) for(let lon=-51.1;lon<=-39.8;lon+=d){ const la=+lat.toFixed(3), lo=+lon.toFixed(3); if(dentroMG(lo,la)) cel.push([lo,la,Math.pow(d*111.32,2)*Math.cos(la*Math.PI/180)]); }
+  return (MASCARA_MG=cel);
+}
+function mesoDe(lon,lat){
+  for(let i=0;i<MESO.features.length;i++){ const b=MESO_BB[i]; if(lon<b[0]||lon>b[2]||lat<b[1]||lat>b[3]) continue;
+    let ins=false; const g=MESO.features[i].geometry; (g.type==='Polygon'?[g.coordinates]:g.coordinates).forEach(p=>p.forEach(r=>{ for(let a=0,k=r.length-1;a<r.length;k=a++){ const xi=r[a][0],yi=r[a][1],xk=r[k][0],yk=r[k][1]; if((yi>lat)!==(yk>lat)&&lon<(xk-xi)*(lat-yi)/(yk-yi)+xi) ins=!ins; } }));
+    if(ins) return MESO.features[i].properties.name; }
+  return '';
+}
+function cidadeProxima(lon,lat){
+  let best=null, dm=1e9; const k=Math.cos(lat*Math.PI/180);
+  for(const c of cidadesPadrao()){ const dd=Math.hypot((c[1]-lon)*k,c[2]-lat); if(dd<dm){ dm=dd; best=c; } }
+  return best?{nome:best[0], km:Math.round(dm*111.32)}:null;
+}
+const titulo=s=>String(s||'').toLowerCase().replace(/(^|[\s-])\S/g,m=>m.toUpperCase()).replace(/ (De|Do|Da|Dos|Das|E) /g,m=>m.toLowerCase());
+const nKm=v=>Math.round(v).toLocaleString('pt-BR');
+function avaliarGatilho200(j){
+  const painel=document.getElementById('gatilho200'); if(!painel) return;
+  const cel=mascaraMG(), areaMG=cel.reduce((s,c)=>s+c[2],0), grade={lat:j.grade.lat, lon:j.grade.lon};
+  const linhas=GAT_PRODUTOS.map(([k,nome])=>{
+    const g={...grade, mm:j.produtos[k].mm}; let mx=-1, lmx=null, a200=0, a250=0, a300=0;
+    for(const c of cel){ const v=gfsValor(g,c[0],c[1]); if(v>mx){ mx=v; lmx=c; } if(v>=GATILHO_MM){ a200+=c[2]; if(v>=250) a250+=c[2]; if(v>=300) a300+=c[2]; } }
+    return {k,nome,mx,lon:lmx[0],lat:lmx[1],a200,a250,a300};
+  });
+  const disparou=linhas.filter(l=>l.a200>0);
+  APP.gatilho200={linhas,disparou:disparou.length>0,areaMG};
+  if(!disparou.length){ painel.hidden=true; painel.innerHTML=''; return; }
+  const maxGeral=Math.max(...disparou.map(l=>l.mx));
+  const sugerido=EXT_DEGRAUS.find(v=>v>=maxGeral)||EXT_DEGRAUS[EXT_DEGRAUS.length-1];
+  const opcoes=[0].concat(EXT_DEGRAUS.filter(v=>v<=Math.max(sugerido,300)));
+  const faixasPrev=topo=>{ const e=escalaGfs(topo); return e.labels.slice(10).map((l,i)=>`<span class="gsw" title="${l} mm"><i style="background:${hexRgb(e.colors[10+i])}"></i>${l}</span>`).join(''); };
+  const rows=linhas.map(l=>{ const c=cidadeProxima(l.lon,l.lat), m=titulo(mesoDe(l.lon,l.lat)), on=l.a200>0;
+    return `<tr class="${on?'on':''}"><td>${l.nome}</td><td class="num"><strong>${l.mx.toFixed(1).replace('.',',')}</strong></td>`+
+      `<td>${on?`${c?(c.km<=5?'em ':`a ${c.km} km de `)+c.nome:''}${m?` <span class="small">(${m})</span>`:''}`:'—'}</td>`+
+      `<td class="num">${on?nKm(l.a200)+' km²':'—'}</td><td class="num">${on?(100*l.a200/areaMG).toFixed(2).replace('.',',')+' %':'—'}</td>`+
+      `<td class="num">${l.a250?nKm(l.a250)+' km²':'—'}</td><td class="num">${l.a300?nKm(l.a300)+' km²':'—'}</td></tr>`; }).join('');
+  painel.innerHTML=`<div class="gHead"><span class="gIco" aria-hidden="true">!</span><div><strong>Gatilho: chuva prevista acima de ${GATILHO_MM} mm em Minas Gerais</strong>`+
+    `<div class="small">${disparou.map(l=>l.nome).join(', ')} · máximo de <strong>${maxGeral.toFixed(1).replace('.',',')} mm</strong>. Na legenda padrão de 12 faixas, tudo acima de ${GATILHO_MM} mm fica numa única cor; avalie e, se necessário, estenda a legenda (vale para todos os mapas do GFS desta rodada).</div></div></div>`+
+    `<div class="tableWrap"><table class="gTab"><thead><tr><th>Produto</th><th>Máximo em MG (mm)</th><th>Local do máximo</th><th>Área ≥ 200 mm</th><th>% de MG</th><th>Área ≥ 250 mm</th><th>Área ≥ 300 mm</th></tr></thead><tbody>${rows}</tbody></table></div>`+
+    `<div class="gOpc"><span class="small"><strong>Legenda:</strong></span>${opcoes.map(t=>`<button type="button" data-topo="${t}" class="gBtn${t===EXT_TOPO?' on':''}">${t?`Estender até ${t} mm (${escalaGfs(t).labels.length} faixas)`:'12 faixas (padrão)'}${t===sugerido?' <em>recomendado</em>':''}</button>`).join('')}</div>`+
+    `<div class="gPrev small">Faixas do topo da legenda: <span id="gPrevSw">${faixasPrev(EXT_TOPO)}</span></div>`+
+    `<div class="small" style="margin-top:4px">Áreas calculadas na grade de exibição de 0,05° (interpolação bilinear do GFS 0,25°), só dentro dos limites de Minas Gerais. Recomendado = menor topo que cobre o máximo previsto.</div>`;
+  painel.hidden=false;
+  painel.querySelectorAll('.gBtn').forEach(b=>b.addEventListener('click',async()=>{
+    const t=+b.dataset.topo; if(t===EXT_TOPO) return;
+    EXT_TOPO=t; painel.querySelectorAll('.gBtn').forEach(x=>x.classList.toggle('on',+x.dataset.topo===t));
+    document.getElementById('gPrevSw').innerHTML=faixasPrev(t);
+    painel.querySelectorAll('.gBtn').forEach(x=>x.disabled=true);
+    try{ await trocarEscala(); }finally{ painel.querySelectorAll('.gBtn').forEach(x=>x.disabled=false); }
+  }));
+}
+window.RESERV_GATILHO={ avaliar:j=>avaliarGatilho200(j), topo:()=>EXT_TOPO, escala:t=>escalaGfs(t) };
 montarSeletorFonte();
+(function(){ const st=document.getElementById('cpcStatus'); if(st&&!document.getElementById('gatilho200')){ const d=document.createElement('div'); d.id='gatilho200'; d.className='gatilho'; d.hidden=true; st.after(d); } aplicarEscala(); })();
 
 tabInit();
 document.getElementById('resPeriodKpi').textContent=`${fmtDate(document.getElementById('resStart').value)} a ${fmtDate(document.getElementById('resEnd').value)}`;

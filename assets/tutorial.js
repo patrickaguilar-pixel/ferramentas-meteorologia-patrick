@@ -124,8 +124,8 @@
       // topo (vale para todas as abas)
       { s: '#cpcCycle', t: 'Ciclo', d: '00Z (≈3h) ou 06Z (≈9h). Vale para Reservatórios, Tendência e Acumulados.' },
       { s: '#fonteDados', t: 'Fonte dos dados', d: 'Dado bruto GFS (chuva em mm, NOAA) ou Imagens do CPC. A escolha fica guardada neste navegador.' },
-      { s: '#faixasMapa', t: 'Faixas', d: 'Escala de cores dos mapas feitos com o GFS. Com as imagens do CPC é sempre a de 15 faixas.' },
-      { s: '#coresMapa', t: 'Cores', d: 'Paleta de todos os mapas da ferramenta (inclusive Barragens): Azul (atual), Viridis ou Amarelo → índigo. A escolha fica guardada neste navegador.' },
+      { s: '#legendaChip', t: 'Legenda', d: 'Mapas do GFS: 12 faixas (até > 200 mm) e cores Amarelo → índigo, fixas. Quando a legenda é estendida pelo gatilho, aparece aqui em roxo.' },
+      { s: '#gatilho200', t: 'Gatilho > 200 mm', d: 'Aparece só quando o GFS prevê mais de 200 mm dentro de Minas: máximo, local e área de cada produto. Escolha estender a legenda (até 250, 300, 400… mm); o recomendado é o menor topo que cobre o máximo. Vale para todos os mapas da rodada.' },
       { s: '#opcoesMapa', t: 'Suave, Isolinhas e Valores', d: 'Só com o GFS. Suave: chuva desenhada fina, sem os quadradinhos (mesmos valores). Isolinhas: escolha a cada 50 mm (50, 100, 150…), nas faixas da legenda (estilo anterior) ou as duas juntas (as de 50 mm mais grossas). Valores: o número em cima das linhas. Vale para todos os mapas, inclusive Barragens.' },
       { s: '#cpcLoad', t: 'Buscar dados', d: 'Busca o ciclo escolhido, gera todos os mapas e preenche as datas.' },
       { s: '#cpcStatus', t: 'Situação', d: 'Qual rodada foi carregada e quando foi baixada. Vermelho = não carregou.' },
