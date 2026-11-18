@@ -59,33 +59,32 @@ th{background:#f7f9fc;position:sticky;top:0}
 /* 17/11/2026: legenda fixa + gatilho > 200 mm */
 .legChip{display:inline-block;padding:5px 10px;border-radius:999px;background:var(--accent-bg);color:var(--accent);font-size:12px;font-weight:700;white-space:nowrap}
 .legChip.ext{background:#f3e8f7;color:#5c1474}
-.gatilho{margin:0 0 14px;border:1px solid #e3c7d6;border-left:5px solid #8c1d7d;border-radius:12px;background:#fdf8fb;padding:14px 16px}
-.gatilho .gHead{display:flex;gap:10px;align-items:flex-start;margin-bottom:10px}
-.gatilho .gHead strong{color:#3d0f4d;font-size:15px}
-.gatilho .gIco{flex:0 0 24px;height:24px;border-radius:50%;background:#8c1d7d;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px}
-.gatilho .gCards{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
-.gatilho .gCard{flex:1 1 240px;max-width:420px;background:#fff;border:1px solid #ecd9e4;border-radius:10px;padding:10px 12px}
-.gatilho .gT{font-size:12px;font-weight:700;color:#8c1d7d;text-transform:uppercase;letter-spacing:.04em}
-.gatilho .gBig{font-size:24px;font-weight:800;color:#3d0f4d;line-height:1.15;font-variant-numeric:tabular-nums}
-.gatilho .gBig small{font-size:13px;font-weight:600;color:#6b5672}
-.gatilho .gS{font-size:12px;color:#5d6675;margin-bottom:6px}
-.gatilho .gK{display:flex;flex-direction:column;gap:2px;font-size:12px;color:#5d6675;border-top:1px solid #f3e8f0;padding-top:6px}
-.gatilho .gK b{color:var(--text);font-variant-numeric:tabular-nums}
-.gatilho .gQ{font-weight:700;color:#3d0f4d;margin-bottom:6px;font-size:13px}
-.gatilho .gOpcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
-.gatilho .gOpt{display:flex;gap:10px;align-items:flex-start;background:#fff;border:2px solid #e6d3df;border-radius:10px;padding:10px 12px;cursor:pointer;margin:0;font-weight:400}
-.gatilho .gOpt:hover{border-color:#c79bb6}
-.gatilho .gOpt.on{border-color:#5c1474;background:#faf3fb;box-shadow:0 0 0 3px rgba(92,20,116,.12)}
-.gatilho .gOpt input{margin-top:3px;accent-color:#5c1474;width:auto}
-.gatilho .gOpt b{display:block;color:#3d0f4d;font-size:14px;margin-bottom:2px}
-.gatilho .gOpt .gD{display:block;font-size:12px;color:#5d6675}
-.gatilho .gOpt select{width:auto;display:inline-block;padding:2px 6px;font-size:12px;margin:0 2px}
-.gatilho .gRec{display:block;font-style:normal;color:#8c1d7d;font-weight:600;margin-top:2px}
-.gatilho .gSw{display:flex;flex-wrap:wrap;gap:3px 10px;margin-top:6px}
-.gatilho .gsw{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:11.5px;color:#25354a}
-.gatilho .gsw i{display:inline-block;width:18px;height:12px;border:1px solid rgba(0,0,0,.25);border-radius:2px}
-.gatilho .gEstado{margin-top:10px;font-size:13px;font-weight:600;color:#3d0f4d}
-.gatilho .gNota{margin-top:4px}
+.gatilho{margin:0 0 14px;background:var(--card);border:1px solid var(--line);border-left:4px solid #e0a100;border-radius:12px;padding:12px 14px}
+.gatilho .gHead{display:flex;gap:9px;align-items:flex-start;margin-bottom:8px}
+.gatilho .gHead strong{font-size:14px;color:var(--text)}
+.gatilho .gIco{flex:0 0 20px;height:20px;margin-top:1px;border-radius:50%;background:#e0a100;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:12px}
+.gatilho .gLins{border-top:1px solid var(--line);margin-bottom:10px}
+.gatilho .gLin{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;padding:6px 2px;border-bottom:1px solid var(--line);font-size:13px}
+.gatilho .gNome{font-weight:700;min-width:120px}
+.gatilho .gMax b{font-variant-numeric:tabular-nums}
+.gatilho .gLoc,.gatilho .gAr{color:var(--muted)}
+.gatilho .gAr b{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
+.gatilho .gEsc{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.gatilho .gSeg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.gatilho .gB{border:0;background:#fff;color:var(--text);padding:8px 13px;font-weight:700;font-size:13px;cursor:pointer}
+.gatilho .gB+.gB{border-left:1px solid var(--line)}
+.gatilho .gB:hover:not(.on){background:var(--accent-bg);color:var(--accent)}
+.gatilho .gB.on{background:var(--accent);color:#fff}
+.gatilho .gB:disabled{cursor:wait;opacity:.7}
+.gatilho .gAte{display:inline-flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:400;color:var(--muted)}
+.gatilho .gAte select{width:auto;padding:5px 8px;font-size:13px}
+.gatilho .gRod{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin-top:10px}
+.gatilho .gEstado{font-size:13px;font-weight:700;color:var(--muted)}
+.gatilho .gEstado.ok{color:var(--ok)}
+.gatilho .gSw{display:inline-flex;flex-wrap:wrap;gap:3px 10px}
+.gatilho .gsw{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:12px;color:var(--muted)}
+.gatilho .gsw i{display:inline-block;width:16px;height:11px;border:1px solid rgba(0,0,0,.2);border-radius:2px}
+.gatilho .gNota{margin-top:6px}
 @media(max-width:1100px){.grid{grid-template-columns:1fr}.dual,.triple,.kpi,.row{grid-template-columns:1fr}}
 </style>
 </head>
@@ -217,13 +216,13 @@ th{background:#f7f9fc;position:sticky;top:0}
 </section>
 </main>
 <script>window.BASE_DADOS='../';window.FERRAMENTA='reservatorios';window.PONTE_SELO='PNG e CSV são salvos no Drive';</script>
-<script src="../previsao/data/geo.js?v=teste-20261117c"></script>
-<script src="../chuva/data/cidades.js?v=teste-20261117c"></script>
-<script src="../assets/layout-mapa.js?v=teste-20261117c"></script>
-<script src="../assets/isolinhas.js?v=teste-20261117c"></script>   <!-- 13/11/2026: isolinhas com valores -->
-<script src="../reservatorios/app.js?v=teste-20261117c"></script>
-<script src="../reservatorios/barragens-nucleo.js?v=teste-20261117c"></script>   <!-- 13/11/2026: aba Barragens e municípios -->
-<script src="../reservatorios/barragens.js?v=teste-20261117c"></script>
-<script src="../assets/ponte-drive.js?v=teste-20261117c"></script>
-<script src="../assets/planner-teste.js?v=teste-20261117c"></script>   <!-- Planner da semana (botão na barra) -->
+<script src="../previsao/data/geo.js?v=teste-20261118a"></script>
+<script src="../chuva/data/cidades.js?v=teste-20261118a"></script>
+<script src="../assets/layout-mapa.js?v=teste-20261118a"></script>
+<script src="../assets/isolinhas.js?v=teste-20261118a"></script>   <!-- 13/11/2026: isolinhas com valores -->
+<script src="../reservatorios/app.js?v=teste-20261118a"></script>
+<script src="../reservatorios/barragens-nucleo.js?v=teste-20261118a"></script>   <!-- 13/11/2026: aba Barragens e municípios -->
+<script src="../reservatorios/barragens.js?v=teste-20261118a"></script>
+<script src="../assets/ponte-drive.js?v=teste-20261118a"></script>
+<script src="../assets/planner-teste.js?v=teste-20261118a"></script>   <!-- Planner da semana (botão na barra) -->
 </body></html>
