@@ -72,7 +72,8 @@
   var CRED_MODO = 'destaque';   // 17/11/2026: modelo B (equipe)
   function quebrarCredito(texto, size, maxW, weight) {
     var out = [], line = '';
-    String(texto).split(' ').forEach(function (w) {
+    // número + unidade não se separam ("7 km", "96 h"): espaço fixo antes de quebrar
+    String(texto).replace(/(\d) (km|mm|h|%|°C)(?=$|[\s),.;/])/g, '$1\u00a0$2').replace(/(\S) (\d+(?:[.,]\d+)?\u00a0)/g, '$1\u00a0$2').split(' ').forEach(function (w) {
       var t = line ? line + ' ' + w : w;
       if (!line || textW(t, size, weight || 400) <= maxW) { line = t; return; }
       out.push(line); line = w;
@@ -81,6 +82,18 @@
     // linha começando com separador: puxa o separador para o fim da anterior
     for (var i = 1; i < out.length; i++) { var mm = out[i].match(/^([-·])\s+(.*)$/); if (mm) { out[i - 1] += ' ' + mm[1]; out[i] = mm[2]; } }
     return out;
+  }
+  // "Fonte de dados: X - SIMGE/IGAM, 2026" -> fontes ["Fonte de dados: X"] + autor "SIMGE/IGAM, 2026"; " · " e "; " separam fontes
+  function dividirCredito(t) {
+    var m = String(t).match(/^(.*?)\s+-\s+(SIMGE\/IGAM.*)$/), fontes = (m ? m[1] : String(t)).split(/ · |; /).map(function (x) { x = x.trim(); return x.charAt(0).toUpperCase() + x.slice(1); }).filter(Boolean);
+    return { fontes: fontes.length ? fontes : [String(t)], autor: m ? m[2] : '' };
+  }
+  // fonte longa: quebra antes do parêntese (ex.: "(rodada 17/11 00Z)") e só depois por palavras
+  function quebrarFonte(t, size, maxW, weight) {
+    if (textW(t, size, weight) <= maxW) return [t];
+    var p = t.indexOf(' (');
+    if (p > 0) return quebrarCredito(t.slice(0, p), size, maxW, weight).concat(quebrarCredito(t.slice(p + 1), size, maxW, weight));
+    return quebrarCredito(t, size, maxW, weight);
   }
   function fitSize(lines, sizeMM, maxW, weight) {
     var w = Math.max.apply(null, lines.map(function (l) { return textW(l, sizeMM, weight); }));
@@ -467,8 +480,10 @@
     // (nunca mais encolhe até ficar ilegível); os 4 créditos fixos viram 2 linhas de 6 pt. op.creditosModelo='atual' = como antes.
     var modoCred = op.creditosModelo || CRED_MODO, credBlocos = null, credSize, credH;
     if (modoCred === 'destaque') {
-      credBlocos = [{ lines: quebrarCredito(cred[0], 7 * PT, LEG_MAXW, 700), size: 7 * PT, weight: 700 },
-        { lines: ['Limites e base cartográfica: IBGE', 'Coordenadas geográficas · SIRGAS 2000'].concat(F ? quebrarCredito('Mapa base: ' + F.credito, 6 * PT, LEG_MAXW) : []), size: 6 * PT, weight: 400, gapTop: 0.6 }];
+      // 18/11: disposição por sentido — fontes em negrito 8,5 pt (uma por linha), "Elaboração: SIMGE/IGAM, ano" e os fixos em 7,5 pt
+      var dc = dividirCredito(cred[0]);
+      credBlocos = [{ lines: [].concat.apply([], dc.fontes.map(function (t) { return quebrarFonte(t, 8.5 * PT, LEG_MAXW, 700); })), size: 8.5 * PT, weight: 700 },
+        { lines: (dc.autor ? ['Elaboração: ' + dc.autor] : []).concat(['Limites e base cartográfica: IBGE', 'Coordenadas geográficas · SIRGAS 2000']).concat(F ? quebrarCredito('Mapa base: ' + F.credito, 7.5 * PT, LEG_MAXW) : []), size: 7.5 * PT, weight: 400, gapTop: 0.6 }];
       credH = credBlocos.reduce(function (h, b) { return h + (b.gapTop || 0) + b.lines.length * b.size * LH; }, 0);
     } else {
       credSize = Math.min(fitSize(cred, 6.68628 * PT, LEG_MAXW, 400), 20 / (Math.max(1, cred.length) * LH));

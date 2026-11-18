@@ -931,10 +931,13 @@ function renderSVG({forExport=false} = {}){
   const resto = cred.slice(1), tem = t => resto.indexOf(t) >= 0;
   if (tem("Limites municipais e mesorregiões - IBGE") && tem("Base cartográfica: IBGE")) { resto.splice(resto.indexOf("Limites municipais e mesorregiões - IBGE"), 1, "Limites e base cartográfica: IBGE"); resto.splice(resto.indexOf("Base cartográfica: IBGE"), 1); }
   if (tem("Sistema de Coordenadas Geográficas") && tem("Sistema geodésico de referência: Sirgas2000")) { resto.splice(resto.indexOf("Sistema de Coordenadas Geográficas"), 1, "Coordenadas geográficas · SIRGAS 2000"); resto.splice(resto.indexOf("Sistema geodésico de referência: Sirgas2000"), 1); }
-  const quebrar = (t, s, w) => { const out = []; let ln = ""; t.split(" ").forEach(p => { const x = ln ? ln + " " + p : p; if (!ln || textW(x, s, w) <= LEG_MAXW) ln = x; else { out.push(ln); ln = p; } }); if (ln) out.push(ln);
+  const quebrar = (t, s, w) => { const out = []; let ln = ""; t.replace(/(\d) (km|mm|h|%|°C)(?=$|[\s),.;/])/g, "$1\u00a0$2").replace(/(\S) (\d+(?:[.,]\d+)?\u00a0)/g, "$1\u00a0$2").split(" ").forEach(p => { const x = ln ? ln + " " + p : p; if (!ln || textW(x, s, w) <= LEG_MAXW) ln = x; else { out.push(ln); ln = p; } }); if (ln) out.push(ln);
     for (let i = 1; i < out.length; i++) { const m = out[i].match(/^([-·])\s+(.*)$/); if (m) { out[i-1] += " " + m[1]; out[i] = m[2]; } } return out; };
-  const credBlocos = [{lines: quebrar(cred[0], 7*PT, 700), size: 7*PT, weight: 700}];
-  if (resto.length) credBlocos.push({lines: [].concat(...resto.map(l => quebrar(l, 6*PT, 400))), size: 6*PT, weight: 400, gapTop: 0.6});
+  // 18/11: igual ao layout comum — "X - SIMGE/IGAM, ano" vira X em negrito + "Elaboração: SIMGE/IGAM, ano" nos fixos
+  const mA = cred[0].match(/^(.*?)\s+-\s+(SIMGE\/IGAM.*)$/);
+  if (mA) { cred[0] = mA[1]; resto.unshift("Elaboração: " + mA[2]); }
+  const credBlocos = [{lines: quebrar(cred[0], 8.5*PT, 700), size: 8.5*PT, weight: 700}];
+  if (resto.length) credBlocos.push({lines: [].concat(...resto.map(l => quebrar(l, 7.5*PT, 400))), size: 7.5*PT, weight: 400, gapTop: 0.6});
   const credH = credBlocos.reduce((h, b) => h + (b.gapTop || 0) + b.lines.length*b.size*LH, 0), credTop = LEG.y + LEG.h - 2.6 - credH;
   const linVal2 = credTop - 2.2, linVal1 = linVal2 - 9.2;
   const vt = validityText(S.val, true), val = vt || "Validade não informada";   // 05/11/2026: mapa também com ", hora local"
