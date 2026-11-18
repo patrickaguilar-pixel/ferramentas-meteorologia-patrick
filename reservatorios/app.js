@@ -103,8 +103,9 @@ window.RESERV_PALETA={ id:()=>paletaEscolhida(), cores:n=>{ const c=coresPaleta(
  * As 12 faixas (0–10 … 150–200, > 200) continuam idênticas; ao estender, a faixa "> 200" vira "200–250" (mesma cor) e
  * entram faixas novas até o topo escolhido, com cores próprias (roxo → magenta → vermelho), para não mudar as cores
  * que a equipe já conhece. Vale só para os mapas do GFS (com as imagens do CPC a classe vem da cor: 15 faixas). */
-const EXT_DEGRAUS=[250,300,400,500,750,1000];
-const EXT_CORES=['#5c1474','#8c1d7d','#b92e78','#df4f69','#f47c5c','#f9a65a'].map(hx);
+// 18/11: topo de 50 em 50 mm até 500 mm (pedido do Patrick) e uma cor para cada faixa nova (roxo → magenta → vermelho)
+const EXT_DEGRAUS=[250,300,350,400,450,500];
+const EXT_CORES=['#5c1474','#7f1b7e','#a22480','#c23674','#db4c66','#ef6a57'].map(hx);
 let EXT_TOPO=0;   // 0 = legenda padrão de 12 faixas (valor em uso no desenho do momento)
 // 17/11 (2): a escolha é POR ABA — cada aba decide a legenda dos próprios mapas (a mesma Week 1 pode estar estendida numa e não na outra)
 const EXT_ABA={reserv:0, weekly:0, accum:0};
@@ -639,19 +640,19 @@ function renderGatilhoAba(aba){
   const ls=G&&gfs?G.linhas.filter(l=>ABAS_GAT[aba].prods.includes(l.k)&&l.a200>0):[];
   if(!ls.length){ EXT_ABA[aba]=0; box.hidden=true; box.innerHTML=''; return; }
   const mx=Math.max(...ls.map(l=>l.mx)), sug=EXT_DEGRAUS.find(v=>v>=mx)||EXT_DEGRAUS[EXT_DEGRAUS.length-1];
-  const degraus=EXT_DEGRAUS.filter(v=>v<=Math.max(sug,300)), atual=EXT_ABA[aba], topoSel=atual||sug, nomes=ls.map(l=>l.nome);
+  const degraus=EXT_DEGRAUS, atual=EXT_ABA[aba], nomes=ls.map(l=>l.nome);
   const linhasHtml=ls.map(l=>{ const c=cidadeProxima(l.lon,l.lat), m=titulo(mesoDe(l.lon,l.lat));
     return `<div class="gLin"><span class="gNome">${l.nome}</span><span class="gMax">máx. <b>${n1(l.mx)} mm</b></span>`+
       `<span class="gLoc">${c?(c.km<=5?'em ':`a ${c.km} km de `)+c.nome:''}${m?` · ${m}`:''}</span>`+
       `<span class="gAr"><b>${nKm(l.a200)} km²</b> ≥ 200 mm (${(100*l.a200/G.areaMG).toFixed(2).replace('.',',')} % de MG)${l.a250?` · <b>${nKm(l.a250)} km²</b> ≥ 250 mm`:''}${l.a300?` · <b>${nKm(l.a300)} km²</b> ≥ 300 mm`:''}</span></div>`; }).join('');
-  box.innerHTML=`<div class="gHead"><span class="gIco" aria-hidden="true">!</span><div><strong>Chuva acima de 200 mm em Minas Gerais ${ls.length>1?'nos mapas':'no mapa'} ${listaE(nomes)}</strong>`+
-    `<div class="small">Na legenda padrão, toda chuva acima de 200 mm fica numa única cor. A escolha abaixo vale só para os mapas desta aba.</div></div></div>`+
+  box.innerHTML=`<div class="gHead"><span class="gIco" aria-hidden="true">!</span><div class="gTit"><strong>Chuva acima de 200 mm em Minas Gerais ${ls.length>1?'nos mapas':'no mapa'} ${listaE(nomes)}</strong>`+
+    `<div class="small">Na legenda padrão, toda chuva acima de 200 mm fica numa única cor. A escolha abaixo vale só para os mapas desta aba.</div></div>`+
+    `<div class="gPico"><span>máximo previsto</span><b>${n1(mx)} mm</b></div></div>`+
     `<div class="gLins">${linhasHtml}</div>`+
+    `<div class="gQ">Legenda dos mapas desta aba:</div>`+
     `<div class="gEsc"><div class="gSeg" role="group" aria-label="Legenda dos mapas desta aba">`+
-      `<button type="button" class="gB${atual?'':' on'}" data-v="0" aria-pressed="${!atual}">Legenda padrão · 12 faixas</button>`+
-      `<button type="button" class="gB${atual?' on':''}" data-v="ext" aria-pressed="${!!atual}">Detalhar acima de 200 mm · <span class="gN">${escalaGfs(topoSel).labels.length}</span> faixas</button></div>`+
-      `<label class="gAte">até <select class="gTopo" aria-label="Detalhar até quantos mm">${degraus.map(v=>`<option value="${v}"${v===topoSel?' selected':''}>${v} mm${v===sug?' (recomendado)':''}</option>`).join('')}</select></label>`+
-      `<span class="small">recomendado: ${sug} mm (cobre o máximo de ${n1(mx)} mm)</span></div>`+
+      [0].concat(degraus).map(v=>`<button type="button" class="gB${v===atual?' on':''}" data-v="${v}" aria-pressed="${v===atual}" title="${v?`${escalaGfs(v).labels.length} faixas: detalha a chuva de 200 a ${v} mm`:'Toda a chuva acima de 200 mm numa única cor'}">${v?`até ${v} mm`:'Padrão · 12 faixas'}${v===sug?'<em>recomendado</em>':''}</button>`).join('')+
+    `</div></div>`+
     `<div class="gRod"><span class="gEstado${atual?' ok':''}" role="status">${atual?`✓ Aplicado: ${listaE(ABAS_GAT[aba].prods.map(k=>NOME_MAPA[k]))} com ${escalaGfs(atual).labels.length} faixas`:'Em uso: legenda padrão'}</span>`+
       `<span class="gSw">${swatches(atual)}</span></div>`+
     `<div class="small gNota">Áreas só dentro de Minas Gerais, na grade de 0,05° dos mapas (bilinear do GFS 0,25°).</div>`;
@@ -659,13 +660,12 @@ function renderGatilhoAba(aba){
   const aplicar=async t=>{
     if(t===EXT_ABA[aba]) return;
     EXT_ABA[aba]=t;
-    box.querySelectorAll('.gB').forEach(b=>{ const on=(b.dataset.v==='ext')===!!t; b.classList.toggle('on',on); b.setAttribute('aria-pressed',on); });
-    box.querySelector('.gEstado').textContent='Refazendo os mapas desta aba…'; box.querySelectorAll('button,select').forEach(x=>x.disabled=true);
+    box.querySelectorAll('.gB').forEach(b=>{ const on=+b.dataset.v===t; b.classList.toggle('on',on); b.setAttribute('aria-pressed',on); });
+    box.querySelector('.gEstado').textContent='Refazendo os mapas desta aba…'; box.querySelectorAll('button').forEach(x=>x.disabled=true);
     try{ await ABAS_GAT[aba].gerar(); }catch(e){ console.error(e); }
     renderGatilhoAba(aba); atualizarChip();
   };
-  box.querySelectorAll('.gB').forEach(b=>b.addEventListener('click',()=>aplicar(b.dataset.v==='ext'?+box.querySelector('.gTopo').value:0)));
-  box.querySelector('.gTopo').addEventListener('change',()=>{ const v=+box.querySelector('.gTopo').value; box.querySelector('.gN').textContent=escalaGfs(v).labels.length; if(EXT_ABA[aba]) aplicar(v); });
+  box.querySelectorAll('.gB').forEach(b=>b.addEventListener('click',()=>aplicar(+b.dataset.v)));
 }
 window.RESERV_GATILHO={ avaliar:j=>avaliarGatilho200(j), topo:aba=>EXT_ABA[aba]||0, escala:t=>escalaGfs(t) };
 montarSeletorFonte();
