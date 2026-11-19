@@ -1,5 +1,8 @@
 /*
  * Reservatórios e Tendência v0.17 — código da ferramenta (SIMGE/IGAM)
+ * v0.19 (19/11/2026, pacote para o oficial): aba Barragens (reservatorios/barragens*.js, nível ANM/SIGBM, gatilho do Manual 4.6);
+ *   mapas suaves e isolinhas (a cada 50 mm, nas faixas ou as duas; assets/isolinhas.js); paleta Amarelo → índigo e legenda de
+ *   12 faixas fixas; aviso de chuva acima de 200 mm por aba com legenda detalhada até 500 mm.
  * v0.18.2 (09/11/2026): fonte padrão = Dado bruto GFS (NOAA); quem já escolheu "Imagens do CPC" neste navegador continua com CPC.
  * v0.18.1 (06/11/2026): contorno dos lagos desligado (USAR_LAGOS=false) até a equipe decidir; correções de MM/MB/PE mantidas.
  * v0.18 (06/11/2026): contorno dos lagos dos reservatórios no mapa (reservatorios/lagos.json, ANA); pontos de MM e MB destrocados; ponto de PE movido para o lago (estava 68 km fora, perto de Ipatinga).
