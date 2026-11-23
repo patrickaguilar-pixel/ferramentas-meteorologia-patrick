@@ -17,7 +17,9 @@ Metodologia (cada passo fica escrito no registro e no JSON):
      Probabilidade acumulada H = p0 + (1 - p0) * G(x). SPI = inversa da normal padrão de H (McKee et al., 1993; OMM-No. 1090).
   5. Percentil do mês = 100 * H (1 mês). Categoria por tercis: H < 1/3 abaixo, 1/3 a 2/3 normal, > 2/3 acima.
   6. Climatologia = média dos anos-base; anomalia em mm e em %.
-Saída: monitor-climatico/dados/merge/AAAA-MM.json (um por mês) e indice.json. Valores inteiros (x10) para ficar leve.
+  7. Resumo de Minas (resumo.json, todos os meses desde 1998): média ponderada pela área (cos da latitude) dos pontos da
+     grade cujo centro cai dentro de Minas (mesorregiões de mapas-climaticos/meso.js); fração da área em cada categoria.
+Saída: monitor-climatico/dados/merge/AAAA-MM.json (um por mês), indice.json e resumo.json. Valores inteiros (x10).
 """
 import json, os, re, sys, time, urllib.request, datetime, math
 import numpy as np
@@ -179,6 +181,31 @@ def prob(x, alpha, beta, p0):
     return np.clip(H, 1e-6, 1 - 1e-6)
 
 
+def mascara_mg(lats, lons):
+    txt = open('mapas-climaticos/meso.js', encoding='utf-8').read()
+    gj = json.loads(txt[txt.index('{'):txt.rindex('}') + 1])
+    def dentro(x, y, anel):
+        c = False; n = len(anel); j = n - 1
+        for i in range(n):
+            xi, yi = anel[i]; xj, yj = anel[j]
+            if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+                c = not c
+            j = i
+        return c
+    polys = []
+    for f in gj['features']:
+        g = f['geometry']
+        for p in ([g['coordinates']] if g['type'] == 'Polygon' else g['coordinates']):
+            polys.append(p)
+    m = np.zeros((lats.size, lons.size), bool)
+    for iy, la in enumerate(lats):
+        for ix, lo in enumerate(lons):
+            for p in polys:
+                if dentro(lo, la, p[0]) and not any(dentro(lo, la, h) for h in p[1:]):
+                    m[iy, ix] = True; break
+    return m
+
+
 def arr(v, k=10):
     out = []
     for z in np.asarray(v, float).ravel():
@@ -198,6 +225,38 @@ def main():
     flat = cubo.reshape(T, -1)
     idx = {mm: i for i, mm in enumerate(meses)}
     indice = []
+    masc = mascara_mg(GRADE[0], GRADE[1]).ravel()
+    peso = np.repeat(np.cos(np.radians(GRADE[0])), nx)[masc]
+    log('máscara de Minas: %d pontos de 0,1°' % masc.sum())
+    def media_mg(v):
+        v = np.asarray(v, float)[masc]; ok = np.isfinite(v)
+        return float(np.sum(v[ok] * peso[ok]) / np.sum(peso[ok])) if ok.any() else None
+    resumo = []
+    for (a, m) in meses:
+        i = idx[(a, m)]
+        linha = {'p': '%04d-%02d' % (a, m), 'acum': None}
+        for k in (1, 3, 6):
+            if i - k + 1 < 0:
+                continue
+            atual = flat[i - k + 1:i + 1].sum(0)
+            hist = np.array([flat[j - k + 1:j + 1].sum(0) for j in (idx.get((ab, m)) for ab in range(ANO_BASE[0], ANO_BASE[1] + 1)) if j is not None and j - k + 1 >= 0])
+            al, be, p0 = ajuste_gama(hist)
+            H = prob(atual, al, be, p0)
+            linha['spi%d' % k] = media_mg(stats.norm.ppf(H))
+            if k == 1:
+                clim = np.nanmean(hist, 0)
+                linha['acum'] = media_mg(atual); linha['clim'] = media_mg(clim)
+                hm = H[masc]; ok = np.isfinite(hm); pw = peso[ok]; hm = hm[ok]
+                cortes = [0, 0.1, 1 / 3, 2 / 3, 0.9, 1.01]
+                linha['cat'] = [round(float(pw[(hm >= cortes[c]) & (hm < cortes[c + 1])].sum() / pw.sum()), 4) for c in range(5)]
+        for kk in list(linha):
+            if isinstance(linha[kk], float):
+                linha[kk] = round(linha[kk], 2)
+        resumo.append(linha)
+    with open(os.path.join(OUT, 'resumo.json'), 'w') as f:
+        json.dump({'fonte': 'MERGE/CPTEC-INPE', 'base': '%d-%d' % ANO_BASE, 'area': 'Minas Gerais (pontos de 0,1° com centro no estado; média ponderada por cos(lat))',
+                   'categorias': ['muito abaixo (H<0,1)', 'abaixo (0,1-1/3)', 'normal (1/3-2/3)', 'acima (2/3-0,9)', 'muito acima (>0,9)'], 'meses': resumo}, f, ensure_ascii=False, separators=(',', ':'))
+    log('resumo.json: %d meses' % len(resumo))
     for (a, m) in meses:
         if (a, m) < PRIMEIRO_SAIDA:
             continue
