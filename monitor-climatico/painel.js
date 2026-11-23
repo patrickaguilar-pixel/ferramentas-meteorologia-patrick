@@ -121,6 +121,15 @@
     var rot = []; rot.push('≤ ' + fmt(lim[0], 0)); for (i = 1; i < lim.length; i++) rot.push(fmt(lim[i - 1], 0) + ' – ' + fmt(lim[i], 0)); rot.push('> ' + fmt(lim[lim.length - 1], 0));
     return { lim: lim, cores: cores, rotulos: rot.map(function (r) { return r + ' ' + un; }) };
   }
+  // escala entre os percentis 2 e 98 do próprio mapa, passo redondo (a incerteza varia pouco em valor absoluto)
+  function escalaFaixa(vals, cores, un) {
+    var v = vals.filter(isFinite).sort(function (a, b) { return a - b; }); if (!v.length) return null;
+    var lo = v[Math.floor(0.02 * (v.length - 1))], hi = v[Math.floor(0.98 * (v.length - 1))], n = cores.length - 1;
+    var passo = [0.5, 1, 2, 2.5, 5, 10, 20, 25, 50].filter(function (p) { return (hi - lo) / p <= n - 1; })[0] || 50, ini = Math.floor(lo / passo) * passo + passo, lim = [];
+    for (var i = 0; i < n; i++) lim.push(ini + i * passo);
+    var rot = ['≤ ' + fmt(lim[0], passo < 1 ? 1 : 0)]; for (i = 1; i < lim.length; i++) rot.push(fmt(lim[i - 1], passo < 1 ? 1 : 0) + ' – ' + fmt(lim[i], passo < 1 ? 1 : 0)); rot.push('> ' + fmt(lim[lim.length - 1], passo < 1 ? 1 : 0));
+    return { lim: lim, cores: cores, rotulos: rot.map(function (r) { return r + ' ' + un; }) };
+  }
   function valores(g) { var o = []; for (var i = 0; i < g.length; i++) if (isFinite(g[i])) o.push(g[i]); return o; }
 
   // pronto? { ok, motivo }  (salvar exige a conferência concluída, como na aba 2)
@@ -183,7 +192,7 @@
         var vario = N.ajustarVariograma(base), ctx = N.prepararKrigagem(base, vario), alvo = new Float64Array(G.nx * G.ny).fill(NaN);
         C.vario = vario; C.pts = base;
         passo = function (a, b) { X.desvioLinhas(N, ctx, masc, G, a, b, alvo); };
-        fim = function () { C.grade = alvo; C.es = escalaLivre(valores(alvo), ['#f7fcfd', '#e0ecf4', '#bfd3e6', '#9ebcda', '#8c96c6', '#8c6bb1', '#88419d', '#6e016b'], 'mm', [2, 5, 10, 20, 25, 50]); };
+        fim = function () { C.grade = alvo; C.es = escalaFaixa(valores(alvo), ['#f7fcfd', '#e0ecf4', '#bfd3e6', '#9ebcda', '#8c96c6', '#8c6bb1', '#88419d', '#6e016b'], 'mm'); };
       }
     } catch (e) { C.calculando = false; C.erro = e.usuario ? e.message : 'Não foi possível calcular (' + e.message + ').'; return C; }
     (function pedaco() {
