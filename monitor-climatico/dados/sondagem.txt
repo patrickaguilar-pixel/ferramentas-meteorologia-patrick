@@ -1,25 +1,26 @@
-== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/
-   12 itens; primeiros: ['ANOMALY/', 'CLIMATOLOGY/', 'DAILY/', 'HOURLY/', 'HOURLY_NOW/', 'MERGE_READ-ME.pdf', 'PET/', 'Rozante.2024.pdf'] ; últimos: ['PET/', 'Rozante.2024.pdf', 'Rozante_et.al.2010.pdf', 'Rozante_et.al.2020.pdf', 'SPEI/', 'SPI/']
-== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/DAILY/
-   33 itens; primeiros: ['1998/', '1999/', '2000/', '2001/', '2002/', '2003/', '2004/', '2005/'] ; últimos: ['2025/', '2026/', 'GLOBO/', 'MERGE_CPTEC.ctl', 'MERGE_CPTEC.idx', 'MERGE_NEW_1998_2024.tar.gz']
-== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/DAILY/2026/
-   11 itens; primeiros: ['01/', '02/', '03/', '04/', '05/', '06/', '07/', '08/'] ; últimos: ['06/', '07/', '08/', '09/', '10/', '11/']
-== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/DAILY/2026/10/
-   93 itens; primeiros: ['MERGE_CPTEC_20261001.ctl', 'MERGE_CPTEC_20261001.grib2', 'MERGE_CPTEC_20261001.idx', 'MERGE_CPTEC_20261002.ctl', 'MERGE_CPTEC_20261002.grib2', 'MERGE_CPTEC_20261002.idx', 'MERGE_CPTEC_20261003.ctl', 'MERGE_CPTEC_20261003.grib2'] ; últimos: ['MERGE_CPTEC_20261030.ctl', 'MERGE_CPTEC_20261030.grib2', 'MERGE_CPTEC_20261030.idx', 'MERGE_CPTEC_20261031.ctl', 'MERGE_CPTEC_20261031.grib2', 'MERGE_CPTEC_20261031.idx']
-== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/MONTHLY/
-   0 itens; primeiros: [] ; últimos: []
-   ERRO HTTP Error 404: Not Found
-== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/CLIMATOLOGY/
-   8 itens; primeiros: ['ANOMALY_MONTHLY_ACCUMULATED_YEARLY/', 'DAILY_AVERAGE/', 'MONTHLY_ACCUMULATED/', 'MONTHLY_ACCUMULATED_YEARLY/', 'MONTHLY_AVERAGE/', 'MONTHLY_AVERAGE_YEARLY/', 'SCR/', 'YEAR_ACCUMULATED/'] ; últimos: ['MONTHLY_ACCUMULATED/', 'MONTHLY_ACCUMULATED_YEARLY/', 'MONTHLY_AVERAGE/', 'MONTHLY_AVERAGE_YEARLY/', 'SCR/', 'YEAR_ACCUMULATED/']
-== https://data.chc.ucsb.edu/products/CHIRPS/v3.0/monthly/
-   0 itens; primeiros: [] ; últimos: []
-   ERRO <urlopen error timed out>
-== https://data.chc.ucsb.edu/products/CHIRPS/v3.0/monthly/global/
-   0 itens; primeiros: [] ; últimos: []
-   ERRO <urlopen error timed out>
-== https://data.chc.ucsb.edu/products/CHIRPS/v3.0/monthly/global/tifs/
-   0 itens; primeiros: [] ; últimos: []
-   ERRO <urlopen error timed out>
-== https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_monthly/tifs/
-   0 itens; primeiros: [] ; últimos: []
-   ERRO <urlopen error timed out>
+== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/SPI/
+   16 itens; primeiros: ['MERGE_CPTEC_spi_gamma_01.nc', 'MERGE_CPTEC_spi_gamma_03.nc', 'MERGE_CPTEC_spi_gamma_06.nc', 'MERGE_CPTEC_spi_gamma_09.nc', 'MERGE_CPTEC_spi_gamma_12.nc', 'MERGE_CPTEC_spi_gamma_24.nc', 'MERGE_CPTEC_spi_gamma_48.nc', 'MERGE_CPTEC_spi_gamma_60.nc', 'MERGE_CPTEC_spi_pearson_01.nc', 'MERGE_CPTEC_spi_pearson_03.nc'] ; últimos: ['MERGE_CPTEC_spi_pearson_01.nc', 'MERGE_CPTEC_spi_pearson_03.nc', 'MERGE_CPTEC_spi_pearson_06.nc', 'MERGE_CPTEC_spi_pearson_09.nc', 'MERGE_CPTEC_spi_pearson_12.nc', 'MERGE_CPTEC_spi_pearson_24.nc', 'MERGE_CPTEC_spi_pearson_48.nc', 'MERGE_CPTEC_spi_pearson_60.nc']
+== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/ANOMALY/
+   1 itens; primeiros: ['MONTHLY/'] ; últimos: ['MONTHLY/']
+   -- MONTHLY/ 0 [] []
+== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/CLIMATOLOGY/MONTHLY_ACCUMULATED_YEARLY/
+   349 itens; primeiros: ['MERGE_CPTEC_acum.ctl', 'MERGE_CPTEC_acum_apr_1998.nc', 'MERGE_CPTEC_acum_apr_1999.nc', 'MERGE_CPTEC_acum_apr_2000.nc', 'MERGE_CPTEC_acum_apr_2001.nc', 'MERGE_CPTEC_acum_apr_2002.nc', 'MERGE_CPTEC_acum_apr_2003.nc', 'MERGE_CPTEC_acum_apr_2004.nc', 'MERGE_CPTEC_acum_apr_2005.nc', 'MERGE_CPTEC_acum_apr_2006.nc'] ; últimos: ['MERGE_CPTEC_acum_sep_2021.nc', 'MERGE_CPTEC_acum_sep_2022.nc', 'MERGE_CPTEC_acum_sep_2023.nc', 'MERGE_CPTEC_acum_sep_2024.nc', 'MERGE_CPTEC_acum_sep_2025.nc', 'MERGE_CPTEC_acum_sep_2026.nc', 'read-me.txt', 't.gs']
+== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/CLIMATOLOGY/MONTHLY_ACCUMULATED/
+   14 itens; primeiros: ['MERGE_CPTEC_acum.ctl', 'MERGE_CPTEC_acum_apr.nc', 'MERGE_CPTEC_acum_aug.nc', 'MERGE_CPTEC_acum_dec.nc', 'MERGE_CPTEC_acum_feb.nc', 'MERGE_CPTEC_acum_jan.nc', 'MERGE_CPTEC_acum_jul.nc', 'MERGE_CPTEC_acum_jun.nc', 'MERGE_CPTEC_acum_mar.nc', 'MERGE_CPTEC_acum_may.nc'] ; últimos: ['MERGE_CPTEC_acum_jul.nc', 'MERGE_CPTEC_acum_jun.nc', 'MERGE_CPTEC_acum_mar.nc', 'MERGE_CPTEC_acum_may.nc', 'MERGE_CPTEC_acum_nov.nc', 'MERGE_CPTEC_acum_oct.nc', 'MERGE_CPTEC_acum_sep.nc', 'read-me.txt']
+== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/CLIMATOLOGY/ANOMALY_MONTHLY_ACCUMULATED_YEARLY/
+   337 itens; primeiros: ['ANOMALY_MONTHLY_ACCUMULATED_YEARLY.ctl', 'MERGE_CPTEC_anom_apr_1998.nc', 'MERGE_CPTEC_anom_apr_1999.nc', 'MERGE_CPTEC_anom_apr_2000.nc', 'MERGE_CPTEC_anom_apr_2001.nc', 'MERGE_CPTEC_anom_apr_2002.nc', 'MERGE_CPTEC_anom_apr_2003.nc', 'MERGE_CPTEC_anom_apr_2004.nc', 'MERGE_CPTEC_anom_apr_2005.nc', 'MERGE_CPTEC_anom_apr_2006.nc'] ; últimos: ['MERGE_CPTEC_anom_sep_2018.nc', 'MERGE_CPTEC_anom_sep_2019.nc', 'MERGE_CPTEC_anom_sep_2020.nc', 'MERGE_CPTEC_anom_sep_2021.nc', 'MERGE_CPTEC_anom_sep_2022.nc', 'MERGE_CPTEC_anom_sep_2023.nc', 'MERGE_CPTEC_anom_sep_2024.nc', 'MERGE_CPTEC_anom_sep_2025.nc']
+== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/DAILY/2026/10/MERGE_CPTEC_20261001.ctl
+dset ^MERGE_CPTEC_20261001.grib2
+index ^MERGE_CPTEC_20261001.idx
+undef -9.99e+08
+title  MERGE GENERATED FROM GPM-IMERG-late
+dtype grib2
+xdef 1001 linear  -120.05   0.1 
+ydef 924 linear    -60.05   0.1
+tdef 1 linear 12Z01Oct2026 24hr
+zdef 1 linear 1 1
+vars 2
+PREC  0,1   0,15,5 ** Surface Precipitation [kg/m^2]
+NEST  0,1   0,3,1 **  Number of Stations /  Grid Point 
+ENDVARS
+
