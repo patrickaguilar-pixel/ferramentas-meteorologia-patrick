@@ -7,10 +7,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs.t00z.totp.week1.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs_precip_week1_samerica.html",
       "texto_alternativo": "GFS Week1 Total Precp",
-      "atualizado_no_cpc": "2026-11-22T06:02:00+00:00",
-      "baixado_em": "2026-11-22T16:16:09+00:00",
-      "bytes": 69771,
-      "sha256": "fc73e63c99e06496fd5ef3667c3062aed5a2f6fc68a7334fc0b1a92b7950dca6"
+      "atualizado_no_cpc": "2026-11-23T05:54:42+00:00",
+      "baixado_em": "2026-11-23T14:37:04+00:00",
+      "bytes": 68040,
+      "sha256": "d9b8211c28073b3bcf50130e303144810b341ee09a38bd152898064b60a0bf0f"
     },
     "week2": {
       "descricao": "GFS Week 2",
@@ -18,10 +18,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs.t00z.totp.week2.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs_precip_week2_samerica.html",
       "texto_alternativo": "GFS Week2 Total Precp",
-      "atualizado_no_cpc": "2026-11-22T06:45:57+00:00",
-      "baixado_em": "2026-11-22T16:16:09+00:00",
-      "bytes": 69502,
-      "sha256": "619cfc956d5bddd5e59e83aaebea151c658b6ce5e505b84e20b79f8590478b62"
+      "atualizado_no_cpc": "2026-11-23T06:30:08+00:00",
+      "baixado_em": "2026-11-23T14:37:04+00:00",
+      "bytes": 70884,
+      "sha256": "01b56efc2cbb89a07dc32fd6bfaf6b9e7e4f59a02d5b371fec05d4e2dfd3d330"
     },
     "24h": {
       "descricao": "GFS 24 h",
@@ -29,10 +29,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs.t00z.24h_totp.d1.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs_precip_24h_samerica.html",
       "texto_alternativo": "GFS 24h Total Precipitation",
-      "atualizado_no_cpc": "2026-11-22T05:46:03+00:00",
-      "baixado_em": "2026-11-22T16:16:09+00:00",
-      "bytes": 51172,
-      "sha256": "85471554bf1a43b202604539af2f2f61d598abf3ce8f8398210e5696eb4d850b"
+      "atualizado_no_cpc": "2026-11-23T05:44:13+00:00",
+      "baixado_em": "2026-11-23T14:37:04+00:00",
+      "bytes": 49290,
+      "sha256": "b59fdb504d6b3c3be774e41923e7e146130bdcafdd5d65470bca9e34287561e0"
     },
     "day3": {
       "descricao": "GFS 3 dias",
@@ -40,10 +40,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs.t00z.totp.day3.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs_precip_day3_samerica.html",
       "texto_alternativo": "GFS 3-day Total Precp",
-      "atualizado_no_cpc": "2026-11-22T05:55:34+00:00",
-      "baixado_em": "2026-11-22T16:16:09+00:00",
-      "bytes": 66326,
-      "sha256": "05cdf177689d73349e3cc24865b1fde339114739f0f35e02c9385c87e7d5cf2c"
+      "atualizado_no_cpc": "2026-11-23T05:53:05+00:00",
+      "baixado_em": "2026-11-23T14:37:04+00:00",
+      "bytes": 63241,
+      "sha256": "4e049377ca36467091d7228fe67b1305a6fa4aaf7b96135ec5212f12e5d93c1d"
     },
     "day5": {
       "descricao": "GFS 5 dias",
@@ -51,10 +51,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs.t00z.totp.day5.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gfs_precip_day5_samerica.html",
       "texto_alternativo": "GFS 5-day Total Precp",
-      "atualizado_no_cpc": "2026-11-22T06:31:40+00:00",
-      "baixado_em": "2026-11-22T16:16:09+00:00",
-      "bytes": 68859,
-      "sha256": "3e029446bd200b55d2dcd60d9259ca42e1c9be01a12588282d91e9c7e9710760"
+      "atualizado_no_cpc": "2026-11-23T06:28:15+00:00",
+      "baixado_em": "2026-11-23T14:37:04+00:00",
+      "bytes": 67269,
+      "sha256": "be8e6644f0d078b0c4a2939bc7b60580d366a70d7f1f0de19aa56ff2f2452b5e"
     },
     "prob100_week1": {
       "descricao": "GEFS prob. >100 mm Week 1",
@@ -62,10 +62,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gefs.t00z.wk1_precip_tot_gt_100mm.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gefs_wk1_precip100mm_prob_samerica.html",
       "texto_alternativo": "GEFS Prec Prob: wk1 prec >",
-      "atualizado_no_cpc": "2026-11-22T06:41:59+00:00",
-      "baixado_em": "2026-11-22T16:16:09+00:00",
-      "bytes": 24203,
-      "sha256": "7fc9674fbbe7689e4de7b2d5bfa317c33db156871d60a5d4e570b22dacd3a47b"
+      "atualizado_no_cpc": "2026-11-23T06:39:30+00:00",
+      "baixado_em": "2026-11-23T14:37:04+00:00",
+      "bytes": 24598,
+      "sha256": "d258d83705ad4db446afa87c405c8adc4e221cfe211cbc949300b5eb76ba0b8a"
     },
     "prob100_week2": {
       "descricao": "GEFS prob. >100 mm Week 2",
@@ -73,11 +73,11 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gefs.t00z.wk2_precip_tot_gt_100mm.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/00/gefs_wk2_precip100mm_prob_samerica.html",
       "texto_alternativo": "GEFS Prec Prob: wk2 prec >",
-      "atualizado_no_cpc": "2026-11-22T06:46:52+00:00",
-      "baixado_em": "2026-11-22T16:16:09+00:00",
-      "bytes": 29320,
-      "sha256": "9ecd36adf40ef6a081d732474a76dd9c686c24d6f6a31117ff1d0c52eb4aaf86"
+      "atualizado_no_cpc": "2026-11-23T06:44:20+00:00",
+      "baixado_em": "2026-11-23T14:37:04+00:00",
+      "bytes": 29494,
+      "sha256": "432aefdad12f571cc5aff90cf8ee1c604c6b7f9d81eac4dc10366e8d92d2d2d4"
     }
   },
-  "atualizado_em": "2026-11-22T16:16:09+00:00"
+  "atualizado_em": "2026-11-23T14:37:04+00:00"
 }
