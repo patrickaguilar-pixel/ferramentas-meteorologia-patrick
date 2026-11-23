@@ -1,0 +1,137 @@
+{
+"meses": [
+{
+"mes": 1,
+"ano": 2025,
+"arquivo": "2025-01.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 2,
+"ano": 2025,
+"arquivo": "2025-02.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 3,
+"ano": 2025,
+"arquivo": "2025-03.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 4,
+"ano": 2025,
+"arquivo": "2025-04.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 5,
+"ano": 2025,
+"arquivo": "2025-05.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 6,
+"ano": 2025,
+"arquivo": "2025-06.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 7,
+"ano": 2025,
+"arquivo": "2025-07.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 8,
+"ano": 2025,
+"arquivo": "2025-08.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 9,
+"ano": 2025,
+"arquivo": "2025-09.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 10,
+"ano": 2025,
+"arquivo": "2025-10.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 11,
+"ano": 2025,
+"arquivo": "2025-11.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 12,
+"ano": 2025,
+"arquivo": "2025-12.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 1,
+"ano": 2026,
+"arquivo": "2026-01.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 2,
+"ano": 2026,
+"arquivo": "2026-02.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 3,
+"ano": 2026,
+"arquivo": "2026-03.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 4,
+"ano": 2026,
+"arquivo": "2026-04.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 5,
+"ano": 2026,
+"arquivo": "2026-05.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 6,
+"ano": 2026,
+"arquivo": "2026-06.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 7,
+"ano": 2026,
+"arquivo": "2026-07.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 8,
+"ano": 2026,
+"arquivo": "2026-08.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 9,
+"ano": 2026,
+"arquivo": "2026-09.json",
+"origem": "mensal (pacum)"
+},
+{
+"mes": 10,
+"ano": 2026,
+"arquivo": "2026-10.json",
+"origem": "mensal (pacum)"
+}
+],
+"atualizado": "2026-11-23 19:20 UTC"
+}

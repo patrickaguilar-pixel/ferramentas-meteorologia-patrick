@@ -1,0 +1,38 @@
+MERGE — até (2026, 10) — recorte (-53.0, -38.0, -25.0, -12.5)
+  grade do recorte: 125 x 150, lat -24.95..-12.55, lon -52.95..-38.05
+série: 346 meses (1998-01 a 2026-10); fontes: {'mensal (pacum)': 346}
+/home/runner/work/ferramentas-meteorologia-patrick/ferramentas-meteorologia-patrick/scripts/baixar_merge.py:235: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  'gerado': datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'), 'camadas': camadas}
+  2025-01.json: mensal (pacum); acumulado na caixa 0 a 596 mm (média 176)
+  2025-02.json: mensal (pacum); acumulado na caixa 0 a 420 mm (média 73)
+  2025-03.json: mensal (pacum); acumulado na caixa 0 a 434 mm (média 68)
+  2025-04.json: mensal (pacum); acumulado na caixa 1 a 532 mm (média 95)
+  2025-05.json: mensal (pacum); acumulado na caixa 0 a 526 mm (média 34)
+  2025-06.json: mensal (pacum); acumulado na caixa 0 a 341 mm (média 31)
+/home/runner/work/ferramentas-meteorologia-patrick/ferramentas-meteorologia-patrick/scripts/baixar_merge.py:167: RuntimeWarning: Mean of empty slice
+  media = np.nanmean(x, 0)
+/home/runner/work/ferramentas-meteorologia-patrick/ferramentas-meteorologia-patrick/scripts/baixar_merge.py:168: RuntimeWarning: Mean of empty slice
+  A = np.log(media) - np.nanmean(np.log(x), 0)
+/home/runner/work/ferramentas-meteorologia-patrick/ferramentas-meteorologia-patrick/scripts/baixar_merge.py:226: RuntimeWarning: invalid value encountered in divide
+  'anomPct': arr(np.where(clim > 1, 100 * (atual - clim) / clim, np.nan)),
+  2025-07.json: mensal (pacum); acumulado na caixa 0 a 192 mm (média 19)
+  2025-08.json: mensal (pacum); acumulado na caixa 0 a 202 mm (média 10)
+  2025-09.json: mensal (pacum); acumulado na caixa 0 a 296 mm (média 31)
+  2025-10.json: mensal (pacum); acumulado na caixa 0 a 297 mm (média 64)
+  2025-11.json: mensal (pacum); acumulado na caixa 0 a 303 mm (média 98)
+  2025-12.json: mensal (pacum); acumulado na caixa 3 a 404 mm (média 136)
+  2026-01.json: mensal (pacum); acumulado na caixa 2 a 535 mm (média 165)
+  2026-02.json: mensal (pacum); acumulado na caixa 3 a 613 mm (média 157)
+  2026-03.json: mensal (pacum); acumulado na caixa 0 a 667 mm (média 128)
+  2026-04.json: mensal (pacum); acumulado na caixa 0 a 309 mm (média 45)
+  2026-05.json: mensal (pacum); acumulado na caixa 0 a 337 mm (média 39)
+  2026-06.json: mensal (pacum); acumulado na caixa 0 a 269 mm (média 42)
+/home/runner/work/ferramentas-meteorologia-patrick/ferramentas-meteorologia-patrick/scripts/baixar_merge.py:226: RuntimeWarning: divide by zero encountered in divide
+  'anomPct': arr(np.where(clim > 1, 100 * (atual - clim) / clim, np.nan)),
+  2026-07.json: mensal (pacum); acumulado na caixa 0 a 379 mm (média 19)
+  2026-08.json: mensal (pacum); acumulado na caixa 0 a 268 mm (média 25)
+  2026-09.json: mensal (pacum); acumulado na caixa 0 a 521 mm (média 90)
+  2026-10.json: mensal (pacum); acumulado na caixa 1 a 550 mm (média 127)
+/home/runner/work/ferramentas-meteorologia-patrick/ferramentas-meteorologia-patrick/scripts/baixar_merge.py:243: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  json.dump({'meses': indice, 'atualizado': datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}, f, ensure_ascii=False, indent=0)
+ok: 22 meses gravados
