@@ -1,0 +1,25 @@
+== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/
+   12 itens; primeiros: ['ANOMALY/', 'CLIMATOLOGY/', 'DAILY/', 'HOURLY/', 'HOURLY_NOW/', 'MERGE_READ-ME.pdf', 'PET/', 'Rozante.2024.pdf'] ; últimos: ['PET/', 'Rozante.2024.pdf', 'Rozante_et.al.2010.pdf', 'Rozante_et.al.2020.pdf', 'SPEI/', 'SPI/']
+== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/DAILY/
+   33 itens; primeiros: ['1998/', '1999/', '2000/', '2001/', '2002/', '2003/', '2004/', '2005/'] ; últimos: ['2025/', '2026/', 'GLOBO/', 'MERGE_CPTEC.ctl', 'MERGE_CPTEC.idx', 'MERGE_NEW_1998_2024.tar.gz']
+== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/DAILY/2026/
+   11 itens; primeiros: ['01/', '02/', '03/', '04/', '05/', '06/', '07/', '08/'] ; últimos: ['06/', '07/', '08/', '09/', '10/', '11/']
+== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/DAILY/2026/10/
+   93 itens; primeiros: ['MERGE_CPTEC_20261001.ctl', 'MERGE_CPTEC_20261001.grib2', 'MERGE_CPTEC_20261001.idx', 'MERGE_CPTEC_20261002.ctl', 'MERGE_CPTEC_20261002.grib2', 'MERGE_CPTEC_20261002.idx', 'MERGE_CPTEC_20261003.ctl', 'MERGE_CPTEC_20261003.grib2'] ; últimos: ['MERGE_CPTEC_20261030.ctl', 'MERGE_CPTEC_20261030.grib2', 'MERGE_CPTEC_20261030.idx', 'MERGE_CPTEC_20261031.ctl', 'MERGE_CPTEC_20261031.grib2', 'MERGE_CPTEC_20261031.idx']
+== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/MONTHLY/
+   0 itens; primeiros: [] ; últimos: []
+   ERRO HTTP Error 404: Not Found
+== https://ftp.cptec.inpe.br/modelos/tempo/MERGE/GPM/CLIMATOLOGY/
+   8 itens; primeiros: ['ANOMALY_MONTHLY_ACCUMULATED_YEARLY/', 'DAILY_AVERAGE/', 'MONTHLY_ACCUMULATED/', 'MONTHLY_ACCUMULATED_YEARLY/', 'MONTHLY_AVERAGE/', 'MONTHLY_AVERAGE_YEARLY/', 'SCR/', 'YEAR_ACCUMULATED/'] ; últimos: ['MONTHLY_ACCUMULATED/', 'MONTHLY_ACCUMULATED_YEARLY/', 'MONTHLY_AVERAGE/', 'MONTHLY_AVERAGE_YEARLY/', 'SCR/', 'YEAR_ACCUMULATED/']
+== https://data.chc.ucsb.edu/products/CHIRPS/v3.0/monthly/
+   0 itens; primeiros: [] ; últimos: []
+   ERRO <urlopen error timed out>
+== https://data.chc.ucsb.edu/products/CHIRPS/v3.0/monthly/global/
+   0 itens; primeiros: [] ; últimos: []
+   ERRO <urlopen error timed out>
+== https://data.chc.ucsb.edu/products/CHIRPS/v3.0/monthly/global/tifs/
+   0 itens; primeiros: [] ; últimos: []
+   ERRO <urlopen error timed out>
+== https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_monthly/tifs/
+   0 itens; primeiros: [] ; últimos: []
+   ERRO <urlopen error timed out>
