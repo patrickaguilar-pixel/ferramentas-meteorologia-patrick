@@ -45,7 +45,14 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          mkdir -p monitor-climatico/dados/merge && git add monitor-climatico/dados/merge
-          git diff --cached --quiet && exit 0
-          git commit -qm "Monitor Climático: MERGE atualizado ($(date -u '+%Y-%m-%d %H:%M UTC'))"
-          for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 5; done
+          mkdir -p /tmp/saida-merge && cp -r monitor-climatico/dados/merge/. /tmp/saida-merge/ 2>/dev/null || true
+          for i in 1 2 3 4; do
+            git fetch -q origin main && git reset -q --hard origin/main
+            mkdir -p monitor-climatico/dados/merge && cp -r /tmp/saida-merge/. monitor-climatico/dados/merge/
+            git add monitor-climatico/dados/merge
+            git diff --cached --quiet && exit 0
+            git commit -qm "Monitor Climático: MERGE atualizado ($(date -u '+%Y-%m-%d %H:%M UTC'))"
+            git push -q && exit 0
+            sleep 7
+          done
+          exit 1

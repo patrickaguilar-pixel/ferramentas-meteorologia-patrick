@@ -118,7 +118,7 @@
   // estações de MG e entorno do próprio mês (o viés comum entre satélite e estação sai pela mediana).
   // Forte: |z| ≥ 3,5 e |r| ≥ máx(25 mm, 50 % do MERGE). Atenção: |z| ≥ 2,5 e |r| ≥ 15 mm. Zero na estação com
   // MERGE ≥ 20 mm também é forte (falha de registro típica). Precisa de pelo menos 15 estações.
-  var QC_SAT = { zForte: 3.5, zAtencao: 2.5, minForte: 25, fracForte: 0.5, minAtencao: 15, zeroSat: 20, minEst: 15 };
+  var QC_SAT = { zForte: 3.5, zAtencao: 2.5, minForte: 25, fracForte: 0.5, minAtencao: 15, fracAtencao: 0.3, zeroSat: 20, minEst: 15 };
   function testeSatelite(lista) {   // lista: [{ chave, v, sat }]
     var ok = lista.filter(function (e) { return isFinite(e.v) && isFinite(e.sat); });
     if (ok.length < QC_SAT.minEst) return { aplicado: false, motivo: 'menos de ' + QC_SAT.minEst + ' estações com MERGE', res: {} };
@@ -129,7 +129,7 @@
       var d = e.v - e.sat, z = (d - med) / mad, g = null, txt = '';
       if (e.v <= 0.05 && e.sat >= QC_SAT.zeroSat) { g = 'forte'; txt = '0 mm na estação e ' + Math.round(e.sat) + ' mm no MERGE'; }
       else if (Math.abs(z) >= QC_SAT.zForte && Math.abs(d) >= Math.max(QC_SAT.minForte, QC_SAT.fracForte * e.sat)) { g = 'forte'; txt = 'Diferença de ' + Math.round(d) + ' mm para o MERGE (escore ' + z.toFixed(1).replace('.', ',') + ')'; }
-      else if (Math.abs(z) >= QC_SAT.zAtencao && Math.abs(d) >= QC_SAT.minAtencao) { g = 'atencao'; txt = 'Diferença de ' + Math.round(d) + ' mm para o MERGE (escore ' + z.toFixed(1).replace('.', ',') + ')'; }
+      else if (Math.abs(z) >= QC_SAT.zAtencao && Math.abs(d) >= Math.max(QC_SAT.minAtencao, QC_SAT.fracAtencao * Math.max(e.v, e.sat))) { g = 'atencao'; txt = 'Diferença de ' + Math.round(d) + ' mm para o MERGE (escore ' + z.toFixed(1).replace('.', ',') + ')'; }
       res[e.chave] = { d: d, z: z, g: g, txt: txt };
     });
     return { aplicado: true, mediana: med, mad: mad, n: ok.length, res: res };
