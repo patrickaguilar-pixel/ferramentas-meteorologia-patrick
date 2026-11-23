@@ -1,0 +1,51 @@
+name: Chuva do MERGE (Monitor Climático)
+
+# Baixa o MERGE (CPTEC/INPE: satélite GPM-IMERG + pluviômetros, 0,1°) e grava, para cada mês desde jan/2025,
+# acumulado, climatologia 1998-2025, anomalia, percentil, tercil e SPI-1/3/6 do recorte de Minas
+# (monitor-climatico/dados/merge/). Os arquivos baixados ficam no cache do GitHub para não baixar tudo de novo.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 11 * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/dados-merge.yml"
+      - "scripts/baixar_merge.py"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dados-merge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Cache dos arquivos do MERGE
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: /tmp/merge-cache
+          key: merge-${{ github.run_id }}
+          restore-keys: merge-
+      - name: Dependências (ambiente isolado, versões fixas)
+        run: python3 -m venv /tmp/venv && /tmp/venv/bin/pip install --quiet numpy==2.1.3 scipy==1.14.1 netCDF4==1.7.2 eccodes==2.39.0 eccodeslib==2.39.0
+      - name: Baixar e calcular
+        run: |
+          mkdir -p monitor-climatico/dados/merge
+          set -o pipefail
+          /tmp/venv/bin/python scripts/baixar_merge.py monitor-climatico/dados/merge /tmp/merge-cache 2>&1 | tee monitor-climatico/dados/merge/registro.txt
+      - name: Gravar (o registro vai mesmo se falhar)
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add monitor-climatico/dados/merge
+          git diff --cached --quiet && exit 0
+          git commit -qm "Monitor Climático: MERGE atualizado ($(date -u '+%Y-%m-%d %H:%M UTC'))"
+          for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 5; done
