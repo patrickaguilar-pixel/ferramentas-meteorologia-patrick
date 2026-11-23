@@ -292,6 +292,12 @@
 
   /* ---------------- prévia do mapa (da aba aberta) ---------------- */
   // seletores dos mapas/páginas que a ferramenta mostra na tela; aparece a que estiver visível.
+  // Monitor Climático (23/11/2026): as etapas 1 e 2 são as dos Mapas Climáticos; a aba 3 tem o produto aberto (PNG, GeoTIFF, ASCII)
+  MATERIAIS['monitor-climatico'] = MATERIAIS['mapas-climaticos'].concat([
+    { id: 'monPng', nome: 'Monitoramento: produto aberto (em avaliação)', tipo: 'PNG', desc: 'Categoria, SPI, MERGE, estações + satélite, incerteza ou dias ≥ 30 °C', vista: '#abaMonitor', onde: '3 · Monitoramento', aba: '#abaMonitorBtn', precisa: 'Abra a aba 3; a conferência precisa estar concluída (produtos do MERGE não dependem dela)' },
+    { id: 'monTif', nome: 'Monitoramento: grade do produto', tipo: 'GeoTIFF', vista: '#abaMonitor', onde: '3 · Monitoramento', aba: '#abaMonitorBtn', precisa: 'Abra a aba 3 e espere o mapa' },
+    { id: 'monValCsv', nome: 'Histórico da validação mês a mês', tipo: 'CSV', vista: '#abaMonitor', onde: '3 · Monitoramento', aba: '#abaMonitorBtn', precisa: 'Registre ao menos um mês' }
+  ]);
   var PREVIAS = {
     'previsao': [['#paper svg', 'Mapa do dia'], ['#bPages .a4 svg', 'Boletim (página 1)'], ['#cPages .a4 svg', 'Previsão por cidade (página 1)']],
     'tempo-severo': [[null, 'Mapa final', layoutAoVivo]],   // 09/11: sem o painel na tela, monta na hora
@@ -300,6 +306,7 @@
     'curto-prazo': [['#cpMapaA img', 'Mapa'], ['#cpMapaB img', 'WRF']],
     'umidade-minima': [['#urMapa img', 'Mapa de umidade mínima'], ['#relCanvas', 'Relatório (página 1)']],
     'mapas-climaticos': [['#mcMapa img', 'Mapa'], ['#mcEstSvg', 'Estações']],
+    'monitor-climatico': [['#mcMapa img', 'Mapa (aba 2)'], ['#monMapa img', 'Monitoramento'], ['#mcEstSvg', 'Estações']],
     'reservatorios': [['#resCanvas', 'Reservatórios'], ['#wk1Canvas', 'Week 1'], ['#wk2Canvas', 'Week 2'],
       ['#a24Canvas', '24 h'], ['#a72Canvas', '3 dias'], ['#a120Canvas', '5 dias'], ['#brMapa img', 'Barragens e municípios']]
   };
@@ -404,7 +411,7 @@
   function fechar() { fundo.classList.remove('on'); if (botao) botao.focus(); }
   function aberto() { return !!(fundo && fundo.classList.contains('on')); }
 
-  var NOMES = { 'previsao': 'Previsão diária', 'tempo-severo': 'Tempo Severo', 'chuva': 'Chuva e Tendência', 'alertas': 'Alertas', 'reservatorios': 'Reservatórios e Tendência', 'curto-prazo': 'Curto Prazo', 'umidade-minima': 'Umidade Mínima', 'mapas-climaticos': 'Mapas Climáticos' };
+  var NOMES = { 'previsao': 'Previsão diária', 'tempo-severo': 'Tempo Severo', 'chuva': 'Chuva e Tendência', 'alertas': 'Alertas', 'reservatorios': 'Reservatórios e Tendência', 'curto-prazo': 'Curto Prazo', 'umidade-minima': 'Umidade Mínima', 'mapas-climaticos': 'Mapas Climáticos', 'monitor-climatico': 'Monitor Climático' };
   function nomeDoMapa() {   // ferramenta · aba aberta (ex.: "Previsão diária · Boletim em PDF")
     var aba = document.querySelector('[role=tab][aria-selected=true], .tab.active');
     var t = aba ? aba.textContent.replace(/\s+/g, ' ').trim() : '';

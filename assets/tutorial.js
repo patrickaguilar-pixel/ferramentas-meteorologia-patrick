@@ -208,6 +208,12 @@
       { s: '#mcMapa', t: 'Mapa', d: 'Layout de impressão, igual ao PNG. A Prévia do mapa mostra em tamanho grande.' },
       { s: '#mcMesoBody', t: 'Mesorregiões', d: 'Média, mínimo e máximo do mapa em cada mesorregião. Sai no CSV.' },
       SALVAR
+    ],
+    'monitor-climatico': [
+      { s: '#mcDrop', t: 'Arquivos do mês', d: 'Os 4 TXT da planilha. O satélite MERGE do mês carrega sozinho.' },
+      { s: '#monMergeSt', t: 'Satélite (MERGE)', d: 'Mostra se o MERGE do mês está disponível. Com ele, cada estação de chuva também é comparada com o satélite.' },
+      { s: '#mcEstBody', t: 'Conferência', d: 'Os alertas "Satélite (MERGE)" entram na decisão como os outros: manter ou retirar, com o motivo.' },
+      { s: '#abaMonitorBtn', t: 'Monitoramento', d: 'Categoria do mês, SPI, estações + satélite, incerteza, dias ≥ 30 °C, resumo, texto do boletim e validação mês a mês.' }
     ]
   };
 
