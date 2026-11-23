@@ -34,7 +34,7 @@ jobs:
           key: merge-${{ github.run_id }}
           restore-keys: merge-
       - name: Dependências (ambiente isolado, versões fixas)
-        run: python3 -m venv /tmp/venv && /tmp/venv/bin/pip install --quiet numpy==2.1.3 scipy==1.14.1 netCDF4==1.7.2 eccodes==2.39.0 eccodeslib==2.39.0
+        run: python3 -m venv /tmp/venv && /tmp/venv/bin/pip install --quiet numpy==2.1.3 scipy==1.14.1 netCDF4==1.7.2 eccodes==2.44.0 eccodeslib==2.50.0.34
       - name: Baixar e calcular
         run: |
           mkdir -p monitor-climatico/dados/merge
@@ -45,7 +45,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add monitor-climatico/dados/merge
+          mkdir -p monitor-climatico/dados/merge && git add monitor-climatico/dados/merge
           git diff --cached --quiet && exit 0
           git commit -qm "Monitor Climático: MERGE atualizado ($(date -u '+%Y-%m-%d %H:%M UTC'))"
           for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 5; done
