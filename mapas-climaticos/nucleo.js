@@ -576,7 +576,7 @@
       credito: 'Dados: INMET', piso: 0 },
     // climatologia (normal 1991-2020 do INMET) do mês, coluna CLIMATOLOGIA do TXT de precipitação; sem ano no título
     clima: { arq: 'PREC', campo: 'clim', titulo: 'Climatologia de Precipitação', sigla: 'CLIMA_PREC', unidade: 'mm', legenda: 'Precipitação (mm)', semAno: true,
-      escala: { tipo: 'variavel', rampa: 'greens8', classes: 10, passos: [5, 10, 20, 25, 50, 100], minimo: 0 },
+      escala: { tipo: 'variavel', rampa: 'blues12', classes: 10, passos: [5, 10, 20, 25, 50, 100], minimo: 0 },   // 24/11/2026: mesma paleta do Acumulado (PREC), pedido da equipe
       credito: 'Climatologia: 1991-2020 - INMET', piso: 0 },
     aprec: { arq: 'PREC', campo: 'anomPct', titulo: 'Anomalia de Precipitação Mensal', sigla: 'A_PREC', unidade: '%', legenda: 'Anomalia (%)',
       // ESCALA_APREC_EXTENSA_90_90.txt (igual ao mapa oficial de set/2026)
