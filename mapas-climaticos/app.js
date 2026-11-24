@@ -527,9 +527,9 @@
     var rec = metodo === 'rec' ? SUFIXO_REC[N.RECOMENDADO[p].metodo] : null;
     var dias = N.diasNoMes(per.mes, per.ano), mm = ('0' + per.mes).slice(-2);
     var op = {
-      titulo: P.titulo + ' - ' + N.MESES_BR[per.mes - 1] + (P.semAno ? '' : ' de ' + per.ano) + (krig ? ' (Krigagem)' : rec ? rec.titulo : ''),
+      titulo: P.titulo + ' - ' + N.MESES_BR[per.mes - 1] + (P.semAno ? '' : ' de ' + per.ano),   // 24/11/2026: método sai do título e fica só na legenda (créditos)
       textoValidade: P.semAno ? 'NORMAL CLIMATOLÓGICA 1991-2020 (INMET)' : 'PERÍODO: 01/' + mm + '/' + per.ano + ' a ' + dias + '/' + mm + '/' + per.ano,
-      credito: P.credito + (krig ? ' · Interpolação: krigagem ordinária (em avaliação)' : rec ? ' · Interpolação: ' + rec.credito + ' (em avaliação)' : '') + ' - SIMGE/IGAM, ' + new Date().getFullYear(),
+      credito: P.credito + (krig ? ' · Interpolação: krigagem ordinária' : rec ? ' · Interpolação: ' + rec.credito : '') + ' - SIMGE/IGAM, ' + new Date().getFullYear(),
       fundo: '',
       areas: areas(grade, es),
       legenda: es.rotulos.map(function (l, i) { return { fill: es.cores[i], label: l + ' ' + P.unidade }; }),

@@ -99,7 +99,7 @@
     spi3: { nome: 'SPI-3 (MERGE)', sigla: 'SPI3_MERGE', fonte: 'merge', camada: 'spi3', titulo: 'Índice de Precipitação Padronizado - 3 meses', credito: 'Dados: MERGE/CPTEC-INPE · SPI (McKee et al., 1993) · Base 1998-2025', precisaMerge: true },
     spi6: { nome: 'SPI-6 (MERGE)', sigla: 'SPI6_MERGE', fonte: 'merge', camada: 'spi6', titulo: 'Índice de Precipitação Padronizado - 6 meses', credito: 'Dados: MERGE/CPTEC-INPE · SPI (McKee et al., 1993) · Base 1998-2025', precisaMerge: true },
     accMerge: { nome: 'Acumulado (MERGE)', sigla: 'PREC_MERGE', fonte: 'merge', camada: 'acum', unidade: 'mm', titulo: 'Acumulado de Precipitação (MERGE)', credito: 'Dados: MERGE/CPTEC-INPE (GPM-IMERG + pluviômetros)', precisaMerge: true },
-    ked: { nome: 'Acumulado: estações + satélite', sigla: 'PREC_EST_SAT', fonte: 'ked', unidade: 'mm', titulo: 'Acumulado de Precipitação (estações + satélite)', credito: 'Dados: INMET e MERGE/CPTEC-INPE · Interpolação: regressão com o MERGE + krigagem dos resíduos (em avaliação)', precisaMerge: true },
+    ked: { nome: 'Acumulado: estações + satélite', sigla: 'PREC_EST_SAT', fonte: 'ked', unidade: 'mm', titulo: 'Acumulado de Precipitação', credito: 'Dados: INMET e MERGE/CPTEC-INPE · Interpolação: regressão com o MERGE + krigagem dos resíduos', precisaMerge: true },
     sigma: { nome: 'Incerteza do acumulado', sigla: 'INCERTEZA_PREC', fonte: 'sigma', unidade: 'mm', titulo: 'Incerteza da Interpolação do Acumulado (desvio-padrão da krigagem)', credito: 'Dados: INMET · Krigagem ordinária' },
     dias30: { nome: 'Dias com máxima ≥ 30 °C', sigla: 'DIAS_TMAX30', fonte: 'est30', unidade: 'dias', titulo: 'Dias com Temperatura Máxima ≥ 30 °C', credito: 'Dados: INMET (coluna "Dias que Tmáx ≥ 30" do TXT)' }
   };
