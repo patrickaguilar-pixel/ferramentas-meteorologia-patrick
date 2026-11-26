@@ -7,10 +7,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/06/gfs.t06z.totp.week1.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/06/gfs_precip_week1_samerica.html",
       "texto_alternativo": "GFS Week1 Total Precp",
-      "atualizado_no_cpc": "2026-11-25T11:58:57+00:00",
-      "baixado_em": "2026-11-25T21:40:29+00:00",
-      "bytes": 68282,
-      "sha256": "97acd10b0aded7bb81f1eda7f42147ef64d96eb07069f258aa899eb9ea69013a"
+      "atualizado_no_cpc": "2026-11-26T11:53:57+00:00",
+      "baixado_em": "2026-11-26T13:53:14+00:00",
+      "bytes": 69337,
+      "sha256": "7fd4ea8eb4038960008412a375f835c8710ba245e3c05eb9a1435e64a383e6cf"
     },
     "week2": {
       "descricao": "GFS Week 2",
@@ -18,10 +18,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/06/gfs.t06z.totp.week2.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/06/gfs_precip_week2_samerica.html",
       "texto_alternativo": "GFS Week2 Total Precp",
-      "atualizado_no_cpc": "2026-11-25T12:43:26+00:00",
-      "baixado_em": "2026-11-25T21:40:29+00:00",
-      "bytes": 70977,
-      "sha256": "f629de73bd46ba3ba9ab81660eb2ff9c08df888b9e733c15af5d12d5c9c3a4ae"
+      "atualizado_no_cpc": "2026-11-26T12:29:40+00:00",
+      "baixado_em": "2026-11-26T13:53:14+00:00",
+      "bytes": 71072,
+      "sha256": "c3733a2d19ef4c478fd5b52e38bd5cf9fd9c3f20e1a874116e4aae6253e0e56e"
     },
     "24h": {
       "descricao": "GFS 24 h",
@@ -29,10 +29,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/06/gfs.t06z.24h_totp.d1.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/06/gfs_precip_24h_samerica.html",
       "texto_alternativo": "GFS 24h Total Precipitation",
-      "atualizado_no_cpc": "2026-11-25T11:46:16+00:00",
-      "baixado_em": "2026-11-25T21:40:29+00:00",
-      "bytes": 49762,
-      "sha256": "3940ba6de0c6c78971ba4298d1101016974b22d881bc6cb5ece55832fa89af68"
+      "atualizado_no_cpc": "2026-11-26T11:42:35+00:00",
+      "baixado_em": "2026-11-26T13:53:14+00:00",
+      "bytes": 49396,
+      "sha256": "4ae826c03f247a273dfe7347e37bdf6f04a341a112e003507d981592f666a6b0"
     },
     "day3": {
       "descricao": "GFS 3 dias",
@@ -40,10 +40,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/06/gfs.t06z.totp.day3.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/06/gfs_precip_day3_samerica.html",
       "texto_alternativo": "GFS 3-day Total Precp",
-      "atualizado_no_cpc": "2026-11-25T11:55:01+00:00",
-      "baixado_em": "2026-11-25T21:40:29+00:00",
-      "bytes": 63712,
-      "sha256": "cf2df23c61393f1fbeef34e82aaa5f1ccfc91feed3a779a2a20489d970a4e958"
+      "atualizado_no_cpc": "2026-11-26T11:51:22+00:00",
+      "baixado_em": "2026-11-26T13:53:14+00:00",
+      "bytes": 62988,
+      "sha256": "fa1192e8a64aeaaf94649428a623351988b2bdb7a278d426e0e18bb9aed9fe51"
     },
     "day5": {
       "descricao": "GFS 5 dias",
@@ -51,10 +51,10 @@
       "origem": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/06/gfs.t06z.totp.day5.samerica.gif",
       "pagina": "https://www.cpc.ncep.noaa.gov/products/international/cpci/data/06/gfs_precip_day5_samerica.html",
       "texto_alternativo": "GFS 5-day Total Precp",
-      "atualizado_no_cpc": "2026-11-25T12:39:32+00:00",
-      "baixado_em": "2026-11-25T21:40:29+00:00",
-      "bytes": 66129,
-      "sha256": "aeedd48590de78b00edc5a6d7300246e54840e71a23dac666d072ba2d0266745"
+      "atualizado_no_cpc": "2026-11-26T12:27:31+00:00",
+      "baixado_em": "2026-11-26T13:53:14+00:00",
+      "bytes": 64422,
+      "sha256": "6d0c24ce163fc76894d7488e26336b61d9ae3b5c8368f6e941b1a8f818edd566"
     },
     "prob100_week1": {
       "descricao": "GEFS prob. >100 mm Week 1",
@@ -79,5 +79,5 @@
       "sha256": "707daa1ec88b2f33a49f6b7be7a4da0c8a337a62bcf42da9393c4eab40998f2e"
     }
   },
-  "atualizado_em": "2026-11-25T21:40:29+00:00"
+  "atualizado_em": "2026-11-26T13:53:14+00:00"
 }
